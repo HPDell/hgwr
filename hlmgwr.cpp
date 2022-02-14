@@ -337,6 +337,7 @@ int main(int argc, char *argv[])
     desc.add_options()
         ("data-dir,d", boost::program_options::value<string>(), "Data directory")
         ("bandwidth,b", boost::program_options::value<double>(), "Bandwidth")
+        ("alpha,a", boost::program_options::value<double>()->default_value(0.01), "Learning speed")
         ("eps,e", boost::program_options::value<double>()->default_value(1e-6, "1e-6"), "Coverage threshold")
         ("maxiters,m", boost::program_options::value<size_t>()->default_value(1e6, "1e6"), "Maximum iteration")
         ("verbose,v", "Print algorithm details.")
@@ -344,7 +345,7 @@ int main(int argc, char *argv[])
     boost::program_options::variables_map var_map;
     boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), var_map);
     boost::program_options::notify(var_map);
-    double eps;
+    double alpha, eps;
     size_t max_iters;
     bool verbose;
     if (var_map.count("help") > 0)
@@ -364,6 +365,7 @@ int main(int argc, char *argv[])
         cout << "Argument data-dir must be specified!" << endl;
         return 2;
     }
+    if (var_map.count("alpha") > 0) alpha = var_map["alpha"].as<double>();
     if (var_map.count("eps") > 0) eps = var_map["eps"].as<double>();
     if (var_map.count("maxiters") > 0) max_iters = var_map["maxiters"].as<size_t>();
     if (var_map.count("verbose") > 0) verbose = true;
@@ -380,7 +382,7 @@ int main(int argc, char *argv[])
     y.load(arma::csv_name(string(data_dir) + "/hlmgwr_y.csv"));
     group.load(arma::csv_name(string(data_dir) + "/hlmgwr_group.csv"));
     HLMGWRArgs alg_args = { G, X, Z, y, u, group, bw };
-    HLMGWRParams alg_params = backfitting_maximum_likelihood(alg_args, eps, max_iters, verbose);
+    HLMGWRParams alg_params = backfitting_maximum_likelihood(alg_args, alpha, eps, max_iters, verbose);
     alg_params.gamma.save(arma::csv_name(string(data_dir) + "/hlmgwr_hat_gamma.csv"));
     alg_params.beta.save(arma::csv_name(string(data_dir) + "/hlmgwr_hat_beta.csv"));
     alg_params.mu.save(arma::csv_name(string(data_dir) + "/hlmgwr_hat_mu.csv"));
