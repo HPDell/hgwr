@@ -267,7 +267,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
     uword ngroup = G.n_rows, ndata = X.n_rows;
     uword nvg = G.n_cols, nvx = X.n_cols, nvz = Z.n_cols;
     mat gamma(ngroup, nvg, arma::fill::zeros);
-    vec beta(nvx, arma::fill::ones);
+    vec beta(nvx, arma::fill::zeros);
     mat mu(ngroup, nvz, arma::fill::zeros);
     mat D(nvz, nvz, arma::fill::eye);
     mat gmap(ndata, ngroup, arma::fill::zeros);
@@ -276,6 +276,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         gmap.col(i) = conv_to<vec>::from(group == i);
     }
     vec N = sum(gmap, 0).t();
+    // vec N(ngroup, arma::fill::ones);
     field<mat> Zf(ngroup), Xf(ngroup);
     field<vec> Yf(ngroup), Ygf(ngroup), Yhf(ngroup);
     for (uword i = 0; i < ngroup; i++)
