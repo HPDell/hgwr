@@ -56,7 +56,7 @@ mat fit_gwr(const mat& G, const field<vec>& fY, const field<mat>& fZ, const mat&
         vec d2 = sum(d_u % d_u, 1);
         double b2 = vec(sort(d2))[(int)bw];
         vec wW = exp(- d2 / (2.0 * b2));
-        mat GtWVG = G.t() * (G.each_col() % (wW % wSDS % wN));
+        mat GtWVG = G.t() * (G.each_col() % (wW % wSDS + wW % wN));
         mat GtWVy = G.t() * (wW % wSDZy) + G.t() * (wW % wN % ybar);
         beta.row(i) = solve(GtWVG, GtWVy).t();
     }
