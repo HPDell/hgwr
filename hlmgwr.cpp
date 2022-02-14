@@ -187,7 +187,7 @@ void loglikelihood_ml_fd_gsl(const gsl_vector* v, void* p, double *f, gsl_vector
     loglikelihood_ml_d_gsl(v, p, df);
 }
 
-mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata, const double& eps, const size_t& max_iters)
+mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata, const double& alpha, const double& eps, const size_t& max_iters)
 {
     uword q = D.n_cols, ntarget = q * (q + 1) / 2;
     ML_D_Params* params = new ML_D_Params();
@@ -209,10 +209,10 @@ mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, cons
     for (uword i = 0; i < ntarget; i++)
     {
         gsl_vector_set(target, i, D_tril_vec(i));
-        gsl_vector_set(step_size, i, 0.001);
+        gsl_vector_set(step_size, i, alpha);
     }
     gsl_multimin_fdfminimizer *minimizer = gsl_multimin_fdfminimizer_alloc(gsl_multimin_fdfminimizer_conjugate_fr, ntarget);
-    gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, 0.001, eps);
+    gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, alpha, eps);
     size_t iter = 0;
     int status;
     do
@@ -314,7 +314,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         //------------------------------------
         // Maximum Likelihood Estimation for D
         //------------------------------------
-        D = fit_D(Xf, Yhf, Zf, D, beta, ndata, eps_gradient, max_iters);
+        D = fit_D(Xf, Yhf, Zf, D, beta, ndata, alpha, eps_gradient, max_iters);
         mu = fit_mu(Xf, Yhf, Zf, beta, D);
         //------------------------------
         // Calculate Termination Measure
