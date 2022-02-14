@@ -251,7 +251,7 @@ mat fit_mu(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, con
     return mu;
 }
 
-HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double eps, size_t max_iters, bool verbose) 
+HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha, double eps, size_t max_iters, bool verbose) 
 {
     //===============
     // Prepare Matrix
