@@ -324,7 +324,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         diff = abs(rss - rss0);
         if (verbose)
         {
-            std::cout << "RSS: " << fixed << setprecision(6) << rss <<", diff: " << diff << endl;
+            std::cout << "RSS: " << fixed << setprecision(6) << rss << ", diff: " << diff << endl;
         }
     }
     return { gamma, beta, mu, D };
