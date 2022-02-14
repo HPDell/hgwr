@@ -266,7 +266,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double eps, 
     uword ngroup = G.n_rows, ndata = X.n_rows;
     uword nvg = G.n_cols, nvx = X.n_cols, nvz = Z.n_cols;
     mat gamma(ngroup, nvg, arma::fill::zeros);
-    vec beta(nvx, arma::fill::zeros);
+    vec beta(nvx, arma::fill::ones);
     mat mu(ngroup, nvz, arma::fill::zeros);
     mat D(nvz, nvz, arma::fill::eye);
     mat gmap(ndata, ngroup, arma::fill::zeros);
