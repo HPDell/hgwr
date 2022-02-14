@@ -324,7 +324,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         diff = abs(rss - rss0);
         if (verbose)
         {
-            std::cout << "RSS:" << fixed << setprecision(6) << rss <<", diff:" << diff << endl;
+            std::cout << "RSS: " << fixed << setprecision(6) << rss <<", diff: " << diff << endl;
         }
     }
     return { gamma, beta, mu, D };
@@ -383,6 +383,20 @@ int main(int argc, char *argv[])
     group.load(arma::csv_name(string(data_dir) + "/hlmgwr_group.csv"));
     HLMGWRArgs alg_args = { G, X, Z, y, u, group, bw };
     HLMGWRParams alg_params = backfitting_maximum_likelihood(alg_args, alpha, eps, max_iters, verbose);
+    // Diagnostic
+    const mat &gamma = alg_params.gamma, &beta = alg_params.beta, &mu = alg_params.mu, &D = alg_params.D;
+    uword ngroup = G.n_rows, ndata = y.n_rows;
+    vec yhat(ndata, arma::fill::zeros);
+    for (uword i = 0; i < ngroup; i++)
+    {
+        uvec ind = find(group == i);
+        yhat(ind) = as_scalar(G.row(i) * gamma.row(i).t()) + X.rows(ind) * beta + Z.rows(ind) * mu.row(i).t();
+    }
+    vec residual = y - yhat;
+    vec deviation = y - mean(y);
+    double rss = 1 - sum(residual % residual) / sum(deviation % deviation);
+    cout << "Rsquared: " << rss << endl;
+    // Save coefficients
     alg_params.gamma.save(arma::csv_name(string(data_dir) + "/hlmgwr_hat_gamma.csv"));
     alg_params.beta.save(arma::csv_name(string(data_dir) + "/hlmgwr_hat_beta.csv"));
     alg_params.mu.save(arma::csv_name(string(data_dir) + "/hlmgwr_hat_mu.csv"));
