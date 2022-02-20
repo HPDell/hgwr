@@ -24,6 +24,17 @@ struct ML_D_Params
 };
 
 
+inline vec gwr_kernel_gaussian2(vec dist2, double bw2)
+{
+    return exp(- dist2 / (2.0 * bw2));
+}
+
+inline vec gwr_kernel_bisquare2(vec dist2, double bw2)
+{
+    return ((1 - dist2 / bw2) % (1 - dist2 / bw2)) % (dist2 < bw2);
+}
+
+
 /**
  * @brief Estimate $\gamma$.
  * 
@@ -48,8 +59,9 @@ mat fit_gwr(const mat& G, const field<vec>& Yf, const field<mat>& Zf, const mat&
         const mat& Zi = Zf(i);
         uword ndata = Zi.n_rows;
         mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
-        Vig.row(i) = accu(Vi_inv) * G.row(i);
-        Viy(i) = as_scalar(sum(Vi_inv, 0) * Yi);
+        mat Visigma = ones(1, ndata) * Vi_inv;
+        Vig.row(i) = Visigma * ones(ndata, 1) * G.row(i);
+        Viy(i) = as_scalar(Visigma * Yi);
     }
     /// Calibrate for each gorup.
     for (int i = 0; i < ng; i++)
@@ -57,7 +69,7 @@ mat fit_gwr(const mat& G, const field<vec>& Yf, const field<mat>& Zf, const mat&
         mat d_u = u.each_row() - u.row(i);
         vec d2 = sum(d_u % d_u, 1);
         double b2 = vec(sort(d2))[(int)bw];
-        vec wW = exp(- d2 / (2.0 * b2));
+        vec wW = gwr_kernel_bisquare2(d2, b2);
         mat GtWVG = G.t() * (Vig.each_col() % wW);
         mat GtWVy = G.t() * (Viy % wW);
         beta.row(i) = solve(GtWVG, GtWVy).t();
