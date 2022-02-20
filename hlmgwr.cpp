@@ -337,7 +337,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         //----------------------------------------------
         // Generalized Least Squared Estimation for beta
         //----------------------------------------------
-        beta = fit_gls(Xf, Yf, Zf, eye(size(D)));
+        beta = fit_gls(Xf, Yf, Zf, D);
         //------------------------------------
         // Maximum Likelihood Estimation for D
         //------------------------------------
