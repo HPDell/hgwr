@@ -88,14 +88,14 @@ double loglikelihood_ml(const field<mat>& Xf, const field<vec>& Yf, const field<
 {
     uword ngroup = Xf.n_rows;
     mat D_inv = D.i();
-    double L1 = 0.0, L2 = 0.0;
+    double L1 = 0.0, L2 = 0.0, n = (double)ndata;
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Xi = Xf(i);
         const vec& Yi = Yf(i);
         const mat& Zi = Zf(i);
-        uword ndata = Zi.n_rows;
-        mat Ii = eye<mat>(ndata, ndata);
+        uword nidata = Zi.n_rows;
+        mat Ii = eye<mat>(nidata, nidata);
         mat Vi = ((Zi * D) * Zi.t()) + Ii;
         double detVi, sign_detVi;
         log_det(detVi, sign_detVi, Vi);
@@ -104,39 +104,34 @@ double loglikelihood_ml(const field<mat>& Xf, const field<vec>& Yf, const field<
         L1 += as_scalar(Ri.t() * Vi_inv * Ri);
         L2 += detVi;
     }
-    double LL = - (ndata / 2.0) * log(L1) - 0.5 * L2 - 0.5 - 0.5 * log2pi + (ndata / 2.0) * log(ndata);
-    return LL;
+    double LL = - (n / 2.0) * log(L1) - 0.5 * L2 - 0.5 - 0.5 * log2pi + (n / 2.0) * log(n);
+    return -LL;
 }
 
 mat loglikelihood_ml_d(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata)
 {
-    mat ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
-    mat J(1, 1, arma::fill::zeros);
     uword ngroup = Xf.n_rows;
-    field<mat> Kf(ngroup);
+    mat ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
+    mat KKt(arma::size(D), arma::fill::zeros);
+    double J = 0.0, n = (double)ndata;
+    // field<mat> Kf(ngroup);
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Xi = Xf(i);
         const mat& Yi = Yf(i);
         const mat& Zi = Zf(i);
-        uword ndata = Zi.n_rows;
-        mat Vi_inv = eye(ndata, ndata) - Zi * inv(D_inv + Zi.t() * Zi) * Zi.t();
+        uword nidata = Zi.n_rows;
+        mat Vi_inv = eye(nidata, nidata) - Zi * inv(D_inv + Zi.t() * Zi) * Zi.t();
         vec Ri = Yi - Xi * beta;
-        Kf(i) = Zi.t() * Vi_inv * Ri;
-        mat Ji = Ri.t() * Vi_inv * Ri;
+        mat Ki = Zi.t() * Vi_inv * Ri;
+        KKt += Ki * Ki.t();
         ZtViZ += Zi.t() * Vi_inv * Zi;
-        J += Ji;
+        J += as_scalar(Ri.t() * Vi_inv * Ri);
     }
-    mat J_inv = J.i();
-    mat KJKt(size(D), arma::fill::zeros);
-    for (uword i = 0; i < ngroup; i++)
-    {
-        const mat& Ki = Kf(i);
-        mat KJKt_i = Ki * J_inv * Ki.t();
-        KJKt += KJKt_i;
-    }
-    mat dL_D = (ndata / 2.0) * KJKt - 0.5 * ZtViZ;
-    return dL_D;
+    mat KJKt = KKt / J;
+    mat dL_D = ((- n / 2.0) * (-KJKt) - 0.5 * ZtViZ);
+    // dL_D.diag() /= 2.0;
+    return -dL_D;
 }
 
 double loglikelihood_ml_gsl(const gsl_vector* v, void* p)
@@ -217,11 +212,19 @@ mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, cons
     }
     gsl_multimin_fdfminimizer *minimizer = gsl_multimin_fdfminimizer_alloc(gsl_multimin_fdfminimizer_conjugate_fr, ntarget);
     gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, alpha, eps);
+    cout << setprecision(6) << fixed << minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << minimizer->x->data[2] << ",";
+    cout << setprecision(6) << fixed << minimizer->dx->data[0] << "," << minimizer->dx->data[1] << "," << minimizer->dx->data[2] << ",";
+    cout << setprecision(6) << fixed << minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << minimizer->gradient->data[2] << ",";
+    cout << minimizer->f << "," << endl;
     size_t iter = 0;
     int status;
     do
     {
         status = gsl_multimin_fdfminimizer_iterate(minimizer);
+        cout << setprecision(6) << fixed << minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << minimizer->x->data[2] << ",";
+        cout << setprecision(6) << fixed << minimizer->dx->data[0] << "," << minimizer->dx->data[1] << "," << minimizer->dx->data[2] << ",";
+        cout << setprecision(6) << fixed << minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << minimizer->gradient->data[2] << ",";
+        cout << minimizer->f << "," << endl;
         if (status) break;
         status = gsl_multimin_test_gradient(minimizer->gradient, eps);
     } while (status == GSL_CONTINUE && (++iter) < max_iters);
@@ -303,6 +306,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
             Ygf(i) = Yf(i) - Xf(i) * beta;
         }
         gamma = fit_gwr(G, Ygf, Zf, D, u, bw);
+        gamma.save(arma::csv_name("gamma.csv"));
         vec hatMg = sum(G % gamma, 1);
         vec hatM = hatMg.rows(group);
         vec yh = y - hatM;
@@ -313,11 +317,12 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         //----------------------------------------------
         // Generalized Least Squared Estimation for beta
         //----------------------------------------------
-        beta = fit_gls(Xf, Yf, Zf, D);
+        beta = fit_gls(Xf, Yf, Zf, eye(size(D)));
         //------------------------------------
         // Maximum Likelihood Estimation for D
         //------------------------------------
-        D = fit_D(Xf, Yhf, Zf, D, beta, ndata, alpha, eps_gradient, max_iters);
+        D = fit_D(Xf, Yhf, Zf, eye(size(D)), beta, ndata, alpha, eps_gradient, max_iters);
+        beta = fit_gls(Xf, Yf, Zf, D);
         mu = fit_mu(Xf, Yhf, Zf, beta, D);
         //------------------------------
         // Calculate Termination Measure
