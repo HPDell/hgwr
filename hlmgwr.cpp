@@ -117,7 +117,7 @@ double loglikelihood_ml(const field<mat>& Xf, const field<vec>& Yf, const field<
         L2 += detVi;
     }
     double LL = - (n / 2.0) * log(L1) - 0.5 * L2 - 0.5 - 0.5 * log2pi + (n / 2.0) * log(n);
-    return -LL;
+    return LL;
 }
 
 mat loglikelihood_ml_d(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata)
@@ -143,7 +143,7 @@ mat loglikelihood_ml_d(const field<mat>& Xf, const field<vec>& Yf, const field<m
     mat KJKt = KKt / J;
     mat dL_D = ((- n / 2.0) * (-KJKt) - 0.5 * ZtViZ);
     // dL_D.diag() /= 2.0;
-    return -dL_D;
+    return dL_D;
 }
 
 double loglikelihood_ml_gsl(const gsl_vector* v, void* p)
@@ -164,7 +164,8 @@ double loglikelihood_ml_gsl(const gsl_vector* v, void* p)
     mat D(q, q, arma::fill::zeros);
     D(trimatl_ind(size(D))) = D_tri;
     D(trimatu_ind(size(D))) = D_tri;
-    return loglikelihood_ml(*Xf, *Yf, *Zf, D, *beta, n);
+    double logL = loglikelihood_ml(*Xf, *Yf, *Zf, D, *beta, n);
+    return -logL / double(n);
 }
 
 void loglikelihood_ml_d_gsl(const gsl_vector* v, void* p, gsl_vector *df)
@@ -186,6 +187,7 @@ void loglikelihood_ml_d_gsl(const gsl_vector* v, void* p, gsl_vector *df)
     D(trimatl_ind(size(D))) = D_tri;
     D(trimatu_ind(size(D))) = D_tri;
     vec dL_D = loglikelihood_ml_d(*Xf, *Yf, *Zf, D, *beta, n)(trimatl_ind(size(D)));
+    dL_D = -dL_D / double(n);
     for (uword i = 0; i < ntarget; i++)
     {
         gsl_vector_set(df, i, dL_D(i));
