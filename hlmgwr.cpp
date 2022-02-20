@@ -110,7 +110,8 @@ double loglikelihood_ml(const field<mat>& Xf, const field<vec>& Yf, const field<
 
 mat loglikelihood_ml_d(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata)
 {
-    mat J(1, 1, arma::fill::zeros), ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
+    mat ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
+    double J = 0.0;
     uword ngroup = Xf.n_rows;
     field<mat> Kf(ngroup);
     for (uword i = 0; i < ngroup; i++)
@@ -125,12 +126,13 @@ mat loglikelihood_ml_d(const field<mat>& Xf, const field<vec>& Yf, const field<m
         Kf(i) = Zi.t() * Vi_inv * Ri;
         mat Ji = Ri.t() * Vi_inv * Ri;
         ZtViZ += Zi.t() * Vi_inv * Zi;
+        J += as_scalar(Ji);
     }
-    mat KJKt(arma::size(D), arma::fill::zeros);
+    double Ji = 1.0 / J;
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Ki = Kf(i);
-        mat KJKt_i = Ki * J * Ki.t();
+        mat KJKt_i = Ki * Ji * Ki.t();
         KJKt += KJKt_i;
     }
     mat dL_D = (ndata / 2.0) * KJKt - 0.5 * ZtViZ;
