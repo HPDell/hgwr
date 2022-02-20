@@ -129,6 +129,7 @@ mat loglikelihood_ml_d(const field<mat>& Xf, const field<vec>& Yf, const field<m
         J += as_scalar(Ji);
     }
     double Ji = 1.0 / J;
+    mat KJKt(size(D), arma::fill::zeros);
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Ki = Kf(i);
