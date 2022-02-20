@@ -111,7 +111,7 @@ double loglikelihood_ml(const field<mat>& Xf, const field<vec>& Yf, const field<
 mat loglikelihood_ml_d(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata)
 {
     mat ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
-    double J = 0.0;
+    mat J(1, 1, arma::fill::zeros);
     uword ngroup = Xf.n_rows;
     field<mat> Kf(ngroup);
     for (uword i = 0; i < ngroup; i++)
@@ -120,20 +120,19 @@ mat loglikelihood_ml_d(const field<mat>& Xf, const field<vec>& Yf, const field<m
         const mat& Yi = Yf(i);
         const mat& Zi = Zf(i);
         uword ndata = Zi.n_rows;
-        mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
-        mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
+        mat Vi_inv = eye(ndata, ndata) - Zi * inv(D_inv + Zi.t() * Zi) * Zi.t();
         vec Ri = Yi - Xi * beta;
         Kf(i) = Zi.t() * Vi_inv * Ri;
         mat Ji = Ri.t() * Vi_inv * Ri;
         ZtViZ += Zi.t() * Vi_inv * Zi;
-        J += as_scalar(Ji);
+        J += Ji;
     }
-    double Ji = 1.0 / J;
+    mat J_inv = J.i();
     mat KJKt(size(D), arma::fill::zeros);
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Ki = Kf(i);
-        mat KJKt_i = Ki * Ji * Ki.t();
+        mat KJKt_i = Ki * J_inv * Ki.t();
         KJKt += KJKt_i;
     }
     mat dL_D = (ndata / 2.0) * KJKt - 0.5 * ZtViZ;
