@@ -200,8 +200,9 @@ void loglikelihood_ml_fd_gsl(const gsl_vector* v, void* p, double *f, gsl_vector
     loglikelihood_ml_d_gsl(v, p, df);
 }
 
-mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata, const double& alpha, const double& eps, const size_t& max_iters)
+mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata, const double& alpha, const double& eps, const size_t& max_iters, bool verbose)
 {
+    int precision = int(log10(1.0 / eps));
     uword q = D.n_cols, ntarget = q * (q + 1) / 2;
     ML_D_Params* params = new ML_D_Params();
     params->Xf = &Xf;
@@ -226,22 +227,27 @@ mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, cons
     }
     gsl_multimin_fdfminimizer *minimizer = gsl_multimin_fdfminimizer_alloc(gsl_multimin_fdfminimizer_conjugate_fr, ntarget);
     gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, alpha, eps);
-    cout << setprecision(6) << fixed << minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << minimizer->x->data[2] << ",";
-    cout << setprecision(6) << fixed << minimizer->dx->data[0] << "," << minimizer->dx->data[1] << "," << minimizer->dx->data[2] << ",";
-    cout << setprecision(6) << fixed << minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << minimizer->gradient->data[2] << ",";
-    cout << minimizer->f << "," << endl;
+    if (verbose)
+    {
+        cout << setprecision(precision) << fixed << minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << minimizer->x->data[2] << ";";
+        cout << setprecision(precision) << fixed << minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << minimizer->gradient->data[2] << ";";
+        cout << minimizer->f << '\r';
+    }
     size_t iter = 0;
     int status;
     do
     {
         status = gsl_multimin_fdfminimizer_iterate(minimizer);
-        cout << setprecision(6) << fixed << minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << minimizer->x->data[2] << ",";
-        cout << setprecision(6) << fixed << minimizer->dx->data[0] << "," << minimizer->dx->data[1] << "," << minimizer->dx->data[2] << ",";
-        cout << setprecision(6) << fixed << minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << minimizer->gradient->data[2] << ",";
-        cout << minimizer->f << "," << endl;
+        if (verbose)
+        {
+            cout << setprecision(precision) << fixed << minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << minimizer->x->data[2] << ";";
+            cout << setprecision(precision) << fixed << minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << minimizer->gradient->data[2] << ";";
+            cout << minimizer->f << '\r';
+        }
         if (status) break;
         status = gsl_multimin_test_gradient(minimizer->gradient, eps);
     } while (status == GSL_CONTINUE && (++iter) < max_iters);
+    cout << endl;
     delete params;
     vec D_tri(arma::size(D_tril_idx));
     for (uword i = 0; i < ntarget; i++)
@@ -335,7 +341,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         //------------------------------------
         // Maximum Likelihood Estimation for D
         //------------------------------------
-        D = fit_D(Xf, Yhf, Zf, eye(size(D)), beta, ndata, alpha, eps_gradient, max_iters);
+        D = fit_D(Xf, Yhf, Zf, D, beta, ndata, alpha, eps_gradient, max_iters, verbose);
         beta = fit_gls(Xf, Yf, Zf, D);
         mu = fit_mu(Xf, Yhf, Zf, beta, D);
         //------------------------------
