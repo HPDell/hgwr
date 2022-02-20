@@ -36,19 +36,21 @@ struct ML_D_Params
  * @param wD Equals to $D$
  * @return mat 
  */
-mat fit_gwr(const mat& G, const field<vec>& fY, const field<mat>& fZ, const mat& D, const mat& u, double bw, const vec& wN)
+mat fit_gwr(const mat& G, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const mat& u, double bw)
 {
-    uword ng = G.n_rows, k = G.n_cols, q = fZ(0).n_cols;
-    mat beta(ng, k, arma::fill::zeros);
-    mat Sg(ng, q, arma::fill::zeros), Szy(ng, q, arma::fill::zeros);
-    vec ybar(ng, arma::fill::zeros);
-    for (uword i = 0; i < ng; i++)
+    uword ng = G.n_rows, k = G.n_cols, q = Zf(0).n_cols;
+    mat beta(ng, k, arma::fill::zeros), D_inv = D.i();
+    mat Vig(ng, k, arma::fill::zeros);
+    vec Viy(ng, arma::fill::zeros);
+    for (int i = 0; i < ng; i++)
     {
-        Sg.row(i) = sum(fZ(i), 0);
-        Szy.row(i) = sum(fZ(i).each_col() % fY(i), 0);
-        ybar(i) = mean(fY(i));
+        const mat& Yi = Yf(i);
+        const mat& Zi = Zf(i);
+        uword ndata = Zi.n_rows;
+        mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
+        Vig.row(i) = accu(Vi_inv) * G.row(i);
+        Viy(i) = as_scalar(sum(Vi_inv, 0) * Yi);
     }
-    vec wSDS = sum((Sg * D) % Sg, 1), wSDZy = sum((Sg * D) % Szy, 1);
     /// Calibrate for each gorup.
     for (int i = 0; i < ng; i++)
     {
@@ -56,8 +58,8 @@ mat fit_gwr(const mat& G, const field<vec>& fY, const field<mat>& fZ, const mat&
         vec d2 = sum(d_u % d_u, 1);
         double b2 = vec(sort(d2))[(int)bw];
         vec wW = exp(- d2 / (2.0 * b2));
-        mat GtWVG = G.t() * (G.each_col() % (wW % wSDS + wW % wN));
-        mat GtWVy = G.t() * (wW % wSDZy) + G.t() * (wW % wN % ybar);
+        mat GtWVG = G.t() * (Vig.each_col() % wW);
+        mat GtWVy = G.t() * (Viy % wW);
         beta.row(i) = solve(GtWVG, GtWVy).t();
     }
     return beta;
@@ -275,8 +277,6 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
     {
         gmap.col(i) = conv_to<vec>::from(group == i);
     }
-    vec N = sum(gmap, 0).t();
-    // vec N(ngroup, arma::fill::ones);
     field<mat> Zf(ngroup), Xf(ngroup);
     field<vec> Yf(ngroup), Ygf(ngroup), Yhf(ngroup);
     for (uword i = 0; i < ngroup; i++)
@@ -300,7 +300,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         {
             Ygf(i) = Yf(i) - Xf(i) * beta;
         }
-        gamma = fit_gwr(G, Ygf, Zf, D, u, bw, N);
+        gamma = fit_gwr(G, Ygf, Zf, D, u, bw);
         vec hatMg = sum(G % gamma, 1);
         vec hatM = hatMg.rows(group);
         vec yh = y - hatM;
