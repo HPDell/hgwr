@@ -225,6 +225,8 @@ mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, cons
         gsl_vector_set(target, i, D_tril_vec(i));
         gsl_vector_set(step_size, i, alpha);
     }
+    gsl_vector *x0 = gsl_vector_alloc(ntarget);
+    gsl_vector_memcpy(x0, target);
     gsl_multimin_fdfminimizer *minimizer = gsl_multimin_fdfminimizer_alloc(gsl_multimin_fdfminimizer_conjugate_fr, ntarget);
     gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, alpha, eps);
     if (verbose)
@@ -237,6 +239,7 @@ mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, cons
     int status;
     do
     {
+        gsl_vector_memcpy(x0, minimizer->x);
         status = gsl_multimin_fdfminimizer_iterate(minimizer);
         if (verbose)
         {
@@ -245,6 +248,7 @@ mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, cons
             cout << minimizer->f << '\r';
         }
         if (status) break;
+        if (minimizer->f < 0 || gsl_isnan(minimizer->f)) break;
         status = gsl_multimin_test_gradient(minimizer->gradient, eps);
     } while (status == GSL_CONTINUE && (++iter) < max_iters);
     cout << endl;
@@ -252,7 +256,7 @@ mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, cons
     vec D_tri(arma::size(D_tril_idx));
     for (uword i = 0; i < ntarget; i++)
     {
-        D_tri(i) = gsl_vector_get(minimizer->x, i);
+        D_tri(i) = gsl_vector_get(x0, i);
     }
     mat D1(arma::size(D));
     D1(D_tril_idx) = D_tri;
@@ -293,6 +297,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
     double bw = args.bw;
     uword ngroup = G.n_rows, ndata = X.n_rows;
     uword nvg = G.n_cols, nvx = X.n_cols, nvz = Z.n_cols;
+    double tss = sum((y - mean(y)) % (y - mean(y)));
     mat gamma(ngroup, nvg, arma::fill::zeros);
     vec beta(nvx, arma::fill::zeros);
     mat mu(ngroup, nvz, arma::fill::zeros);
@@ -314,8 +319,9 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
     //============
     // Backfitting
     //============
+    int retry = 0;
     double rss = 0.0, rss0 = 0.0, diff = DBL_MAX;
-    for (size_t iter = 0; iter < max_iters && diff > eps_iter; iter++)
+    for (size_t iter = 0; iter < max_iters && diff > eps_iter && retry <= 10; iter++)
     {
         rss0 = rss;
         //--------------------
@@ -351,9 +357,16 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         vec residual = yhat % yhat;
         rss = sum(residual);
         diff = abs(rss - rss0);
+        if (rss > rss0 && iter > 0) retry++;
+        else if (retry > 0) retry = 0;
         if (verbose)
         {
-            std::cout << "RSS: " << fixed << setprecision(prescition) << rss << ", diff: " << diff << endl;
+            std::cout << fixed << setprecision(prescition) <<
+                "RSS: " << rss << ", " <<
+                "diff: " << diff << ", " <<
+                "R2: " << (1 - rss / tss) << ", " <<
+                "Retry: " << retry <<
+                endl;
         }
     }
     return { gamma, beta, mu, D };
