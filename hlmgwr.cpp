@@ -282,7 +282,7 @@ mat fit_mu(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, con
     return mu;
 }
 
-HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha, double eps_iter, double eps_gradient, size_t max_iters, bool verbose) 
+HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha, double eps_iter, double eps_gradient, size_t max_iters, size_t max_retires, bool verbose) 
 {
     int prescition = (int)log10(1 / eps_iter);
     //===============
@@ -321,7 +321,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
     //============
     int retry = 0;
     double rss = 0.0, rss0 = 0.0, diff = DBL_MAX;
-    for (size_t iter = 0; iter < max_iters && diff > eps_iter && retry <= 10; iter++)
+    for (size_t iter = 0; iter < max_iters && diff > eps_iter && retry <= max_retires; iter++)
     {
         rss0 = rss;
         //--------------------
@@ -382,14 +382,15 @@ int main(int argc, char *argv[])
         ("alpha,a", boost::program_options::value<double>()->default_value(0.01), "Learning speed")
         ("eps-iter,e", boost::program_options::value<double>()->default_value(1e-6, "1e-6"), "Coverage threshold")
         ("eps-gradient,g", boost::program_options::value<double>()->default_value(1e-6, "1e-6"), "Minimize Log-likelihood threshold")
-        ("maxiters,m", boost::program_options::value<size_t>()->default_value(1e6, "1e6"), "Maximum iteration")
+        ("max-iters,m", boost::program_options::value<size_t>()->default_value(1e6, "1e6"), "Maximum iteration")
+        ("max-retries,m", boost::program_options::value<size_t>()->default_value(10), "Maximum retry times when algorithm seems to diverge")
         ("verbose,v", "Print algorithm details.")
         ("help,h", "Print help.");
     boost::program_options::variables_map var_map;
     boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), var_map);
     boost::program_options::notify(var_map);
     double alpha, eps_iter, eps_gradient;
-    size_t max_iters;
+    size_t max_iters, max_retries;
     bool verbose;
     if (var_map.count("help") > 0)
     {
@@ -411,7 +412,8 @@ int main(int argc, char *argv[])
     if (var_map.count("alpha") > 0) alpha = var_map["alpha"].as<double>();
     if (var_map.count("eps-iter") > 0) eps_iter = var_map["eps-iter"].as<double>();
     if (var_map.count("eps-gradient") > 0) eps_gradient = var_map["eps-gradient"].as<double>();
-    if (var_map.count("maxiters") > 0) max_iters = var_map["maxiters"].as<size_t>();
+    if (var_map.count("max-iters") > 0) max_iters = var_map["max-iters"].as<size_t>();
+    if (var_map.count("max-retries") > 0) max_retries = var_map["max-retries"].as<size_t>();
     if (var_map.count("verbose") > 0) verbose = true;
     double bw = var_map["bandwidth"].as<double>();
     /// solve
@@ -426,7 +428,7 @@ int main(int argc, char *argv[])
     y.load(arma::csv_name(string(data_dir) + "/hlmgwr_y.csv"));
     group.load(arma::csv_name(string(data_dir) + "/hlmgwr_group.csv"));
     HLMGWRArgs alg_args = { G, X, Z, y, u, group, bw };
-    HLMGWRParams alg_params = backfitting_maximum_likelihood(alg_args, alpha, eps_iter, eps_gradient, max_iters, verbose);
+    HLMGWRParams alg_params = backfitting_maximum_likelihood(alg_args, alpha, eps_iter, eps_gradient, max_iters, max_retries, verbose);
     // Diagnostic
     const mat &gamma = alg_params.gamma, &beta = alg_params.beta, &mu = alg_params.mu, &D = alg_params.D;
     uword ngroup = G.n_rows, ndata = y.n_rows;
