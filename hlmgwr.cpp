@@ -15,10 +15,11 @@ const double log2pi = log(2.0 * M_PI);
 
 struct ML_Params
 {
-    const field<mat>* Xf;
-    const field<vec>* Yf;
-    const field<mat>* Zf;
+    const mat* Xf;
+    const vec* Yf;
+    const mat* Zf;
     const vec* beta;
+    size_t ngroup;
     uword n;
     uword p;
     uword q;
@@ -48,16 +49,16 @@ inline vec gwr_kernel_bisquare2(vec dist2, double bw2)
  * @param wD Equals to $D$
  * @return mat 
  */
-mat fit_gwr(const mat& G, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const mat& u, double bw)
+mat fit_gwr(const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D, const mat& u, double bw)
 {
-    uword ng = G.n_rows, k = G.n_cols, q = Zf(0).n_cols;
-    mat beta(ng, k, arma::fill::zeros), D_inv = D.i();
-    mat Vig(ng, k, arma::fill::zeros);
-    vec Viy(ng, arma::fill::zeros);
-    for (int i = 0; i < ng; i++)
+    uword k = G.n_cols, q = Zf[0].n_cols;
+    mat beta(ngroup, k, arma::fill::zeros), D_inv = D.i();
+    mat Vig(ngroup, k, arma::fill::zeros);
+    vec Viy(ngroup, arma::fill::zeros);
+    for (int i = 0; i < ngroup; i++)
     {
-        const mat& Yi = Yf(i);
-        const mat& Zi = Zf(i);
+        const mat& Yi = Yf[i];
+        const mat& Zi = Zf[i];
         uword ndata = Zi.n_rows;
         mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
         mat Visigma = ones(1, ndata) * Vi_inv;
@@ -65,7 +66,7 @@ mat fit_gwr(const mat& G, const field<vec>& Yf, const field<mat>& Zf, const mat&
         Viy(i) = as_scalar(Visigma * Yi);
     }
     /// Calibrate for each gorup.
-    for (int i = 0; i < ng; i++)
+    for (int i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
         vec d2 = sum(d_u % d_u, 1);
@@ -78,17 +79,17 @@ mat fit_gwr(const mat& G, const field<vec>& Yf, const field<mat>& Zf, const mat&
     return beta;
 }
 
-vec fit_gls(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D)
+vec fit_gls(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D)
 {
-    uword ngroup = Xf.n_rows, p = Xf(0).n_cols;
+    uword p = Xf[0].n_cols;
     mat XtWX(p, p, arma::fill::zeros);
     vec XtWY(p, arma::fill::zeros);
     mat D_inv = D.i();
     for (uword i = 0; i < ngroup; i++)
     {
-        const mat& Xi = Xf(i);
-        const mat& Yi = Yf(i);
-        const mat& Zi = Zf(i);
+        const mat& Xi = Xf[i];
+        const mat& Yi = Yf[i];
+        const mat& Zi = Zf[i];
         uword ndata = Zi.n_rows;
         mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
         XtWX += Xi.t() * Vi_inv * Xi;
@@ -97,16 +98,15 @@ vec fit_gls(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, co
     return solve(XtWX, XtWY);
 }
 
-double loglikelihood(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata)
+double loglikelihood(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D, const vec& beta, const uword& ndata)
 {
-    uword ngroup = Xf.n_rows;
     mat D_inv = D.i();
     double L1 = 0.0, L2 = 0.0, n = (double)ndata;
     for (uword i = 0; i < ngroup; i++)
     {
-        const mat& Xi = Xf(i);
-        const vec& Yi = Yf(i);
-        const mat& Zi = Zf(i);
+        const mat& Xi = Xf[i];
+        const vec& Yi = Yf[i];
+        const mat& Zi = Zf[i];
         uword nidata = Zi.n_rows;
         mat Ii = eye<mat>(nidata, nidata);
         mat Vi = ((Zi * D) * Zi.t()) + Ii;
@@ -121,18 +121,17 @@ double loglikelihood(const field<mat>& Xf, const field<vec>& Yf, const field<mat
     return LL;
 }
 
-void loglikelihood_d(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata, mat& d_D)
+void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D, const vec& beta, const uword& ndata, mat& d_D)
 {
-    uword ngroup = Xf.n_rows;
     mat ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
     mat KKt(arma::size(D), arma::fill::zeros);
     double J = 0.0, n = (double)ndata;
     // field<mat> Kf(ngroup);
     for (uword i = 0; i < ngroup; i++)
     {
-        const mat& Xi = Xf(i);
-        const mat& Yi = Yf(i);
-        const mat& Zi = Zf(i);
+        const mat& Xi = Xf[i];
+        const mat& Yi = Yf[i];
+        const mat& Zi = Zf[i];
         uword nidata = Zi.n_rows;
         mat Vi_inv = eye(nidata, nidata) - Zi * inv(D_inv + Zi.t() * Zi) * Zi.t();
         vec Ri = Yi - Xi * beta;
@@ -145,9 +144,8 @@ void loglikelihood_d(const field<mat>& Xf, const field<vec>& Yf, const field<mat
     d_D = ((- n / 2.0) * (-KJKt) - 0.5 * ZtViZ);
 }
 
-void loglikelihood_d(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata, mat& d_D, mat& d_beta)
+void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D, const vec& beta, const uword& ndata, mat& d_D, mat& d_beta)
 {
-    uword ngroup = Xf.n_rows;
     mat ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
     mat KKt(arma::size(D), arma::fill::zeros), G(arma::size(beta), arma::fill::zeros);
     double J = 0.0, n = (double)ndata;
@@ -155,9 +153,9 @@ void loglikelihood_d(const field<mat>& Xf, const field<vec>& Yf, const field<mat
     field<mat> Kf(ngroup), Gf(ngroup);
     for (uword i = 0; i < ngroup; i++)
     {
-        const mat& Xi = Xf(i);
-        const mat& Yi = Yf(i);
-        const mat& Zi = Zf(i);
+        const mat& Xi = Xf[i];
+        const mat& Yi = Yf[i];
+        const mat& Zi = Zf[i];
         uword nidata = Zi.n_rows;
         mat Vi_inv = eye(nidata, nidata) - Zi * inv(D_inv + Zi.t() * Zi) * Zi.t();
         vec Ri = Yi - Xi * beta;
@@ -176,10 +174,11 @@ void loglikelihood_d(const field<mat>& Xf, const field<vec>& Yf, const field<mat
 double ml_gsl_f_D(const gsl_vector* v, void* p)
 {
     ML_Params* params = (ML_Params*)p;
-    const field<mat>* Xf = params->Xf;
-    const field<vec>* Yf = params->Yf;
-    const field<mat>* Zf = params->Zf;
+    const mat* Xf = params->Xf;
+    const vec* Yf = params->Yf;
+    const mat* Zf = params->Zf;
     const vec* beta = params->beta;
+    const size_t ngroup = params->ngroup;
     const uword n = params->n;
     const uword q = params->q;
     size_t ntarget = q * (q + 1) / 2;
@@ -191,16 +190,17 @@ double ml_gsl_f_D(const gsl_vector* v, void* p)
     mat D(q, q, arma::fill::zeros);
     D(trimatl_ind(size(D))) = D_tri;
     D(trimatu_ind(size(D))) = D_tri;
-    double logL = loglikelihood(*Xf, *Yf, *Zf, D, *beta, n);
+    double logL = loglikelihood(Xf, Yf, Zf, ngroup, D, *beta, n);
     return -logL / double(n);
 }
 
 double ml_gsl_f_D_beta(const gsl_vector* v, void* pparams)
 {
     ML_Params* params = (ML_Params*)pparams;
-    const field<mat>* Xf = params->Xf;
-    const field<vec>* Yf = params->Yf;
-    const field<mat>* Zf = params->Zf;
+    const mat* Xf = params->Xf;
+    const vec* Yf = params->Yf;
+    const mat* Zf = params->Zf;
+    const size_t ngroup = params->ngroup;
     const uword n = params->n;
     const uword p = params->p;
     const uword q = params->q;
@@ -217,17 +217,18 @@ double ml_gsl_f_D_beta(const gsl_vector* v, void* pparams)
     mat D(q, q, arma::fill::zeros);
     D(trimatl_ind(size(D))) = D_tri;
     D(trimatu_ind(size(D))) = D_tri;
-    double logL = loglikelihood(*Xf, *Yf, *Zf, D, beta, n);
+    double logL = loglikelihood(Xf, Yf, Zf, ngroup, D, beta, n);
     return -logL / double(n);
 }
 
 void ml_gsl_df_D(const gsl_vector* v, void* p, gsl_vector *df)
 {
     ML_Params* params = (ML_Params*)p;
-    const field<mat>* Xf = params->Xf;
-    const field<vec>* Yf = params->Yf;
-    const field<mat>* Zf = params->Zf;
+    const mat* Xf = params->Xf;
+    const vec* Yf = params->Yf;
+    const mat* Zf = params->Zf;
     const vec* beta = params->beta;
+    const size_t ngroup = params->ngroup;
     const uword n = params->n;
     const uword q = params->q;
     size_t ntarget = q * (q + 1) / 2;
@@ -240,7 +241,7 @@ void ml_gsl_df_D(const gsl_vector* v, void* p, gsl_vector *df)
     D(trimatl_ind(size(D))) = D_tri;
     D(trimatu_ind(size(D))) = D_tri;
     mat dL_D;
-    loglikelihood_d(*Xf, *Yf, *Zf, D, *beta, n, dL_D);
+    loglikelihood_d(Xf, Yf, Zf, ngroup, D, *beta, n, dL_D);
     dL_D = -dL_D / double(n);
     vec dL_D_tri = dL_D(trimatl_ind(size(D)));
     for (uword i = 0; i < ntarget; i++)
@@ -252,9 +253,10 @@ void ml_gsl_df_D(const gsl_vector* v, void* p, gsl_vector *df)
 void ml_gsl_df_D_beta(const gsl_vector* v, void* pparams, gsl_vector *df)
 {
     ML_Params* params = (ML_Params*)pparams;
-    const field<mat>* Xf = params->Xf;
-    const field<vec>* Yf = params->Yf;
-    const field<mat>* Zf = params->Zf;
+    const mat* Xf = params->Xf;
+    const vec* Yf = params->Yf;
+    const mat* Zf = params->Zf;
+    const size_t ngroup = params->ngroup;
     const uword n = params->n;
     const uword p = params->p;
     const uword q = params->q;
@@ -274,7 +276,7 @@ void ml_gsl_df_D_beta(const gsl_vector* v, void* pparams, gsl_vector *df)
     D(trimatu_ind(size(D))) = D_tri;
     mat dL_D;
     vec dL_beta;
-    loglikelihood_d(*Xf, *Yf, *Zf, D, beta, n, dL_D, dL_beta);
+    loglikelihood_d(Xf, Yf, Zf, ngroup, D, beta, n, dL_D, dL_beta);
     dL_D = -dL_D / double(n);
     dL_beta = -dL_beta / double(n);
     vec dL_D_tri = dL_D(trimatl_ind(size(D)));
@@ -300,23 +302,16 @@ void ml_gsl_fdf_D_beta(const gsl_vector* v, void* p, double *f, gsl_vector *df)
     ml_gsl_df_D_beta(v, p, df);
 }
 
-void fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D0, const vec& beta, const uword& ndata, const double& alpha, const double& eps, const size_t& max_iters, bool verbose, mat& D1)
+void fit_D(const ML_Params* params, const mat& D0, const vec& beta, const double alpha, const double eps, const size_t max_iters, bool verbose, mat& D1)
 {
     int precision = int(log10(1.0 / eps));
     uword q = D0.n_cols, ntarget = q * (q + 1) / 2;
-    ML_Params* params = new ML_Params();
-    params->Xf = &Xf;
-    params->Yf = &Yf;
-    params->Zf = &Zf;
-    params->beta = &beta;
-    params->n = ndata;
-    params->q = q;
     gsl_multimin_function_fdf minex_fun;
     minex_fun.n = ntarget;
     minex_fun.f = ml_gsl_f_D;
     minex_fun.df = ml_gsl_df_D;
     minex_fun.fdf = ml_gsl_fdf_D;
-    minex_fun.params = params;
+    minex_fun.params = (void*)params;
     gsl_vector *target = gsl_vector_alloc(ntarget), *step_size = gsl_vector_alloc(ntarget);
     uvec D_tril_idx = trimatl_ind(arma::size(D0)), D_triu_idx = trimatu_ind(arma::size(D0));
     vec D_tril_vec = D0(D_tril_idx);
@@ -352,7 +347,6 @@ void fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, con
         status = gsl_multimin_test_gradient(minimizer->gradient, eps);
     } while (status == GSL_CONTINUE && (++iter) < max_iters);
     cout << endl;
-    delete params;
     vec D_tri(arma::size(D_tril_idx));
     for (uword i = 0; i < ntarget; i++)
     {
@@ -363,23 +357,16 @@ void fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, con
     D1(D_triu_idx) = D_tri;
 }
 
-void fit_D_beta(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D0, const vec& beta0, const uword& ndata, const double& alpha, const double& eps, const size_t& max_iters, bool verbose, mat& D1, vec& beta1)
+void fit_D_beta(const ML_Params* params, const mat& D0, const vec& beta0, const double& alpha, const double& eps, const size_t& max_iters, bool verbose, mat& D1, vec& beta1)
 {
     int precision = int(log10(1.0 / eps));
     uword p = beta0.n_rows, q = D0.n_cols, ntarget = p + q * (q + 1) / 2;
-    ML_Params* params = new ML_Params();
-    params->Xf = &Xf;
-    params->Yf = &Yf;
-    params->Zf = &Zf;
-    params->n = ndata;
-    params->p = p;
-    params->q = q;
     gsl_multimin_function_fdf minex_fun;
     minex_fun.n = ntarget;
     minex_fun.f = ml_gsl_f_D_beta;
     minex_fun.df = ml_gsl_df_D_beta;
     minex_fun.fdf = ml_gsl_fdf_D_beta;
-    minex_fun.params = params;
+    minex_fun.params = (void*)params;
     gsl_vector *target = gsl_vector_alloc(ntarget), *step_size = gsl_vector_alloc(ntarget);
     uvec D_tril_idx = trimatl_ind(arma::size(D0)), D_triu_idx = trimatu_ind(arma::size(D0));
     vec D_tril_vec = D0(D_tril_idx);
@@ -427,7 +414,6 @@ void fit_D_beta(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf
         status = gsl_multimin_test_gradient(minimizer->gradient, eps);
     } while (status == GSL_CONTINUE && (++iter) < max_iters);
     cout << endl;
-    delete params;
     vec D_tri(arma::size(D_tril_idx));
     for (uword i = p; i < ntarget; i++)
     {
@@ -443,15 +429,15 @@ void fit_D_beta(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf
     }
 }
 
-mat fit_mu(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const vec& beta, const mat& D)
+mat fit_mu(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const vec& beta, const mat& D)
 {
-    uword ngroup = Xf.n_rows, q = Zf(0).n_cols;
+    uword q = Zf[0].n_cols;
     mat D_inv = D.i(), mu(ngroup, q, arma::fill::zeros);
     for (uword i = 0; i < ngroup; i++)
     {
-        const mat& Xi = Xf(i);
-        const mat& Yi = Yf(i);
-        const mat& Zi = Zf(i);
+        const mat& Xi = Xf[i];
+        const mat& Yi = Yf[i];
+        const mat& Zi = Zf[i];
         uword ndata = Zi.n_rows;
         mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
         mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
@@ -486,19 +472,22 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
     {
         gmap.col(i) = conv_to<vec>::from(group == i);
     }
-    field<mat> Zf(ngroup), Xf(ngroup);
-    field<vec> Yf(ngroup), Ygf(ngroup), Yhf(ngroup);
+    mat* Zf = new mat[ngroup];
+    mat* Xf = new mat[ngroup];
+    vec* Yf = new vec[ngroup];
+    vec* Ygf = new vec[ngroup];
+    vec* Yhf = new vec[ngroup];
     for (uword i = 0; i < ngroup; i++)
     {
         uvec ind = find(group == i);
-        Yf(i) = y.rows(ind);
-        Xf(i) = X.rows(ind);
-        Zf(i) = Z.rows(ind);
+        Yf[i] = y.rows(ind);
+        Xf[i] = X.rows(ind);
+        Zf[i] = Z.rows(ind);
     }
     //----------------------------------------------
     // Generalized Least Squared Estimation for beta
     //----------------------------------------------
-    beta = fit_gls(Xf, Yf, Zf, D);
+    beta = fit_gls(Xf, Yf, Zf, ngroup, D);
     //============
     // Backfitting
     //============
@@ -512,36 +501,38 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         //--------------------
         for (uword i = 0; i < ngroup; i++)
         {
-            Ygf(i) = Yf(i) - Xf(i) * beta;
+            Ygf[i] = Yf[i] - Xf[i] * beta;
         }
-        gamma = fit_gwr(G, Ygf, Zf, D, u, bw);
+        gamma = fit_gwr(G, Ygf, Zf, ngroup, D, u, bw);
         gamma.save(arma::csv_name("gamma.csv"));
         vec hatMg = sum(G % gamma, 1);
         vec hatM = hatMg.rows(group);
         vec yh = y - hatM;
         for (uword i = 0; i < ngroup; i++)
         {
-            Yhf(i) = Yf(i) - sum(G.row(i) % gamma.row(i));
+            Yhf[i] = Yf[i] - sum(G.row(i) % gamma.row(i));
         }
         //------------------------------------
         // Maximum Likelihood Estimation for D
         //------------------------------------
+        ML_Params ml_params = { Xf, Yf, Zf, &beta, ngroup, ndata, nvx, nvz };
         switch (ml_type)
         {
         case 0:
-            fit_D(Xf, Yhf, Zf, D, beta, ndata, alpha, eps_gradient, max_iters, verbose, D);
-            beta = fit_gls(Xf, Yhf, Zf, D);
+            fit_D(&ml_params, D, beta, alpha, eps_gradient, max_iters, verbose, D);
+            beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             break;
         case 1:
-            beta = fit_gls(Xf, Yhf, Zf, eye(size(D)));
-            fit_D_beta(Xf, Yhf, Zf, eye(size(D)), beta, ndata, alpha, eps_gradient, max_iters, verbose, D, beta);
+            ml_params.beta = nullptr;
+            beta = fit_gls(Xf, Yhf, Zf, ngroup, eye(size(D)));
+            fit_D_beta(&ml_params, eye(size(D)), beta, alpha, eps_gradient, max_iters, verbose, D, beta);
             break;
         default:
-            fit_D(Xf, Yhf, Zf, D, beta, ndata, alpha, eps_gradient, max_iters, verbose, D);
-            beta = fit_gls(Xf, Yhf, Zf, D);
+            fit_D(&ml_params, D, beta, alpha, eps_gradient, max_iters, verbose, D);
+            beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             break;
         }
-        mu = fit_mu(Xf, Yhf, Zf, beta, D);
+        mu = fit_mu(Xf, Yhf, Zf, ngroup, beta, D);
         //------------------------------
         // Calculate Termination Measure
         //------------------------------
@@ -561,6 +552,11 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
                 endl;
         }
     }
+    delete[] Zf;
+    delete[] Xf;
+    delete[] Yf;
+    delete[] Ygf;
+    delete[] Yhf ;
     return { gamma, beta, mu, D };
 }
 
