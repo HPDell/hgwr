@@ -13,7 +13,7 @@ using namespace arma;
 
 const double log2pi = log(2.0 * M_PI);
 
-struct ML_D_Params
+struct ML_Params
 {
     const field<mat>* Xf;
     const field<vec>* Yf;
@@ -175,7 +175,7 @@ void loglikelihood_d(const field<mat>& Xf, const field<vec>& Yf, const field<mat
 
 double ml_gsl_f_D(const gsl_vector* v, void* p)
 {
-    ML_D_Params* params = (ML_D_Params*)p;
+    ML_Params* params = (ML_Params*)p;
     const field<mat>* Xf = params->Xf;
     const field<vec>* Yf = params->Yf;
     const field<mat>* Zf = params->Zf;
@@ -197,7 +197,7 @@ double ml_gsl_f_D(const gsl_vector* v, void* p)
 
 double ml_gsl_f_D_beta(const gsl_vector* v, void* pparams)
 {
-    ML_D_Params* params = (ML_D_Params*)pparams;
+    ML_Params* params = (ML_Params*)pparams;
     const field<mat>* Xf = params->Xf;
     const field<vec>* Yf = params->Yf;
     const field<mat>* Zf = params->Zf;
@@ -223,7 +223,7 @@ double ml_gsl_f_D_beta(const gsl_vector* v, void* pparams)
 
 void ml_gsl_df_D(const gsl_vector* v, void* p, gsl_vector *df)
 {
-    ML_D_Params* params = (ML_D_Params*)p;
+    ML_Params* params = (ML_Params*)p;
     const field<mat>* Xf = params->Xf;
     const field<vec>* Yf = params->Yf;
     const field<mat>* Zf = params->Zf;
@@ -251,7 +251,7 @@ void ml_gsl_df_D(const gsl_vector* v, void* p, gsl_vector *df)
 
 void ml_gsl_df_D_beta(const gsl_vector* v, void* pparams, gsl_vector *df)
 {
-    ML_D_Params* params = (ML_D_Params*)pparams;
+    ML_Params* params = (ML_Params*)pparams;
     const field<mat>* Xf = params->Xf;
     const field<vec>* Yf = params->Yf;
     const field<mat>* Zf = params->Zf;
@@ -304,7 +304,7 @@ void fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, con
 {
     int precision = int(log10(1.0 / eps));
     uword q = D0.n_cols, ntarget = q * (q + 1) / 2;
-    ML_D_Params* params = new ML_D_Params();
+    ML_Params* params = new ML_Params();
     params->Xf = &Xf;
     params->Yf = &Yf;
     params->Zf = &Zf;
@@ -367,7 +367,7 @@ void fit_D_beta(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf
 {
     int precision = int(log10(1.0 / eps));
     uword p = beta0.n_rows, q = D0.n_cols, ntarget = p + q * (q + 1) / 2;
-    ML_D_Params* params = new ML_D_Params();
+    ML_Params* params = new ML_Params();
     params->Xf = &Xf;
     params->Yf = &Yf;
     params->Zf = &Zf;
