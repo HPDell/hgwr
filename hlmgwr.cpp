@@ -302,10 +302,10 @@ void ml_gsl_fdf_D_beta(const gsl_vector* v, void* p, double *f, gsl_vector *df)
     ml_gsl_df_D_beta(v, p, df);
 }
 
-void fit_D(const ML_Params* params, const mat& D0, const vec& beta, const double alpha, const double eps, const size_t max_iters, bool verbose, mat& D1)
+void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose)
 {
     int precision = int(log10(1.0 / eps));
-    uword q = D0.n_cols, ntarget = q * (q + 1) / 2;
+    uword q = D.n_cols, ntarget = q * (q + 1) / 2;
     gsl_multimin_function_fdf minex_fun;
     minex_fun.n = ntarget;
     minex_fun.f = ml_gsl_f_D;
@@ -313,8 +313,8 @@ void fit_D(const ML_Params* params, const mat& D0, const vec& beta, const double
     minex_fun.fdf = ml_gsl_fdf_D;
     minex_fun.params = (void*)params;
     gsl_vector *target = gsl_vector_alloc(ntarget), *step_size = gsl_vector_alloc(ntarget);
-    uvec D_tril_idx = trimatl_ind(arma::size(D0)), D_triu_idx = trimatu_ind(arma::size(D0));
-    vec D_tril_vec = D0(D_tril_idx);
+    uvec D_tril_idx = trimatl_ind(arma::size(D)), D_triu_idx = trimatu_ind(arma::size(D));
+    vec D_tril_vec = D(D_tril_idx);
     for (uword i = 0; i < ntarget; i++)
     {
         gsl_vector_set(target, i, D_tril_vec(i));
@@ -352,15 +352,16 @@ void fit_D(const ML_Params* params, const mat& D0, const vec& beta, const double
     {
         D_tri(i) = gsl_vector_get(x0, i);
     }
-    D1 = mat(arma::size(D0));
+    mat D1 = mat(arma::size(D), arma::fill::zeros);
     D1(D_tril_idx) = D_tri;
     D1(D_triu_idx) = D_tri;
+    D = D1;
 }
 
-void fit_D_beta(const ML_Params* params, const mat& D0, const vec& beta0, const double& alpha, const double& eps, const size_t& max_iters, bool verbose, mat& D1, vec& beta1)
+void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose)
 {
     int precision = int(log10(1.0 / eps));
-    uword p = beta0.n_rows, q = D0.n_cols, ntarget = p + q * (q + 1) / 2;
+    uword p = beta.n_rows, q = D.n_cols, ntarget = p + q * (q + 1) / 2;
     gsl_multimin_function_fdf minex_fun;
     minex_fun.n = ntarget;
     minex_fun.f = ml_gsl_f_D_beta;
@@ -368,12 +369,12 @@ void fit_D_beta(const ML_Params* params, const mat& D0, const vec& beta0, const 
     minex_fun.fdf = ml_gsl_fdf_D_beta;
     minex_fun.params = (void*)params;
     gsl_vector *target = gsl_vector_alloc(ntarget), *step_size = gsl_vector_alloc(ntarget);
-    uvec D_tril_idx = trimatl_ind(arma::size(D0)), D_triu_idx = trimatu_ind(arma::size(D0));
-    vec D_tril_vec = D0(D_tril_idx);
     for (uword i = 0; i < p; i++)
     {
-        gsl_vector_set(target, i, beta0(i));
+        gsl_vector_set(target, i, beta(i));
     }
+    uvec D_tril_idx = trimatl_ind(arma::size(D)), D_triu_idx = trimatu_ind(arma::size(D));
+    vec D_tril_vec = D(D_tril_idx);
     for (uword i = p; i < ntarget; i++)
     {
         uword e = i - p;
@@ -419,14 +420,16 @@ void fit_D_beta(const ML_Params* params, const mat& D0, const vec& beta0, const 
     {
         D_tri(i - p) = gsl_vector_get(minimizer->x, i);
     }
-    D1 = mat(arma::size(D0));
+    mat D1(arma::size(D), arma::fill::zeros);
     D1(D_tril_idx) = D_tri;
     D1(D_triu_idx) = D_tri;
-    beta1 = vec(arma::size(beta0), arma::fill::zeros);
+    vec beta1(arma::size(beta), arma::fill::zeros);
     for (uword i = 0; i < p; i++)
     {
         beta1(i) = gsl_vector_get(minimizer->x, i);
     }
+    D = D1;
+    beta = beta1;
 }
 
 mat fit_mu(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const vec& beta, const mat& D)
@@ -519,16 +522,17 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         switch (ml_type)
         {
         case 0:
-            fit_D(&ml_params, D, beta, alpha, eps_gradient, max_iters, verbose, D);
+            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose);
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             break;
         case 1:
             ml_params.beta = nullptr;
-            beta = fit_gls(Xf, Yhf, Zf, ngroup, eye(size(D)));
-            fit_D_beta(&ml_params, eye(size(D)), beta, alpha, eps_gradient, max_iters, verbose, D, beta);
+            D = eye(size(D));
+            beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
+            fit_D_beta(D, beta, &ml_params, alpha, eps_gradient, max_iters, verbose);
             break;
         default:
-            fit_D(&ml_params, D, beta, alpha, eps_gradient, max_iters, verbose, D);
+            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose);
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             break;
         }
