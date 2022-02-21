@@ -20,6 +20,7 @@ struct ML_D_Params
     const field<mat>* Zf;
     const vec* beta;
     uword n;
+    uword p;
     uword q;
 };
 
@@ -96,7 +97,7 @@ vec fit_gls(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, co
     return solve(XtWX, XtWY);
 }
 
-double loglikelihood_ml(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata)
+double loglikelihood(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata)
 {
     uword ngroup = Xf.n_rows;
     mat D_inv = D.i();
@@ -120,7 +121,7 @@ double loglikelihood_ml(const field<mat>& Xf, const field<vec>& Yf, const field<
     return LL;
 }
 
-mat loglikelihood_ml_d(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata)
+void loglikelihood_d(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata, mat& d_D)
 {
     uword ngroup = Xf.n_rows;
     mat ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
@@ -141,12 +142,38 @@ mat loglikelihood_ml_d(const field<mat>& Xf, const field<vec>& Yf, const field<m
         J += as_scalar(Ri.t() * Vi_inv * Ri);
     }
     mat KJKt = KKt / J;
-    mat dL_D = ((- n / 2.0) * (-KJKt) - 0.5 * ZtViZ);
-    // dL_D.diag() /= 2.0;
-    return dL_D;
+    d_D = ((- n / 2.0) * (-KJKt) - 0.5 * ZtViZ);
 }
 
-double loglikelihood_ml_gsl(const gsl_vector* v, void* p)
+void loglikelihood_d(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata, mat& d_D, mat& d_beta)
+{
+    uword ngroup = Xf.n_rows;
+    mat ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
+    mat KKt(arma::size(D), arma::fill::zeros), G(arma::size(beta), arma::fill::zeros);
+    double J = 0.0, n = (double)ndata;
+    // field<mat> Kf(ngroup);
+    field<mat> Kf(ngroup), Gf(ngroup);
+    for (uword i = 0; i < ngroup; i++)
+    {
+        const mat& Xi = Xf(i);
+        const mat& Yi = Yf(i);
+        const mat& Zi = Zf(i);
+        uword nidata = Zi.n_rows;
+        mat Vi_inv = eye(nidata, nidata) - Zi * inv(D_inv + Zi.t() * Zi) * Zi.t();
+        vec Ri = Yi - Xi * beta;
+        mat Ki = Zi.t() * Vi_inv * Ri;
+        KKt += Ki * Ki.t();
+        G += Xi.t() * Vi_inv * Ri;
+        ZtViZ += Zi.t() * Vi_inv * Zi;
+        J += as_scalar(Ri.t() * Vi_inv * Ri);
+    }
+    mat KJKt = KKt / J;
+    mat GJ = G / J;
+    d_D = ((- n / 2.0) * (-KJKt) - 0.5 * ZtViZ);
+    d_beta = n * GJ;
+}
+
+double ml_gsl_f_D(const gsl_vector* v, void* p)
 {
     ML_D_Params* params = (ML_D_Params*)p;
     const field<mat>* Xf = params->Xf;
@@ -164,11 +191,37 @@ double loglikelihood_ml_gsl(const gsl_vector* v, void* p)
     mat D(q, q, arma::fill::zeros);
     D(trimatl_ind(size(D))) = D_tri;
     D(trimatu_ind(size(D))) = D_tri;
-    double logL = loglikelihood_ml(*Xf, *Yf, *Zf, D, *beta, n);
+    double logL = loglikelihood(*Xf, *Yf, *Zf, D, *beta, n);
     return -logL / double(n);
 }
 
-void loglikelihood_ml_d_gsl(const gsl_vector* v, void* p, gsl_vector *df)
+double ml_gsl_f_D_beta(const gsl_vector* v, void* pparams)
+{
+    ML_D_Params* params = (ML_D_Params*)pparams;
+    const field<mat>* Xf = params->Xf;
+    const field<vec>* Yf = params->Yf;
+    const field<mat>* Zf = params->Zf;
+    const uword n = params->n;
+    const uword p = params->p;
+    const uword q = params->q;
+    size_t ntarget = p + q * (q + 1) / 2;
+    vec D_tri(q * (q + 1) / 2, arma::fill::zeros), beta(p, arma::fill::zeros);
+    for (size_t i = 0; i < p; i++)
+    {
+        beta(i) = gsl_vector_get(v, i);
+    }
+    for (size_t i = p; i < ntarget; i++)
+    {
+        D_tri(i - p) = gsl_vector_get(v, i);
+    }
+    mat D(q, q, arma::fill::zeros);
+    D(trimatl_ind(size(D))) = D_tri;
+    D(trimatu_ind(size(D))) = D_tri;
+    double logL = loglikelihood(*Xf, *Yf, *Zf, D, beta, n);
+    return -logL / double(n);
+}
+
+void ml_gsl_df_D(const gsl_vector* v, void* p, gsl_vector *df)
 {
     ML_D_Params* params = (ML_D_Params*)p;
     const field<mat>* Xf = params->Xf;
@@ -186,24 +239,71 @@ void loglikelihood_ml_d_gsl(const gsl_vector* v, void* p, gsl_vector *df)
     mat D(q, q, arma::fill::zeros);
     D(trimatl_ind(size(D))) = D_tri;
     D(trimatu_ind(size(D))) = D_tri;
-    vec dL_D = loglikelihood_ml_d(*Xf, *Yf, *Zf, D, *beta, n)(trimatl_ind(size(D)));
+    mat dL_D;
+    loglikelihood_d(*Xf, *Yf, *Zf, D, *beta, n, dL_D);
     dL_D = -dL_D / double(n);
+    vec dL_D_tri = dL_D(trimatl_ind(size(D)));
     for (uword i = 0; i < ntarget; i++)
     {
         gsl_vector_set(df, i, dL_D(i));
     }
 }
 
-void loglikelihood_ml_fd_gsl(const gsl_vector* v, void* p, double *f, gsl_vector *df)
+void ml_gsl_df_D_beta(const gsl_vector* v, void* pparams, gsl_vector *df)
 {
-    *f = loglikelihood_ml_gsl(v, p);
-    loglikelihood_ml_d_gsl(v, p, df);
+    ML_D_Params* params = (ML_D_Params*)pparams;
+    const field<mat>* Xf = params->Xf;
+    const field<vec>* Yf = params->Yf;
+    const field<mat>* Zf = params->Zf;
+    const uword n = params->n;
+    const uword p = params->p;
+    const uword q = params->q;
+    size_t ntarget = p + q * (q + 1) / 2;
+    vec D_tri(q * (q + 1) / 2, arma::fill::zeros), beta(p, arma::fill::zeros);
+    for (size_t i = 0; i < p; i++)
+    {
+        beta(i) = gsl_vector_get(v, i);
+    }
+    for (size_t i = p; i < ntarget; i++)
+    {
+        uword e = i - p;
+        D_tri(i - p) = gsl_vector_get(v, i);
+    }
+    mat D(q, q, arma::fill::zeros);
+    D(trimatl_ind(size(D))) = D_tri;
+    D(trimatu_ind(size(D))) = D_tri;
+    mat dL_D;
+    vec dL_beta;
+    loglikelihood_d(*Xf, *Yf, *Zf, D, beta, n, dL_D, dL_beta);
+    dL_D = -dL_D / double(n);
+    dL_beta = -dL_beta / double(n);
+    vec dL_D_tri = dL_D(trimatl_ind(size(D)));
+    for (size_t i = 0; i < p; i++)
+    {
+        gsl_vector_set(df, i, dL_beta(i));
+    }
+    for (uword i = p; i < ntarget; i++)
+    {
+        gsl_vector_set(df, i, dL_D_tri(i - p));
+    }
 }
 
-mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D, const vec& beta, const uword& ndata, const double& alpha, const double& eps, const size_t& max_iters, bool verbose)
+void ml_gsl_fdf_D(const gsl_vector* v, void* p, double *f, gsl_vector *df)
+{
+    *f = ml_gsl_f_D(v, p);
+    ml_gsl_df_D(v, p, df);
+}
+
+void ml_gsl_fdf_D_beta(const gsl_vector* v, void* p, double *f, gsl_vector *df)
+{
+    *f = ml_gsl_f_D(v, p);
+    ml_gsl_df_D_beta(v, p, df);
+}
+
+void fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D0, const vec& beta, const uword& ndata, const double& alpha, const double& eps, const size_t& max_iters, bool verbose, mat& D1)
 {
     int precision = int(log10(1.0 / eps));
-    uword q = D.n_cols, ntarget = q * (q + 1) / 2;
+    uword q = D0.n_cols, ntarget = q * (q + 1) / 2;
     ML_D_Params* params = new ML_D_Params();
     params->Xf = &Xf;
     params->Yf = &Yf;
@@ -213,13 +313,13 @@ mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, cons
     params->q = q;
     gsl_multimin_function_fdf minex_fun;
     minex_fun.n = ntarget;
-    minex_fun.f = loglikelihood_ml_gsl;
-    minex_fun.df = loglikelihood_ml_d_gsl;
-    minex_fun.fdf = loglikelihood_ml_fd_gsl;
+    minex_fun.f = ml_gsl_f_D;
+    minex_fun.df = ml_gsl_df_D;
+    minex_fun.fdf = ml_gsl_fdf_D;
     minex_fun.params = params;
     gsl_vector *target = gsl_vector_alloc(ntarget), *step_size = gsl_vector_alloc(ntarget);
-    uvec D_tril_idx = trimatl_ind(arma::size(D)), D_triu_idx = trimatu_ind(arma::size(D));
-    vec D_tril_vec = D(D_tril_idx);
+    uvec D_tril_idx = trimatl_ind(arma::size(D0)), D_triu_idx = trimatu_ind(arma::size(D0));
+    vec D_tril_vec = D0(D_tril_idx);
     for (uword i = 0; i < ntarget; i++)
     {
         gsl_vector_set(target, i, D_tril_vec(i));
@@ -258,10 +358,89 @@ mat fit_D(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, cons
     {
         D_tri(i) = gsl_vector_get(x0, i);
     }
-    mat D1(arma::size(D));
+    D1 = mat(arma::size(D0));
     D1(D_tril_idx) = D_tri;
     D1(D_triu_idx) = D_tri;
-    return D1;
+}
+
+void fit_D_beta(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const mat& D0, const vec& beta0, const uword& ndata, const double& alpha, const double& eps, const size_t& max_iters, bool verbose, mat& D1, vec& beta1)
+{
+    int precision = int(log10(1.0 / eps));
+    uword p = beta0.n_rows, q = D0.n_cols, ntarget = p + q * (q + 1) / 2;
+    ML_D_Params* params = new ML_D_Params();
+    params->Xf = &Xf;
+    params->Yf = &Yf;
+    params->Zf = &Zf;
+    params->n = ndata;
+    params->p = p;
+    params->q = q;
+    gsl_multimin_function_fdf minex_fun;
+    minex_fun.n = ntarget;
+    minex_fun.f = ml_gsl_f_D_beta;
+    minex_fun.df = ml_gsl_df_D_beta;
+    minex_fun.fdf = ml_gsl_fdf_D_beta;
+    minex_fun.params = params;
+    gsl_vector *target = gsl_vector_alloc(ntarget), *step_size = gsl_vector_alloc(ntarget);
+    uvec D_tril_idx = trimatl_ind(arma::size(D0)), D_triu_idx = trimatu_ind(arma::size(D0));
+    vec D_tril_vec = D0(D_tril_idx);
+    for (uword i = 0; i < p; i++)
+    {
+        gsl_vector_set(target, i, beta0(i));
+    }
+    for (uword i = p; i < ntarget; i++)
+    {
+        uword e = i - p;
+        gsl_vector_set(target, i, D_tril_vec(e));
+    }
+    gsl_vector *x0 = gsl_vector_alloc(ntarget);
+    gsl_vector_memcpy(x0, target);
+    gsl_multimin_fdfminimizer *minimizer = gsl_multimin_fdfminimizer_alloc(gsl_multimin_fdfminimizer_conjugate_fr, ntarget);
+    gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, alpha, eps);
+    if (verbose)
+    {
+        cout << setprecision(precision) << fixed << 
+            minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << 
+            minimizer->x->data[2] << "," << minimizer->x->data[3] << "," << minimizer->x->data[4] << ";";
+        cout << setprecision(precision) << fixed << 
+            minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << 
+            minimizer->gradient->data[2] << "," << minimizer->gradient->data[3] << "," << minimizer->gradient->data[4] << ";";
+        cout << minimizer->f << '\r';
+    }
+    size_t iter = 0;
+    int status;
+    do
+    {
+        gsl_vector_memcpy(x0, minimizer->x);
+        status = gsl_multimin_fdfminimizer_iterate(minimizer);
+        if (verbose)
+        {
+            cout << setprecision(precision) << fixed << 
+                minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << 
+                minimizer->x->data[2] << "," << minimizer->x->data[3] << "," << minimizer->x->data[4] << ";";
+            cout << setprecision(precision) << fixed << 
+                minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << 
+                minimizer->gradient->data[2] << "," << minimizer->gradient->data[3] << "," << minimizer->gradient->data[4] << ";";
+            cout << minimizer->f << '\r';
+        }
+        if (status) break;
+        if (minimizer->f < 0 || gsl_isnan(minimizer->f)) break;
+        status = gsl_multimin_test_gradient(minimizer->gradient, eps);
+    } while (status == GSL_CONTINUE && (++iter) < max_iters);
+    cout << endl;
+    delete params;
+    vec D_tri(arma::size(D_tril_idx));
+    for (uword i = p; i < ntarget; i++)
+    {
+        D_tri(i - p) = gsl_vector_get(minimizer->x, i);
+    }
+    D1 = mat(arma::size(D0));
+    D1(D_tril_idx) = D_tri;
+    D1(D_triu_idx) = D_tri;
+    beta1 = vec(arma::size(beta0), arma::fill::zeros);
+    for (uword i = 0; i < p; i++)
+    {
+        beta1(i) = gsl_vector_get(minimizer->x, i);
+    }
 }
 
 mat fit_mu(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, const vec& beta, const mat& D)
@@ -282,7 +461,7 @@ mat fit_mu(const field<mat>& Xf, const field<vec>& Yf, const field<mat>& Zf, con
     return mu;
 }
 
-HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha, double eps_iter, double eps_gradient, size_t max_iters, size_t max_retires, bool verbose) 
+HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha, double eps_iter, double eps_gradient, size_t max_iters, size_t max_retires, bool verbose, size_t ml_type) 
 {
     int prescition = (int)log10(1 / eps_iter);
     //===============
@@ -347,8 +526,21 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         //------------------------------------
         // Maximum Likelihood Estimation for D
         //------------------------------------
-        D = fit_D(Xf, Yhf, Zf, D, beta, ndata, alpha, eps_gradient, max_iters, verbose);
-        beta = fit_gls(Xf, Yhf, Zf, D);
+        switch (ml_type)
+        {
+        case 0:
+            fit_D(Xf, Yhf, Zf, D, beta, ndata, alpha, eps_gradient, max_iters, verbose, D);
+            beta = fit_gls(Xf, Yhf, Zf, D);
+            break;
+        case 1:
+            beta = fit_gls(Xf, Yhf, Zf, eye(size(D)));
+            fit_D_beta(Xf, Yhf, Zf, eye(size(D)), beta, ndata, alpha, eps_gradient, max_iters, verbose, D, beta);
+            break;
+        default:
+            fit_D(Xf, Yhf, Zf, D, beta, ndata, alpha, eps_gradient, max_iters, verbose, D);
+            beta = fit_gls(Xf, Yhf, Zf, D);
+            break;
+        }
         mu = fit_mu(Xf, Yhf, Zf, beta, D);
         //------------------------------
         // Calculate Termination Measure
@@ -383,14 +575,15 @@ int main(int argc, char *argv[])
         ("eps-iter,e", boost::program_options::value<double>()->default_value(1e-6, "1e-6"), "Coverage threshold")
         ("eps-gradient,g", boost::program_options::value<double>()->default_value(1e-6, "1e-6"), "Minimize Log-likelihood threshold")
         ("max-iters,m", boost::program_options::value<size_t>()->default_value(1e6, "1e6"), "Maximum iteration")
-        ("max-retries,m", boost::program_options::value<size_t>()->default_value(10), "Maximum retry times when algorithm seems to diverge")
+        ("max-retries,r", boost::program_options::value<size_t>()->default_value(10), "Maximum retry times when algorithm seems to diverge")
+        ("ml-beta", "Whether use maximum likelihood to estimate beta")
         ("verbose,v", "Print algorithm details.")
         ("help,h", "Print help.");
     boost::program_options::variables_map var_map;
     boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), var_map);
     boost::program_options::notify(var_map);
     double alpha, eps_iter, eps_gradient;
-    size_t max_iters, max_retries;
+    size_t max_iters, max_retries, ml_type = 0;
     bool verbose;
     if (var_map.count("help") > 0)
     {
@@ -414,6 +607,7 @@ int main(int argc, char *argv[])
     if (var_map.count("eps-gradient") > 0) eps_gradient = var_map["eps-gradient"].as<double>();
     if (var_map.count("max-iters") > 0) max_iters = var_map["max-iters"].as<size_t>();
     if (var_map.count("max-retries") > 0) max_retries = var_map["max-retries"].as<size_t>();
+    if (var_map.count("ml-beta") > 0) ml_type = 1;
     if (var_map.count("verbose") > 0) verbose = true;
     double bw = var_map["bandwidth"].as<double>();
     /// solve
@@ -428,7 +622,7 @@ int main(int argc, char *argv[])
     y.load(arma::csv_name(string(data_dir) + "/hlmgwr_y.csv"));
     group.load(arma::csv_name(string(data_dir) + "/hlmgwr_group.csv"));
     HLMGWRArgs alg_args = { G, X, Z, y, u, group, bw };
-    HLMGWRParams alg_params = backfitting_maximum_likelihood(alg_args, alpha, eps_iter, eps_gradient, max_iters, max_retries, verbose);
+    HLMGWRParams alg_params = backfitting_maximum_likelihood(alg_args, alpha, eps_iter, eps_gradient, max_iters, max_retries, verbose, ml_type);
     // Diagnostic
     const mat &gamma = alg_params.gamma, &beta = alg_params.beta, &mu = alg_params.mu, &D = alg_params.D;
     uword ngroup = G.n_rows, ndata = y.n_rows;
