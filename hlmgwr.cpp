@@ -316,6 +316,10 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         Xf(i) = X.rows(ind);
         Zf(i) = Z.rows(ind);
     }
+    //----------------------------------------------
+    // Generalized Least Squared Estimation for beta
+    //----------------------------------------------
+    beta = fit_gls(Xf, Yf, Zf, D);
     //============
     // Backfitting
     //============
@@ -340,15 +344,11 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         {
             Yhf(i) = Yf(i) - sum(G.row(i) % gamma.row(i));
         }
-        //----------------------------------------------
-        // Generalized Least Squared Estimation for beta
-        //----------------------------------------------
-        beta = fit_gls(Xf, Yf, Zf, D);
         //------------------------------------
         // Maximum Likelihood Estimation for D
         //------------------------------------
         D = fit_D(Xf, Yhf, Zf, D, beta, ndata, alpha, eps_gradient, max_iters, verbose);
-        beta = fit_gls(Xf, Yf, Zf, D);
+        beta = fit_gls(Xf, Yhf, Zf, D);
         mu = fit_mu(Xf, Yhf, Zf, beta, D);
         //------------------------------
         // Calculate Termination Measure
