@@ -450,7 +450,7 @@ mat fit_mu(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, con
     return mu;
 }
 
-HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha, double eps_iter, double eps_gradient, size_t max_iters, size_t max_retires, bool verbose, size_t ml_type) 
+HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha, double eps_iter, double eps_gradient, size_t max_iters, size_t max_retires, size_t verbose, size_t ml_type) 
 {
     int prescition = (int)log10(1 / eps_iter);
     //===============
@@ -522,17 +522,17 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         switch (ml_type)
         {
         case 0:
-            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose);
+            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1);
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             break;
         case 1:
             ml_params.beta = nullptr;
             D = eye(size(D));
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
-            fit_D_beta(D, beta, &ml_params, alpha, eps_gradient, max_iters, verbose);
+            fit_D_beta(D, beta, &ml_params, alpha, eps_gradient, max_iters, verbose > 1);
             break;
         default:
-            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose);
+            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1);
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             break;
         }
@@ -546,7 +546,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         diff = abs(rss - rss0);
         if (rss > rss0 && iter > 0) retry++;
         else if (retry > 0) retry = 0;
-        if (verbose)
+        if (verbose > 0)
         {
             std::cout << fixed << setprecision(prescition) <<
                 "RSS: " << rss << ", " <<
@@ -577,14 +577,15 @@ int main(int argc, char *argv[])
         ("max-iters,m", boost::program_options::value<size_t>()->default_value(1e6, "1e6"), "Maximum iteration")
         ("max-retries,r", boost::program_options::value<size_t>()->default_value(10), "Maximum retry times when algorithm seems to diverge")
         ("ml-beta", "Whether use maximum likelihood to estimate beta")
-        ("verbose,v", "Print algorithm details.")
+        ("verbose,v", boost::program_options::value<size_t>()->default_value(0), "Print algorithm details")
+        ("v1", "Only print details of the back-fitting part")
+        ("v2", "Print both details of the back-fitting part and the maximum likelihood part")
         ("help,h", "Print help.");
     boost::program_options::variables_map var_map;
     boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), var_map);
     boost::program_options::notify(var_map);
     double alpha, eps_iter, eps_gradient;
-    size_t max_iters, max_retries, ml_type = 0;
-    bool verbose;
+    size_t max_iters, max_retries, verbose = 0, ml_type = 0;
     if (var_map.count("help") > 0)
     {
         cout << desc << endl;
@@ -608,7 +609,9 @@ int main(int argc, char *argv[])
     if (var_map.count("max-iters") > 0) max_iters = var_map["max-iters"].as<size_t>();
     if (var_map.count("max-retries") > 0) max_retries = var_map["max-retries"].as<size_t>();
     if (var_map.count("ml-beta") > 0) ml_type = 1;
-    if (var_map.count("verbose") > 0) verbose = true;
+    if (var_map.count("verbose") > 0) verbose = var_map["verbose"].as<size_t>();
+    if (var_map.count("v1") > 0) verbose = 1;
+    if (var_map.count("v2") > 0) verbose = 2;
     double bw = var_map["bandwidth"].as<double>();
     /// solve
     mat G,X,Z,u;
