@@ -522,6 +522,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, double alpha
         switch (ml_type)
         {
         case 0:
+            D = eye(size(D));
             fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1);
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             break;
