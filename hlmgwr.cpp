@@ -3,9 +3,10 @@
 #include <iomanip>
 #include <string>
 #include <armadillo>
+#include <omp.h>
+#include <boost/program_options.hpp>
 #include <gsl/gsl_multimin.h>
 #include <gsl/gsl_errno.h>
-#include <boost/program_options.hpp>
 #include "helper.h"
 
 using namespace std;
@@ -55,6 +56,8 @@ mat fit_gwr(const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup, con
     mat beta(ngroup, k, arma::fill::zeros), D_inv = D.i();
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
+    int threads = omp_get_max_threads();
+#pragma omp parallel for num_threads(threads)
     for (int i = 0; i < ngroup; i++)
     {
         const mat& Yi = Yf[i];
@@ -66,6 +69,7 @@ mat fit_gwr(const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup, con
         Viy(i) = as_scalar(Visigma * Yi);
     }
     /// Calibrate for each gorup.
+#pragma omp parallel for num_threads(threads)
     for (int i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
@@ -102,8 +106,12 @@ double loglikelihood(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
 {
     mat D_inv = D.i();
     double L1 = 0.0, L2 = 0.0, n = (double)ndata;
-    for (uword i = 0; i < ngroup; i++)
+    int threads = omp_get_max_threads() - 1;
+    vec L1v(threads, arma::fill::zeros), L2v(threads, arma::fill::zeros);
+#pragma omp parallel for num_threads(threads)
+    for (int i = 0; i < ngroup; i++)
     {
+        int it = omp_get_thread_num();
         const mat& Xi = Xf[i];
         const vec& Yi = Yf[i];
         const mat& Zi = Zf[i];
@@ -114,9 +122,11 @@ double loglikelihood(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
         log_det(detVi, sign_detVi, Vi);
         mat Vi_inv = Ii - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
         vec Ri = Yi - Xi * beta;
-        L1 += as_scalar(Ri.t() * Vi_inv * Ri);
-        L2 += detVi;
+        L1v(it) += as_scalar(Ri.t() * Vi_inv * Ri);
+        L2v(it) += detVi;
     }
+    L1 = sum(L1v);
+    L2 = sum(L2v);
     double LL = - (n / 2.0) * log(L1) - 0.5 * L2 - 0.5 - 0.5 * log2pi + (n / 2.0) * log(n);
     return LL;
 }
@@ -126,9 +136,19 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
     mat ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
     mat KKt(arma::size(D), arma::fill::zeros);
     double J = 0.0, n = (double)ndata;
-    // field<mat> Kf(ngroup);
-    for (uword i = 0; i < ngroup; i++)
+    int threads = omp_get_max_threads() - 1;
+    mat* KKt_threads = new mat[threads];
+    mat* ZtViZ_threads = new mat[threads];
+    for (int i = 0; i < threads; i++)
     {
+        KKt_threads[i] = mat(arma::size(D), arma::fill::zeros);
+        ZtViZ_threads[i] = mat(arma::size(D), arma::fill::zeros);
+    }
+    vec Jv(threads, arma::fill::zeros);
+#pragma omp parallel for num_threads(threads)
+    for (int i = 0; i < ngroup; i++)
+    {
+        int it = omp_get_thread_num();
         const mat& Xi = Xf[i];
         const mat& Yi = Yf[i];
         const mat& Zi = Zf[i];
@@ -136,12 +156,20 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
         mat Vi_inv = eye(nidata, nidata) - Zi * inv(D_inv + Zi.t() * Zi) * Zi.t();
         vec Ri = Yi - Xi * beta;
         mat Ki = Zi.t() * Vi_inv * Ri;
-        KKt += Ki * Ki.t();
-        ZtViZ += Zi.t() * Vi_inv * Zi;
-        J += as_scalar(Ri.t() * Vi_inv * Ri);
+        KKt_threads[it] += Ki * Ki.t();
+        ZtViZ_threads[it] += Zi.t() * Vi_inv * Zi;
+        Jv(it) += as_scalar(Ri.t() * Vi_inv * Ri);
     }
+    for (int i = 0; i < threads; i++)
+    {
+        KKt += KKt_threads[i];
+        ZtViZ += ZtViZ_threads[i];
+    }
+    J = sum(Jv);
     mat KJKt = KKt / J;
     d_D = ((- n / 2.0) * (-KJKt) - 0.5 * ZtViZ);
+    delete[] KKt_threads;
+    delete[] ZtViZ_threads;
 }
 
 void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D, const vec& beta, const uword& ndata, mat& d_D, mat& d_beta)
