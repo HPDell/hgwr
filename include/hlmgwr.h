@@ -20,4 +20,16 @@ struct HLMGWRParams {
     arma::mat D;
 };
 
+struct HLMGWROptions {
+    double alpha;
+    double eps_iter;
+    double eps_gradient;
+    size_t max_iters;
+    size_t max_retries;
+    size_t verbose;
+    size_t ml_type;
+};
+
+HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWROptions& options);
+
 #endif  // HLMGWR_H
