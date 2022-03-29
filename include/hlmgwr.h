@@ -21,13 +21,13 @@ struct HLMGWRParams {
 };
 
 struct HLMGWROptions {
-    double alpha;
-    double eps_iter;
-    double eps_gradient;
-    size_t max_iters;
-    size_t max_retries;
-    size_t verbose;
-    size_t ml_type;
+    double alpha = 0.01;
+    double eps_iter = 1e-6;
+    double eps_gradient = 1e-6;
+    size_t max_iters = (size_t)1e6;
+    size_t max_retries = 10;
+    size_t verbose = 0;
+    size_t ml_type = 0;
 };
 
 HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWROptions& options);

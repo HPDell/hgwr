@@ -28,5 +28,19 @@ else()
     message(FATAL_ERROR "Boost Library Cannot Found!")
 endif()
 
-add_executable(testHGWRBML main.cpp helper.cpp)
-target_link_libraries(testHGWRBML hgwrbml)
+set(ADDON_DEBUG_LIBRARIES
+    ${Boost_PROGRAM_OPTIONS_LIBRARY_DEBUG} 
+)
+
+set(ADDON_OPTIMIZED_LIBRARIES
+    ${Boost_PROGRAM_OPTIONS_LIBRARY_RELEASE}
+)
+
+add_executable(testHGWRBML main.cpp)
+target_link_libraries(testHGWRBML PRIVATE hgwrbml debug ${ADDON_DEBUG_LIBRARIES} optimized ${ADDON_OPTIMIZED_LIBRARIES})
+
+add_test(
+    NAME Test_HGWRBML
+    COMMAND $<TARGET_FILE:testHGWRBML> -d ${TEST_DATA_DIR} -b 64
+    WORKING_DIRECTORY $<TARGET_FILE_DIR:testHGWRBML>
+)

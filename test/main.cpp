@@ -14,6 +14,7 @@ int main(int argc, char *argv[])
     boost::program_options::options_description desc("Gradient Descent Solution for HLMGWR");
     desc.add_options()
         ("data-dir,d", boost::program_options::value<string>(), "Data directory")
+        ("output-dir,o", boost::program_options::value<string>()->default_value(".", "pwd"), "Output directory")
         ("bandwidth,b", boost::program_options::value<double>(), "Bandwidth")
         ("alpha,a", boost::program_options::value<double>()->default_value(0.01), "Learning speed")
         ("eps-iter,e", boost::program_options::value<double>()->default_value(1e-6, "1e-6"), "Coverage threshold")
@@ -38,12 +39,17 @@ int main(int argc, char *argv[])
         cout << "Bandwidth must be specified!" << endl;
         return 1;
     }
-    string data_dir;
+    string data_dir, output_dir;
     if (var_map.count("data-dir") > 0) data_dir = var_map["data-dir"].as<string>();
     else 
     {
         cout << "Argument data-dir must be specified!" << endl;
         return 2;
+    }
+    if (var_map.count("output-dir") > 0) output_dir = var_map["output-dir"].as<string>();
+    else
+    {
+        output_dir = ".";
     }
     if (var_map.count("alpha") > 0) options.alpha = var_map["alpha"].as<double>();
     if (var_map.count("eps-iter") > 0) options.eps_iter = var_map["eps-iter"].as<double>();
@@ -82,8 +88,9 @@ int main(int argc, char *argv[])
     double rss = 1 - sum(residual % residual) / sum(deviation % deviation);
     cout << "Rsquared: " << rss << endl;
     // Save coefficients
-    alg_params.gamma.save(arma::csv_name(string(data_dir) + "/hlmgwr_hat_gamma.csv"));
-    alg_params.beta.save(arma::csv_name(string(data_dir) + "/hlmgwr_hat_beta.csv"));
-    alg_params.mu.save(arma::csv_name(string(data_dir) + "/hlmgwr_hat_mu.csv"));
-    alg_params.D.save(arma::csv_name(string(data_dir) + "/hlmgwr_hat_D.csv"));
+    alg_params.gamma.save(arma::csv_name(string(output_dir) + "/hlmgwr_hat_gamma.csv"));
+    alg_params.beta.save(arma::csv_name(string(output_dir) + "/hlmgwr_hat_beta.csv"));
+    alg_params.mu.save(arma::csv_name(string(output_dir) + "/hlmgwr_hat_mu.csv"));
+    alg_params.D.save(arma::csv_name(string(output_dir) + "/hlmgwr_hat_D.csv"));
+    return 0;
 }
