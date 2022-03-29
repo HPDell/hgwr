@@ -453,7 +453,7 @@ mat fit_mu(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, con
     return mu;
 }
 
-HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWROptions& options)
+HLMGWRParams backfitting_maximum_likelihood(const mat& G, const mat& Z, const mat& X, const vec& y, const mat& u, const uvec& group, double bw, const HLMGWROptions& options)
 {
     //================
     // Extract Options
@@ -469,15 +469,9 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     //===============
     // Prepare Matrix
     //===============
-    const mat& G = args.G;
-    const mat& Z = args.Z;
-    const mat& X = args.X;
-    const vec& y = args.y;
-    const mat& u = args.u;
-    const uvec& group = args.group;
-    double bw = args.bw;
     uword ngroup = G.n_rows, ndata = X.n_rows;
     uword nvg = G.n_cols, nvx = X.n_cols, nvz = Z.n_cols;
+    printf("nvg: %d, nvx: %d, nvz: %d \n", int(nvg), int(nvx), int(nvz));
     double tss = sum((y - mean(y)) % (y - mean(y)));
     mat gamma(ngroup, nvg, arma::fill::zeros);
     vec beta(nvx, arma::fill::zeros);

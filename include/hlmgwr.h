@@ -54,8 +54,29 @@ struct HLMGWROptions {
         verbose = (size_t)0;
         ml_type = (size_t)0;
     }
+
+    HLMGWROptions(
+        double in_alpha,
+        double in_eps_iter,
+        double in_eps_gradient,
+        size_t in_max_iters,
+        size_t in_max_retries,
+        size_t in_verbose,
+        size_t in_ml_type
+    )
+    {
+        alpha = in_alpha;
+        eps_iter = in_eps_iter;
+        eps_gradient = in_eps_gradient;
+        max_iters = in_max_iters;
+        max_retries = in_max_retries;
+        verbose = in_verbose;
+        ml_type = in_ml_type;
+    }
 };
 
-HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWROptions& options);
+HLMGWRParams backfitting_maximum_likelihood(const arma::mat& G, const arma::mat& Z, const arma::mat& X,
+                                            const arma::vec& y, const arma::mat& u, const arma::uvec& group, 
+                                            double bw, const HLMGWROptions& options);
 
 #endif  // HLMGWR_H
