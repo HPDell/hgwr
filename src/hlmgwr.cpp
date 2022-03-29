@@ -471,7 +471,6 @@ HLMGWRParams backfitting_maximum_likelihood(const mat& G, const mat& Z, const ma
     //===============
     uword ngroup = G.n_rows, ndata = X.n_rows;
     uword nvg = G.n_cols, nvx = X.n_cols, nvz = Z.n_cols;
-    printf("nvg: %d, nvx: %d, nvz: %d \n", int(nvg), int(nvx), int(nvz));
     double tss = sum((y - mean(y)) % (y - mean(y)));
     mat gamma(ngroup, nvg, arma::fill::zeros);
     vec beta(nvx, arma::fill::zeros);
