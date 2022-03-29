@@ -49,11 +49,11 @@ inline vec gwr_kernel_bisquare2(vec dist2, double bw2)
  */
 mat fit_gwr(const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D, const mat& u, double bw)
 {
-    uword k = G.n_cols, q = Zf[0].n_cols;
+    uword k = G.n_cols;//, q = Zf[0].n_cols;
     mat beta(ngroup, k, arma::fill::zeros), D_inv = D.i();
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
-    for (int i = 0; i < ngroup; i++)
+    for (size_t i = 0; i < ngroup; i++)
     {
         const mat& Yi = Yf[i];
         const mat& Zi = Zf[i];
@@ -64,7 +64,7 @@ mat fit_gwr(const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup, con
         Viy(i) = as_scalar(Visigma * Yi);
     }
     /// Calibrate for each gorup.
-    for (int i = 0; i < ngroup; i++)
+    for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
         vec d2 = sum(d_u % d_u, 1);
@@ -266,7 +266,6 @@ void ml_gsl_df_D_beta(const gsl_vector* v, void* pparams, gsl_vector *df)
     }
     for (size_t i = p; i < ntarget; i++)
     {
-        uword e = i - p;
         D_tri(i - p) = gsl_vector_get(v, i);
     }
     mat D(q, q, arma::fill::zeros);
@@ -369,7 +368,7 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
     minex_fun.df = ml_gsl_df_D_beta;
     minex_fun.fdf = ml_gsl_fdf_D_beta;
     minex_fun.params = (void*)params;
-    gsl_vector *target = gsl_vector_alloc(ntarget), *step_size = gsl_vector_alloc(ntarget);
+    gsl_vector *target = gsl_vector_alloc(ntarget);//, *step_size = gsl_vector_alloc(ntarget);
     for (uword i = 0; i < p; i++)
     {
         gsl_vector_set(target, i, beta(i));
@@ -508,7 +507,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     //============
     // Backfitting
     //============
-    int retry = 0;
+    size_t retry = 0;
     double rss = 0.0, rss0 = 0.0, diff = DBL_MAX;
     for (size_t iter = 0; iter < max_iters && diff > eps_iter && retry <= max_retries; iter++)
     {
