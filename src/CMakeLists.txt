@@ -54,14 +54,12 @@ else()
 endif()
 
 set(ADDON_DEBUG_LIBRARIES
-    ${Boost_PROGRAM_OPTIONS_LIBRARY_DEBUG} 
     ${GSL_LIBRARY_DEBUG}
 )
 
 set(ADDON_OPTIMIZED_LIBRARIES
-    ${Boost_PROGRAM_OPTIONS_LIBRARY_RELEASE}
     ${GSL_LIBRARY}
 )
 
-add_library(hgwrbml hlmgwr.cpp)
+add_library(hgwrbml STATIC hlmgwr.cpp)
 target_link_libraries(hgwrbml ${ADDON_LIBRARIES} debug ${ADDON_DEBUG_LIBRARIES} optimized ${ADDON_OPTIMIZED_LIBRARIES})
