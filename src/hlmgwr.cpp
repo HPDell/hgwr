@@ -344,7 +344,10 @@ void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps
         if (minimizer->f < 0 || gsl_isnan(minimizer->f)) break;
         status = gsl_multimin_test_gradient(minimizer->gradient, eps);
     } while (status == GSL_CONTINUE && (++iter) < max_iters);
-    cout << endl;
+    if (verbose) 
+    {
+        cout << endl;
+    }
     vec D_tri(arma::size(D_tril_idx));
     for (uword i = 0; i < ntarget; i++)
     {
@@ -412,7 +415,10 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
         if (minimizer->f < 0 || gsl_isnan(minimizer->f)) break;
         status = gsl_multimin_test_gradient(minimizer->gradient, eps);
     } while (status == GSL_CONTINUE && (++iter) < max_iters);
-    cout << endl;
+    if (verbose) 
+    {
+        cout << endl;
+    }
     vec D_tri(arma::size(D_tril_idx));
     for (uword i = p; i < ntarget; i++)
     {
