@@ -520,7 +520,6 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
             Ygf[i] = Yf[i] - Xf[i] * beta;
         }
         gamma = fit_gwr(G, Ygf, Zf, ngroup, D, u, bw);
-        gamma.save(arma::csv_name("gamma.csv"));
         vec hatMg = sum(G % gamma, 1);
         vec hatM = hatMg.rows(group);
         vec yh = y - hatM;
