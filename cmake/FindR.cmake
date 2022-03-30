@@ -113,25 +113,11 @@ if (FIND_RCPP_PROGRESS)
 endif()
 
 
-# Additional packages
-execute_process(
-        COMMAND ${R_EXECUTABLE} "--slave" "--no-save" "-e" "cat('Matrix' %in% rownames(installed.packages()))"
-        OUTPUT_VARIABLE R_MATRIX_PKG
-)
-
-
-if(NOT "${R_MATRIX_PKG}" STREQUAL TRUE)
-    message(STATUS "Unable to locate R package 'Matrix'")
-    set(R_MATRIX_PKG )
-endif()
-
-
 set(LIBRARIES_LIST
-        R_LIBRARIES
+        # R_LIBRARIES
         R_INCLUDE_DIRS
         RCPP_INCLUDE_DIR
-        RCPP_ARMADILLO_INCLUDE_DIR
-        R_MATRIX_PKG)
+        RCPP_ARMADILLO_INCLUDE_DIR)
 
 
 if (FIND_RCPP_PROGRESS)
@@ -146,7 +132,9 @@ find_package_handle_standard_args(R DEFAULT_MSG ${LIBRARIES_LIST})
 
 if (R_FOUND)
     set(R_INCLUDE_DIRS ${R_INCLUDE_DIRS} ${RCPP_INCLUDE_DIR} ${RCPP_ARMADILLO_INCLUDE_DIR} ${RCPP_PROGRESS_INCLUDE_DIR})
-    set(R_LIBRARIES ${R_LIBRARIES})
+    if(R_LIBRARIES)
+        set(R_LIBRARIES ${R_LIBRARIES})
+    endif()
     message(STATUS "Found R: ${R_ROOT}")
 endif()
 
@@ -157,5 +145,4 @@ mark_as_advanced(
         RCPP_ARMADILLO_INCLUDE_DIR
         RCPP_INCLUDE_DIR
         RCPP_PROGRESS_INCLUDE_DIR
-        R_MATRIX_PKG
 )
