@@ -75,8 +75,6 @@ struct HLMGWROptions {
     }
 };
 
-HLMGWRParams backfitting_maximum_likelihood(const arma::mat& G, const arma::mat& Z, const arma::mat& X,
-                                            const arma::vec& y, const arma::mat& u, const arma::uvec& group, 
-                                            double bw, const HLMGWROptions& options);
+HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWROptions& options);
 
 #endif  // HLMGWR_H

@@ -72,7 +72,8 @@ int main(int argc, char *argv[])
     u.load(arma::csv_name(string(data_dir) + "/hlmgwr_u.csv"));
     y.load(arma::csv_name(string(data_dir) + "/hlmgwr_y.csv"));
     group.load(arma::csv_name(string(data_dir) + "/hlmgwr_group.csv"));
-    HLMGWRParams alg_params = backfitting_maximum_likelihood(G, X, Z, y, u, group, bw, options);
+    HLMGWRArgs alg_args = { G, X, Z, y, u, group, bw };
+    HLMGWRParams alg_params = backfitting_maximum_likelihood(alg_args, options);
     // Diagnostic
     const mat &gamma = alg_params.gamma, &beta = alg_params.beta, &mu = alg_params.mu, &D = alg_params.D;
     uword ngroup = G.n_rows, ndata = y.n_rows;
