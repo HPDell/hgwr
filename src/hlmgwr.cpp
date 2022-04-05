@@ -1,5 +1,5 @@
 #include "hlmgwr.h"
-#include <iostream>
+#include <sstream>
 #include <iomanip>
 #include <string>
 #include <armadillo>
@@ -299,7 +299,7 @@ void ml_gsl_fdf_D_beta(const gsl_vector* v, void* p, double *f, gsl_vector *df)
     ml_gsl_df_D_beta(v, p, df);
 }
 
-void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose)
+void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose, const PrintFunction pcout)
 {
     int precision = int(log10(1.0 / eps));
     uword q = D.n_cols, ntarget = q * (q + 1) / 2;
@@ -323,9 +323,11 @@ void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps
     gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, alpha, eps);
     if (verbose)
     {
-        cout << setprecision(precision) << fixed << minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << minimizer->x->data[2] << ";";
-        cout << setprecision(precision) << fixed << minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << minimizer->gradient->data[2] << ";";
-        cout << minimizer->f << '\r';
+        ostringstream sout;
+        sout << setprecision(precision) << fixed << minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << minimizer->x->data[2] << ";";
+        sout << setprecision(precision) << fixed << minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << minimizer->gradient->data[2] << ";";
+        sout << minimizer->f << '\r';
+        pcout(sout.str());
     }
     size_t iter = 0;
     int status;
@@ -335,9 +337,11 @@ void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps
         status = gsl_multimin_fdfminimizer_iterate(minimizer);
         if (verbose)
         {
-            cout << setprecision(precision) << fixed << minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << minimizer->x->data[2] << ";";
-            cout << setprecision(precision) << fixed << minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << minimizer->gradient->data[2] << ";";
-            cout << minimizer->f << '\r';
+            ostringstream sout;
+            sout << setprecision(precision) << fixed << minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << minimizer->x->data[2] << ";";
+            sout << setprecision(precision) << fixed << minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << minimizer->gradient->data[2] << ";";
+            sout << minimizer->f << '\r';
+            pcout(sout.str());
         }
         if (status) break;
         if (minimizer->f < 0 || gsl_isnan(minimizer->f)) break;
@@ -345,7 +349,7 @@ void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps
     } while (status == GSL_CONTINUE && (++iter) < max_iters);
     if (verbose) 
     {
-        cout << endl;
+        pcout("\n");
     }
     vec D_tri(arma::size(D_tril_idx));
     for (uword i = 0; i < ntarget; i++)
@@ -358,7 +362,7 @@ void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps
     D = D1;
 }
 
-void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose)
+void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose, const PrintFunction pcout)
 {
     int precision = int(log10(1.0 / eps));
     uword p = beta.n_rows, q = D.n_cols, ntarget = p + q * (q + 1) / 2;
@@ -386,13 +390,15 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
     gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, alpha, eps);
     if (verbose)
     {
-        cout << setprecision(precision) << fixed << 
+        ostringstream sout;
+        sout << setprecision(precision) << fixed << 
             minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << 
             minimizer->x->data[2] << "," << minimizer->x->data[3] << "," << minimizer->x->data[4] << ";";
-        cout << setprecision(precision) << fixed << 
+        sout << setprecision(precision) << fixed << 
             minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << 
             minimizer->gradient->data[2] << "," << minimizer->gradient->data[3] << "," << minimizer->gradient->data[4] << ";";
-        cout << minimizer->f << '\r';
+        sout << minimizer->f << '\r';
+        pcout(sout.str());
     }
     size_t iter = 0;
     int status;
@@ -402,13 +408,15 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
         status = gsl_multimin_fdfminimizer_iterate(minimizer);
         if (verbose)
         {
-            cout << setprecision(precision) << fixed << 
+            ostringstream sout;
+            sout << setprecision(precision) << fixed << 
                 minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << 
                 minimizer->x->data[2] << "," << minimizer->x->data[3] << "," << minimizer->x->data[4] << ";";
-            cout << setprecision(precision) << fixed << 
+            sout << setprecision(precision) << fixed << 
                 minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << 
                 minimizer->gradient->data[2] << "," << minimizer->gradient->data[3] << "," << minimizer->gradient->data[4] << ";";
-            cout << minimizer->f << '\r';
+            sout << minimizer->f << '\r';
+            pcout(sout.str());
         }
         if (status) break;
         if (minimizer->f < 0 || gsl_isnan(minimizer->f)) break;
@@ -416,7 +424,7 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
     } while (status == GSL_CONTINUE && (++iter) < max_iters);
     if (verbose) 
     {
-        cout << endl;
+        pcout("\n");
     }
     vec D_tri(arma::size(D_tril_idx));
     for (uword i = p; i < ntarget; i++)
@@ -453,7 +461,7 @@ mat fit_mu(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, con
     return mu;
 }
 
-HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWROptions& options)
+HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWROptions& options, const PrintFunction pcout)
 {
     //================
     // Extract Options
@@ -535,17 +543,17 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         {
         case 0:
             D = eye(size(D));
-            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1);
+            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             break;
         case 1:
             ml_params.beta = nullptr;
             D = eye(size(D));
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
-            fit_D_beta(D, beta, &ml_params, alpha, eps_gradient, max_iters, verbose > 1);
+            fit_D_beta(D, beta, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
             break;
         default:
-            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1);
+            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             break;
         }
@@ -561,12 +569,14 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         else if (retry > 0) retry = 0;
         if (verbose > 0)
         {
-            std::cout << fixed << setprecision(prescition) <<
+            ostringstream sout;
+            sout << fixed << setprecision(prescition) <<
                 "RSS: " << rss << ", " <<
                 "diff: " << diff << ", " <<
                 "R2: " << (1 - rss / tss) << ", " <<
                 "Retry: " << retry <<
                 endl;
+            pcout(sout.str());
         }
     }
     delete[] Zf;

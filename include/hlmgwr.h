@@ -1,6 +1,7 @@
 #ifndef HLMGWR_H
 #define HLMGWR_H
 
+#include <string>
 #include <armadillo>
 
 struct HLMGWRArgs {
@@ -75,6 +76,8 @@ struct HLMGWROptions {
     }
 };
 
-HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWROptions& options);
+typedef void (*PrintFunction)(std::string);
+
+HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWROptions& options, const PrintFunction pcout);
 
 #endif  // HLMGWR_H
