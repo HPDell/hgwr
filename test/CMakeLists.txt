@@ -41,6 +41,6 @@ target_link_libraries(testHGWRBML PRIVATE hgwrbml debug ${ADDON_DEBUG_LIBRARIES}
 
 add_test(
     NAME Test_HGWRBML
-    COMMAND $<TARGET_FILE:testHGWRBML> -d ${TEST_DATA_DIR} -b 64
+    COMMAND $<TARGET_FILE:testHGWRBML> -d ${TEST_DATA_DIR} -b 10
     WORKING_DIRECTORY $<TARGET_FILE_DIR:testHGWRBML>
 )
