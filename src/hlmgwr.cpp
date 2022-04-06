@@ -461,6 +461,24 @@ mat fit_mu(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, con
     return mu;
 }
 
+double fit_sigma(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const size_t ndata, const vec& beta, const mat& D)
+{
+    mat D_inv = D.i();
+    double sigma2 = 0.0;
+    for (uword i = 0; i < ngroup; i++)
+    {
+        const mat& Xi = Xf[i];
+        const mat& Yi = Yf[i];
+        const mat& Zi = Zf[i];
+        uword ndata = Zi.n_rows;
+        mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
+        mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
+        mat Ri = Yi - Xi * beta;
+        sigma2 += as_scalar(Ri.t() * Vi_inv * Ri);
+    }
+    return sqrt(sigma2 / (double)ndata);
+}
+
 HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWROptions& options, const PrintFunction pcout)
 {
     //================
@@ -579,10 +597,11 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
             pcout(sout.str());
         }
     }
+    double sigma = fit_sigma(Xf, Yhf, Zf, ngroup, ndata, beta, D);
     delete[] Zf;
     delete[] Xf;
     delete[] Yf;
     delete[] Ygf;
     delete[] Yhf ;
-    return { gamma, beta, mu, D };
+    return { gamma, beta, mu, D, sigma };
 }

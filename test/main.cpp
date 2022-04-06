@@ -92,6 +92,7 @@ int main(int argc, char *argv[])
     vec deviation = y - mean(y);
     double rss = 1 - sum(residual % residual) / sum(deviation % deviation);
     cout << "Rsquared: " << rss << endl;
+    cout << "Sigma: " << alg_params.sigma << endl;
     // Save coefficients
     alg_params.gamma.save(arma::csv_name(string(output_dir) + "/hlmgwr_hat_gamma.csv"));
     alg_params.beta.save(arma::csv_name(string(output_dir) + "/hlmgwr_hat_beta.csv"));

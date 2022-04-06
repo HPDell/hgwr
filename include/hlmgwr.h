@@ -34,6 +34,7 @@ struct HLMGWRParams {
     arma::mat beta;
     arma::mat mu;
     arma::mat D;
+    double sigma;
 };
 
 struct HLMGWROptions {
