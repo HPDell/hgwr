@@ -1,4 +1,4 @@
-name: CMake
+name: R Check
 
 on:
   push:
