@@ -1,0 +1,47 @@
+name: R Package Check
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build_ubuntu:
+    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
+    # You can convert this to a matrix build if you need cross-platform coverage.
+    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: hpdell/hgwr-ubuntu-docker-action@v1.1
+  
+  build_macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        r-version: ['3.6.3', '4.1.1']
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up R ${{ matrix.r-version }}
+        uses: r-lib/actions/setup-r@f57f1301a053485946083d7a45022b278929a78a
+        with:
+          r-version: ${{ matrix.r-version }}
+      - name: Install C++ dependencies
+        run: |
+          brew install gsl openblas boost
+          mkdir armadillo
+          wget -qO- http://sourceforge.net/projects/arma/files/armadillo-9.900.6.tar.xz | tar -Jxf- --directory=armadillo --strip-components=1
+          cmake -B armadillo/build -S armadillo -DCMAKE_INSTALL_PREFIX=/usr/local -DDETECT_HDF5=OFF -DBUILD_SHARED_LIBS=OFF
+          cmake --build armadillo/build --config Release
+          cmake --install armadillo/build
+      - name: Install R dependencies
+        run: |
+          install.packages(c("devtools", "Rcpp", "RcppArmadillo"))
+        shell: Rscript {0}
+      - name: CMake build
+        run: |
+          mkdir build
+          cmake -B build -S . -DWITH_R=ON
+          cmake --build build --config Release --target hgwrr_rbuild
+          ctest --test-dir build -R Test_R_hgwr --output-on-failure
