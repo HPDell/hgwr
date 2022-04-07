@@ -14,13 +14,13 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
-      - uses: hpdell/hgwr-ubuntu-docker-action@v1.1
+      - uses: docker://ghcr.io/hpdell/hgwr-ubuntu-docker-action:latest
   
   build_macos:
     runs-on: macos-latest
     strategy:
       matrix:
-        r-version: ['3.6.3', '4.1.1']
+        r-version: ['4.1.1']
     steps:
       - uses: actions/checkout@v3
       - name: Set up R ${{ matrix.r-version }}
@@ -37,7 +37,7 @@ jobs:
           cmake --install armadillo/build
       - name: Install R dependencies
         run: |
-          install.packages(c("devtools", "Rcpp", "RcppArmadillo"))
+          install.packages(c("devtools", "Rcpp", "RcppArmadillo"), type = "mac.binary")
         shell: Rscript {0}
       - name: CMake build
         run: |
