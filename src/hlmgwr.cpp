@@ -23,6 +23,7 @@ struct ML_Params
     uword q;
 };
 
+typedef vec (*GWRKernelFunctionSquared)(vec, double);
 
 inline vec gwr_kernel_gaussian2(vec dist2, double bw2)
 {
@@ -34,6 +35,10 @@ inline vec gwr_kernel_bisquare2(vec dist2, double bw2)
     return ((1 - dist2 / bw2) % (1 - dist2 / bw2)) % (dist2 < bw2);
 }
 
+const GWRKernelFunctionSquared gwr_kernel_functions[] = {
+    gwr_kernel_gaussian2,
+    gwr_kernel_bisquare2
+};
 
 /**
  * @brief Estimate $\gamma$.
@@ -47,7 +52,7 @@ inline vec gwr_kernel_bisquare2(vec dist2, double bw2)
  * @param wD Equals to $D$
  * @return mat 
  */
-mat fit_gwr(const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D, const mat& u, double bw)
+mat fit_gwr(const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D, const mat& u, const double bw, const GWRKernelType kernel)
 {
     uword k = G.n_cols;//, q = Zf[0].n_cols;
     mat beta(ngroup, k, arma::fill::zeros), D_inv = D.i();
@@ -64,12 +69,13 @@ mat fit_gwr(const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup, con
         Viy(i) = as_scalar(Visigma * Yi);
     }
     /// Calibrate for each gorup.
+    GWRKernelFunctionSquared gwr_kernel = gwr_kernel_functions[kernel];
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
         vec d2 = sum(d_u % d_u, 1);
         double b2 = vec(sort(d2))[(int)bw];
-        vec wW = gwr_kernel_bisquare2(d2, b2);
+        vec wW = (*gwr_kernel)(d2, b2);
         mat GtWVG = G.t() * (Vig.each_col() % wW);
         mat GtWVy = G.t() * (Viy % wW);
         beta.row(i) = solve(GtWVG, GtWVy).t();
@@ -502,6 +508,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     const mat& u = args.u;
     const uvec& group = args.group;
     double bw = args.bw;
+    GWRKernelType kernel = args.kernel;
     uword ngroup = G.n_rows, ndata = X.n_rows;
     uword nvg = G.n_cols, nvx = X.n_cols, nvz = Z.n_cols;
     double tss = sum((y - mean(y)) % (y - mean(y)));
@@ -545,7 +552,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         {
             Ygf[i] = Yf[i] - Xf[i] * beta;
         }
-        gamma = fit_gwr(G, Ygf, Zf, ngroup, D, u, bw);
+        gamma = fit_gwr(G, Ygf, Zf, ngroup, D, u, bw, kernel);
         vec hatMg = sum(G % gamma, 1);
         vec hatM = hatMg.rows(group);
         vec yh = y - hatM;

@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
         ("data-dir,d", boost::program_options::value<string>(), "Data directory")
         ("output-dir,o", boost::program_options::value<string>()->default_value(".", "pwd"), "Output directory")
         ("bandwidth,b", boost::program_options::value<double>(), "Bandwidth")
+        ("kernel,k", boost::program_options::value<size_t>()->default_value(0), "GWR kernel (0 - Gaussian, 1 - Bisquared)")
         ("alpha,a", boost::program_options::value<double>()->default_value(0.01), "Learning speed")
         ("eps-iter,e", boost::program_options::value<double>()->default_value(1e-6, "1e-6"), "Coverage threshold")
         ("eps-gradient,g", boost::program_options::value<double>()->default_value(1e-6, "1e-6"), "Minimize Log-likelihood threshold")
@@ -39,12 +40,16 @@ int main(int argc, char *argv[])
         cout << desc << endl;
         return 0;
     }
+    double bw = DBL_MAX;
     if (var_map.count("bandwidth") <= 0)
     {
         cout << "Bandwidth must be specified!" << endl;
         return 1;
+    } else {
+        bw = var_map["bandwidth"].as<double>();
     }
     string data_dir, output_dir;
+    GWRKernelType kernel = GWRKernelType::GAUSSIAN;
     if (var_map.count("data-dir") > 0) data_dir = var_map["data-dir"].as<string>();
     else 
     {
@@ -65,7 +70,7 @@ int main(int argc, char *argv[])
     if (var_map.count("verbose") > 0) options.verbose = var_map["verbose"].as<size_t>();
     if (var_map.count("v1") > 0) options.verbose = 1;
     if (var_map.count("v2") > 0) options.verbose = 2;
-    double bw = var_map["bandwidth"].as<double>();
+    if (var_map.count("kernel") > 0) GWRKernelType(var_map["kernel"].as<size_t>());
     /// solve
     mat G,X,Z,u;
     vec y;
@@ -77,7 +82,7 @@ int main(int argc, char *argv[])
     u.load(arma::csv_name(string(data_dir) + "/hlmgwr_u.csv"));
     y.load(arma::csv_name(string(data_dir) + "/hlmgwr_y.csv"));
     group.load(arma::csv_name(string(data_dir) + "/hlmgwr_group.csv"));
-    HLMGWRArgs alg_args = { G, X, Z, y, u, group, bw };
+    HLMGWRArgs alg_args(G, X, Z, y, u, group, bw, kernel);
     HLMGWRParams alg_params = backfitting_maximum_likelihood(alg_args, options, pcout);
     // Diagnostic
     const mat &gamma = alg_params.gamma, &beta = alg_params.beta, &mu = alg_params.mu, &D = alg_params.D;
