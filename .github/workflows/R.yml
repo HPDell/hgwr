@@ -102,4 +102,4 @@ jobs:
       - name: Upload to GitHub 
         uses: softprops/action-gh-release@v1
         with:
-          files: hgwrr_${{needs.build_ubuntu.outputs.r_version}}.tar.gz
+          files: hgwrr_${{needs.deploy_build.outputs.r_version}}.tar.gz
