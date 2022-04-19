@@ -4,6 +4,11 @@
 #include <string>
 #include <armadillo>
 
+enum GWRKernelType {
+    GAUSSIAN,
+    BISQUARED
+};
+
 struct HLMGWRArgs {
     arma::mat G;
     arma::mat X;
@@ -12,19 +17,21 @@ struct HLMGWRArgs {
     arma::mat u;
     arma::uvec group;
     double bw;
+    GWRKernelType kernel;
 
-    HLMGWRArgs() : G(), X(), Z(), y(), u(), group(), bw(0.0)
+    HLMGWRArgs() : G(), X(), Z(), y(), u(), group(), bw(0.0), kernel(GWRKernelType::GAUSSIAN)
     {
     }
 
-    HLMGWRArgs(arma::mat in_G, arma::mat in_X, arma::mat in_Z, arma::vec in_y, arma::mat in_u, arma::uvec in_group, double in_bw) :
+    HLMGWRArgs(arma::mat in_G, arma::mat in_X, arma::mat in_Z, arma::vec in_y, arma::mat in_u, arma::uvec in_group, double in_bw, GWRKernelType in_kernel) :
         G(in_G),
         X(in_X),
         Z(in_Z),
         y(in_y),
         u(in_u),
         group(in_group),
-        bw(in_bw)
+        bw(in_bw),
+        kernel(in_kernel)
     {
     }
 };
