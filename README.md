@@ -1,5 +1,7 @@
 # HGWR: Hierarchical and Geographically Weighted Regression
 
+[![R Package Check](https://github.com/HPDell/hlmgwr-backfitting-ml/actions/workflows/R.yml/badge.svg?branch=master)](https://github.com/HPDell/hlmgwr-backfitting-ml/actions/workflows/R.yml)
+
 This is an C++ implementation of Hierarchical and Geographically Weighted Regression (HGWR) model.
 HGWR model divides coefficients into three types: local fixed effects, global fixed effects, and random effects.
 If data have spatial hierarchical structures (especially are overlapping on some locations), it is worth trying this model to reach better fitness.
