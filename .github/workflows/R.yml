@@ -5,6 +5,7 @@ on:
     branches: [ master ]
     tags:
       - 'v*.*.*'
+      - 'v*.*.*-*'
   pull_request:
     branches: [ master ]
 
@@ -14,21 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: docker://ghcr.io/hpdell/hgwr-ubuntu-docker-action:latest
-      - id: extract_r_version
-        if: startsWith(github.ref, 'refs/tags/')
-        name: Extract R version number
-        run: |
-          VERSION=(`echo "${{github.ref_name}}" | grep -P '\d+' -o`)
-          R_PACKAGE_VERSION="${VERSION[0]}.${VERSION[1]}-${VERSION[2]}"
-          echo "::set-output name=r_version::${R_PACKAGE_VERSION}"
-      - name: Upload R package as artifacts
-        uses: actions/upload-artifact@v3
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          name: hgwrr_${{github.ref_name}}
-          path: build/hgwrr_${{steps.extract_r_version.outputs.r_version}}.tar.gz
-    outputs:
-      r_version: ${{steps.extract_r_version.outputs.r_version}}
       
   build_fedora:
     runs-on: ubuntu-20.04
@@ -80,18 +66,39 @@ jobs:
           cmake --build build --config Release --target hgwrr_rbuild
           cd build && ctest -R Test_R_hgwr -C Release --output-on-failure
   
+  deploy_build:
+    if: github.ref_type == 'tag'
+    needs: [build_ubuntu, build_fedora, build_debian, build_macos, build_windows]
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: docker://ghcr.io/hpdell/hgwr-ubuntu-docker-action:latest
+      - id: extract_r_version
+        name: Extract R version number
+        run: |
+          R_DESC_VERSION=`grep "Version" build/hgwrr/DESCRIPTION`
+          R_PACKAGE_VERSION=${R_DESC_VERSION:9}
+          echo "::set-output name=r_version::${R_PACKAGE_VERSION}"
+      - name: Upload R package as artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: hgwrr_cran_source
+          path: build/hgwrr_${{steps.extract_r_version.outputs.r_version}}.tar.gz
+    outputs:
+      r_version: ${{steps.extract_r_version.outputs.r_version}}
+  
   deploy_github_release:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.ref_type == 'tag'
+    needs: [deploy_build]
     permissions:
       contents: write
-    needs: [build_ubuntu, build_fedora, build_debian, build_macos, build_windows]
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
       - name: Download R Package
         uses: actions/download-artifact@v3
         with:
-          name: hgwrr_${{github.ref_name}}
+          name: hgwrr_cran_source
       - name: Upload to GitHub 
         uses: softprops/action-gh-release@v1
         with:
