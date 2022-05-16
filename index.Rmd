@@ -1,0 +1,90 @@
+---
+title: "HGWR Model and How to Use It"
+author: "Yigong Hu"
+date: '2022-05-16'
+output:
+  rmdformats::readthedown:
+    css: "style.css"
+bibliography: references.bib
+link-citations: true
+---
+
+A brief tutorial to Hierarchical and Geographically Weighted Regression model and **hgwrr** package in R.
+
+## Introduction to HGWR Model
+
+### What is HGWR model?
+
+Hierarchical and Geographically Weighted Regression, shorted for HGWR,
+is a spatial modelling method designed for data of spatial hierarchical structures.
+Just as its name implies, this is a combination of Hierarchical Linear Model
+[HLM, also known as Multilevel Model, @Raudenbush-1993]
+and Geographically Weighted Regression [GWR, @BrunsdonFotheringham-1996].
+In this model, spatial effects are divided into three types: global fixed, local fixed and random.
+Formally, it is expressed as
+$$
+y = G\gamma + X\beta + Z\mu + \epsilon
+$$
+with $y$ the dependent variable,
+$G$ the group level independent variables, $\gamma$ the local fixed effects,
+$X$ also the group level independent variables, $\beta$ the global fixed effects,
+$Z$ the individual level independent variables, $\mu$ the random effects,
+$\epsilon$ the individual errors.
+
+### Why HLGWR model?
+
+As we know, hierarchical structure is commonly existing in spatial data.
+For example, cities can be grouped by provinces or other higher-level administrative district they belong to;
+house prices may share some factors from the block;
+and students in one school have different access to education resources with those in another school.
+When dealing with this type of data, we usually choose HLM to address the within-group homogeneity and the between-group heterogeneity.
+And there are usually two types of variables: group-level variables and sample-level variables.
+The formal ones are used to describe the properties of groups
+(such as the provinces, blocks and schools);
+the latter ones are observations of individual samples
+(such as the cities, houses and students).
+The effect of some sample-level variables are similar in all groups,
+thus they are modelled with fixed coefficients (effects).
+For others, they are modelled individually, i.e., with random effects.
+
+However, for group-level variables, they can only be modelled with fixed effects.
+For spatial data, we would encounter some problems.
+According to the Tobler's first law of Geography "Everything is related to everything else, but near things are more related than distant things" [@Tobler-1970].
+If the model is calibrated with equally weighted samples, spatial heterogeneity would be overlooked [@FotheringhamBrunsdon-2002].
+Thus, it requires us to distinguish "local fixed effects" from "global fixed effects" to discover spatial heterogeneity in group-level variables.
+
+But why not GWR or Multiscale GWR [@FotheringhamYang-2017; LuBrunsdon-2017]
+Because when dealing with data of hierarchical structures, GWR is problematic [@HuLu-2022].
+We know that GWR calibrate a model with unique coefficients on each sample by borrowing data from its neighbours.
+And it uses a parameter "bandwidth" to control how many neighbours are included.
+If samples are not hierarchically structured, everything works well.
+However, just imagine a situation like Figure 1.
+For the two samples of red color and blue color,
+we take the same number of their neighbours,
+but actually the spatial extents are not the same.
+In extreme cases, spatial extends of some samples could be too small to hold more than one or two location, but some are large enough.
+This would lead to the failure of bandwidth optimization and reduce the reliability of the optimized bandwidth.
+
+## Modelling with HGWR Model
+
+The R package **hgwrr** is built for calibrating HGWR model.
+In this section, we are going to show how to use it.
+
+### Installation
+
+Package **hgwrr** will be available on CRAN soon.
+Simply type the following codes to install it.
+
+```r
+install.packages("hgwrr")
+```
+
+### Usage
+
+We are going to show the usage of **hgwrr** package with a simulated data.
+
+First, we need to load this package in an R session.
+
+```{r}
+library(hgwrr)
+```
