@@ -5,6 +5,7 @@ date: '2022-05-16'
 output:
   rmdformats::readthedown:
     css: "style.css"
+    toc_depth: 3
 bibliography: references.bib
 link-citations: true
 ---
