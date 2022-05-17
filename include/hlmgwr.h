@@ -2,7 +2,12 @@
 #define HLMGWR_H
 
 #include <string>
+
+#ifndef HGWRR_RCPP
 #include <armadillo>
+#else
+#include <RcppArmadillo.h>
+#endif
 
 enum GWRKernelType {
     GAUSSIAN,

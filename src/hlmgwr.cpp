@@ -1,8 +1,18 @@
+#ifdef HGWRR_RCPP
+// [[Rcpp::depends(RcppArmadillo)]]
+#endif
+
 #include "hlmgwr.h"
 #include <sstream>
 #include <iomanip>
 #include <string>
+
+#ifndef HGWRR_RCPP
 #include <armadillo>
+#else
+#include <RcppArmadillo.h>
+#endif
+
 #include <gsl/gsl_multimin.h>
 #include <gsl/gsl_errno.h>
 
