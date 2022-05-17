@@ -6,6 +6,7 @@ output:
   rmdformats::readthedown:
     css: "style.css"
     toc_depth: 3
+    df_print: kable
 bibliography: references.bib
 link-citations: true
 ---
@@ -80,6 +81,15 @@ Simply type the following codes to install it.
 install.packages("hgwrr")
 ```
 
+Or download [latest released source package](https://github.com/HPDell/hlmgwr-backfitting-ml/releases/download/v0.2.0-r2/hgwrr_0.2-0.tar.gz)
+and run the following command to install this package.
+
+```bash
+R CMD INSTALL hgwrr_0.2-0.tar.gz
+```
+
+Note that [RTools](https://cran.r-project.org/bin/windows/Rtools/) is required on Windows.
+
 ### Usage
 
 We are going to show the usage of **hgwrr** package with a simulated data.
@@ -89,3 +99,121 @@ First, we need to load this package in an R session.
 ```{r}
 library(hgwrr)
 ```
+
+Then we can calibrate an HGWR model via `hgwr()` function.
+
+```r
+hgwr(
+  formula, data, local.fixed, coords, bw,
+  alpha = 0.01, eps_iter = 1e-06, eps_gradient = 1e-06, max_iters = 1e+06,
+  max_retries = 10, ml_type = HGWR_ML_TYPE_D_ONLY, verbose = 0
+)
+```
+
+The first five arguments are mandatory.
+
+- `formula` accepts a formula object in R. Its format follows **lme4** package.
+  As there are two types of effects: fixed effects and random effects,
+  we use the following format to specify both of them:
+
+    ```r
+    dependent ~ fixed1 + fixed2 + (random1 + random2 | group)
+    ```
+
+- `data` accepts a DataFrame object in R.
+  All variables specified in `formula` are extracted from `data`.
+  In this stage, `Spatial*DataFrame` is not supported.
+- `local.fixed` accepts a list of character specifying which fixed effects are local.
+  For example, if `fixed1` needs to be local fixed, then set `local.fixed` to `c("fixed1")`.
+- `coords` accepts a matrix of 2 columns. Each row is the longitude and latitude of each group.
+- `bw` accepts a integer or numeric number to specify the bandwidth used in geographically weighted process.
+  Currently it can only be adaptive bandwidth.
+
+Other arguments are optional which is used to control the backfitting maximum likelihood algorithm.
+On most occassions the default values are fine.
+If the default values cause some problems and you want change some of them,
+please check the documentation of function `hgwr()` for more infomation.
+
+### Example: A Small Simulated Data Set
+
+*This example is used to show the usage of this package and to test whether it works.
+We don't care about how good the fitness of this model is with this data set.*
+
+A data set "multisampling" is provided with this package,
+
+```{r}
+data(multisampling)
+head(multisampling$data)
+head(multisampling$coord)
+```
+
+where `y` is the dependent variable,
+`g1` and `g2` are two group-level variables,
+`z1` and `x1` are two sample-level variables,
+`group` are the labels of the groups they belong to,
+and `U`, `V` are longitude and latitude coordinate values of all groups.
+
+We regards `g1` and `g2` have local fixed effects, `x1` have global fixed effects and `z1` have random effects.
+Then we can calibrate an HGWR model with like this
+
+```{r, cache=T}
+model1 <- hgwr(
+  formula = y ~ g1 + g2 + x1 + (z1 | group),
+  data = multisampling$data,
+  local.fixed = c("g1", "g2"),
+  coords = multisampling$coord,
+  bw = 10
+)
+model1
+```
+
+The output of the model shows estimations of global fixed effects,
+summary of those of local fixed effects.
+Also there are the standard deviations of random effects and correlation coefficients between them.
+
+Then we can have a look on the coefficient estimations.
+
+```{r}
+coef(model1)
+```
+
+With **ggplot2** or other packages, we can create some figures.
+
+```{r}
+library(ggplot2)
+model1_coef_coord <- as.data.frame(cbind(multisampling$coord, coef(model1)))
+ggplot(model1_coef_coord, aes(x = U, y = V)) + 
+  geom_point(aes(color = g1))
+```
+
+We can also convert it to spatial data and use **tmap** to visualize.
+
+```{r}
+library(sf)
+library(tmap)
+model1_coef_coord_sf <- st_as_sf(model1_coef_coord,
+                                 coords = names(multisampling$coord),
+                                 crs = 27700)
+tm_shape(model1_coef_coord_sf) + tm_dots(col = c("g1", "g2"), size = 0.5)
+```
+
+And we can also fetch the fitted and residuals.
+
+```{r}
+head(data.frame(
+  real = multisampling$data$y,
+  fitted = fitted(model1),
+  residuals = residuals(model1)
+))
+```
+
+The `summary()` function will give some statistical information about this model.
+
+```{r}
+summary(model1)
+```
+
+On the current stage, only pesudo $R^2$ is available.
+In the future, more diagnostic information will be provided in this package.
+
+## References
