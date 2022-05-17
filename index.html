@@ -1535,9 +1535,7 @@ src: url(data:application/font-sfnt;base64,AAEAAAARAQAABAAQR0RFRgs+Cz8AAjwQAAAAQ
       code span.wa { color: #bf0303; } /* Warning */
     </style>
     
-        <style type="text/css">.csl-entry {
-margin-bottom: 1em;
-}</style>
+        <style type="text/css">.csl-entry {margin-bottom: 1em;}#main table:not(.dataTable) {width: auto;}#main table:not(.dataTable) thead tr th {text-align: center;}</style>
     
     <!-- tabsets -->
     <script>
@@ -1718,20 +1716,20 @@ with equally weighted samples, spatial heterogeneity would be overlooked
 2002</a>)</span>. Thus, it requires us to distinguish “local fixed
 effects” from “global fixed effects” to discover spatial heterogeneity
 in group-level variables.</p>
-<p>But why not GWR or Multiscale GWR [<span class="citation">Fotheringham, Yang, and Kang (<a href="#ref-FotheringhamYang-2017" role="doc-biblioref">2017</a>)</span>;
-LuBrunsdon-2017] Because when dealing with data of hierarchical
-structures, GWR is problematic <span class="citation">(<a href="#ref-HuLu-2022" role="doc-biblioref">Hu et al. 2022</a>)</span>.
-We know that GWR calibrate a model with unique coefficients on each
-sample by borrowing data from its neighbours. And it uses a parameter
-“bandwidth” to control how many neighbours are included. If samples are
-not hierarchically structured, everything works well. However, just
-imagine a situation like Figure 1. For the two samples of red color and
-blue color, we take the same number of their neighbours, but actually
-the spatial extents are not the same. In extreme cases, spatial extends
-of some samples could be too small to hold more than one or two
-location, but some are large enough. This would lead to the failure of
-bandwidth optimization and reduce the reliability of the optimized
-bandwidth.</p>
+<p>But why not GWR or Multiscale GWR <span class="citation">(<a href="#ref-FotheringhamYang-2017" role="doc-biblioref">Fotheringham,
+Yang, and Kang 2017, LuBrunsdon–2017</a>)</span> Because when dealing
+with data of hierarchical structures, GWR is problematic <span class="citation">(<a href="#ref-HuLu-2022" role="doc-biblioref">Hu et
+al. 2022</a>)</span>. We know that GWR calibrate a model with unique
+coefficients on each sample by borrowing data from its neighbours. And
+it uses a parameter “bandwidth” to control how many neighbours are
+included. If samples are not hierarchically structured, everything works
+well. However, just imagine a situation like Figure 1. For the two
+samples of red color and blue color, we take the same number of their
+neighbours, but actually the spatial extents are not the same. In
+extreme cases, spatial extends of some samples could be too small to
+hold more than one or two location, but some are large enough. This
+would lead to the failure of bandwidth optimization and reduce the
+reliability of the optimized bandwidth.</p>
 </div>
 </div>
 <div id="modelling-with-hgwr-model" class="section level2">

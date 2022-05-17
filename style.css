@@ -1,3 +1,11 @@
 .csl-entry {
     margin-bottom: 1em;
 }
+
+#main table:not(.dataTable) {
+    width: auto;
+}
+
+#main table:not(.dataTable) thead tr th {
+    text-align: center;
+}

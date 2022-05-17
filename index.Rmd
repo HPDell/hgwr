@@ -55,7 +55,7 @@ According to the Tobler's first law of Geography "Everything is related to every
 If the model is calibrated with equally weighted samples, spatial heterogeneity would be overlooked [@FotheringhamBrunsdon-2002].
 Thus, it requires us to distinguish "local fixed effects" from "global fixed effects" to discover spatial heterogeneity in group-level variables.
 
-But why not GWR or Multiscale GWR [@FotheringhamYang-2017; LuBrunsdon-2017]
+But why not GWR or Multiscale GWR [@FotheringhamYang-2017, LuBrunsdon-2017]
 Because when dealing with data of hierarchical structures, GWR is problematic [@HuLu-2022].
 We know that GWR calibrate a model with unique coefficients on each sample by borrowing data from its neighbours.
 And it uses a parameter "bandwidth" to control how many neighbours are included.
