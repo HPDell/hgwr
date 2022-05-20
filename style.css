@@ -9,3 +9,7 @@
 #main table:not(.dataTable) thead tr th {
     text-align: center;
 }
+
+video {
+    width: 100%;
+}

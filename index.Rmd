@@ -4,6 +4,7 @@ author: "Yigong Hu"
 date: '2022-05-16'
 output:
   rmdformats::readthedown:
+    self_contained: false
     css: "style.css"
     toc_depth: 3
     df_print: kable
@@ -66,6 +67,21 @@ we take the same number of their neighbours,
 but actually the spatial extents are not the same.
 In extreme cases, spatial extends of some samples could be too small to hold more than one or two location, but some are large enough.
 This would lead to the failure of bandwidth optimization and reduce the reliability of the optimized bandwidth.
+
+<video autoplay muted controls>
+  <source src="assets/multisampling.mp4" type="video/mp4">
+</video>
+
+> As shown in this video, bandwidths have inequal spatial scale for two samples (represented by cubes).
+> Both the samples represented by large red cubes and large blue cubes take 41 neighbour samples to calibrate GWR models. 
+> For the red one, neighbours on 8 nearest locations are taken. 
+> But the figure for the blue one is only 6.
+> This situation means estimated coefficients are more smoothed for the red samples.
+> In other words, estimations for the blue samples are much local.
+
+To solve the problems mentioned above, we need to use HGWR model.
+It is able to modelling spatial hierarchical structure and spatial heterogeneity simultaneously.
+Examples below can show that it works well for spatial hierarchical data.
 
 ## Modelling with HGWR Model
 
