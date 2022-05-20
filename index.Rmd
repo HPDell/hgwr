@@ -232,4 +232,23 @@ summary(model1)
 On the current stage, only pesudo $R^2$ is available.
 In the future, more diagnostic information will be provided in this package.
 
+### Example: Large Scale Simulated Data
+
+```{r}
+load("data/example2.rda")
+head(hgwr_data)
+head(hgwr_coords)
+```
+
+The data structure is the same as data `multisampling`.
+
+> As the data is large (`r nrow(hgwr_data)` observations),
+> it may take some time to get results.
+
+```{r, cache=T}
+hgwr_formula <- y ~ g1 + g2 + x1 + (z1 | group)
+model2 <- hgwr(hgwr_formula, hgwr_data, c("g1", "g2"), hgwr_coords, 64)
+model2
+```
+
 ## References
