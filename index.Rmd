@@ -198,8 +198,9 @@ With **ggplot2** or other packages, we can create some figures.
 ```{r}
 library(ggplot2)
 model1_coef_coord <- as.data.frame(cbind(multisampling$coord, coef(model1)))
-ggplot(model1_coef_coord, aes(x = U, y = V)) + 
-  geom_point(aes(color = g1))
+ggplot(model1_coef_coord, aes(x = U, y = V)) +
+  geom_point(aes(color = g1)) +
+  theme_bw()
 ```
 
 We can also convert it to spatial data and use **tmap** to visualize.
@@ -234,21 +235,63 @@ In the future, more diagnostic information will be provided in this package.
 
 ### Example: Large Scale Simulated Data
 
+In the former example, there are only `r nrow(multisampling$data)` observations and `r nrow(multisampling$coord)` groups.
+They are not adequate enough to get precises estimations.
+Here, we are going to use a large scale simulated data set to show the perforamnce of HGWR model.
+As the true value of coefficients are already known (stored in variable `hgwr_beta`),
+closeness between estimated and true values is an appliable perforamnce metric.
+
+The data set is provided [here](./data/example2.rda).
+Its structure is similar to data `multisampling`.
+
+```{r}
+library(ggplot2)
+library(hgwrr)
+```
+
 ```{r}
 load("data/example2.rda")
 head(hgwr_data)
 head(hgwr_coords)
 ```
 
-The data structure is the same as data `multisampling`.
+In this data, we also regards
+`g1` and `g2` as two group-level variables,
+`z1` and `x1` as two sample-level variables,
+`group` as the labels of the groups they belong to,
+and `U`, `V` as longitude and latitude coordinate values of all groups.
+Then we calibrate an HGWR model.
 
 > As the data is large (`r nrow(hgwr_data)` observations),
 > it may take some time to get results.
 
 ```{r, cache=T}
 hgwr_formula <- y ~ g1 + g2 + x1 + (z1 | group)
-model2 <- hgwr(hgwr_formula, hgwr_data, c("g1", "g2"), hgwr_coords, 64)
+model2 <- hgwr(formula = hgwr_formula,
+               data = hgwr_data,
+               local.fixed = c("g1", "g2"),
+               coords = hgwr_coords,
+               bw = 32,
+               kernel = "bisquared")
 model2
+```
+
+Then we check the estimations of intercept, `g1`, `g2` and `z1` via some scatter plots.
+
+```{r}
+library(dplyr)
+c("Intercept", "g1", "g2", "z1") %>% 
+  lapply(function(coef, beta_true, beta_hat) {
+     data.frame(label = coef, Truth = beta_true[[coef]], Estimated = beta_hat[[coef]])
+  }, hgwr_beta, coef(model2)) %>% {
+    Reduce(rbind, ., data.frame())
+  } %>%
+  mutate(label = factor(label, levels = c("Intercept", "g1", "g2", "z1"))) %>%
+  ggplot(aes(x = Truth, y = Estimated)) +
+    geom_point() +
+    facet_wrap(~ label) +
+    theme_bw() +
+    scale_y_continuous(limits = c(-25, 25))
 ```
 
 ## References
