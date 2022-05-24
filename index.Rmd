@@ -90,7 +90,7 @@ In this section, we are going to show how to use it.
 
 ### Installation
 
-Package **hgwrr** will be available on CRAN soon.
+Package **hgwrr** is available on [CRAN](https://cran.r-project.org/package=hgwrr).
 Simply type the following codes to install it.
 
 ```r
