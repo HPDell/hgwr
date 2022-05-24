@@ -112,7 +112,7 @@ We are going to show the usage of **hgwrr** package with a simulated data.
 
 First, we need to load this package in an R session.
 
-```{r}
+```{r, warning=F, error=F, message=F}
 library(hgwrr)
 ```
 
@@ -205,7 +205,7 @@ ggplot(model1_coef_coord, aes(x = U, y = V)) +
 
 We can also convert it to spatial data and use **tmap** to visualize.
 
-```{r}
+```{r, message=F, warning=F}
 library(sf)
 library(tmap)
 model1_coef_coord_sf <- st_as_sf(model1_coef_coord,
@@ -278,7 +278,7 @@ model2
 
 Then we check the estimations of intercept, `g1`, `g2` and `z1` via some scatter plots.
 
-```{r}
+```{r, message=F, warning=F}
 library(dplyr)
 c("Intercept", "g1", "g2", "z1") %>% 
   lapply(function(coef, beta_true, beta_hat) {
