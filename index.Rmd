@@ -275,6 +275,8 @@ model2 <- hgwr(formula = hgwr_formula,
 model2
 ```
 
+#### Fitness Assessment
+
 Then we check the estimations of intercept, `g1`, `g2` and `z1` via some scatter plots.
 
 ```{r}
@@ -292,5 +294,106 @@ c("Intercept", "g1", "g2", "z1") %>%
     theme_bw() +
     scale_y_continuous(limits = c(-25, 25))
 ```
+
+In addition to these scatter plots, root mean squared errors (RMSE) and mean absolute errors of
+estimations and true values are also very useful to assess the fitting performance.
+
+```{r}
+model2_hgwr_err <- c("Intercept", "g1", "g2", "z1", "x1") %>%
+  sapply(function(coef, beta_true, beta_hat) {
+    coef_true <- beta_true[[coef]]
+    coef_hat <- beta_hat[[coef]]
+    mae <- mean(abs(coef_true - coef_hat))
+    rmse <- sqrt(mean((coef_true - coef_hat)^2))
+    list("RMSE" = rmse, "MAE" = mae)
+  }, hgwr_beta, coef(model2)) %>%
+  as.data.frame()
+model2_hgwr_err
+```
+
+#### Comparison of HGWR, GWR and HLM
+
+As a comparison, we can also calibrate a GWR model and HLM model and
+have a look at their fitting performance.
+THe GWR model can be calibrated with the following codes.
+
+```{r, cache=T}
+### GWR model
+library(GWmodel)
+gwr_data <- hgwr_data
+coordinates(gwr_data) <- hgwr_coords[hgwr_data$group, ]
+##### Get optimized bandwidth via golden minimization algorithm.
+gwr_bw <- bw.gwr(
+  formula = y ~ g1 + g2 + x1 + z1, data = gwr_data, approach = "AIC",
+  adaptive = TRUE, parallel.method = "omp", parallel.arg = 8
+)
+##### Calibrate GWR model with optimized bandwidth.
+model2_gwr <- gwr.basic(
+  formula = y ~ g1 + g2 + x1 + z1, data = gwr_data, bw = gwr_bw,
+  adaptive = TRUE, parallel.method = "omp", parallel.arg = 8
+)
+#### Get coefficient estimations.
+#### As samples in one group have equal estimations,
+#### we use mean value of each group to represent them.
+model2_gwr_coef <- cbind(model2_gwr$SDF@data, group = gwr_data$group) %>%
+  group_by(group) %>%
+  summarise(Intercept = mean(Intercept),
+            g1 = mean(g1), g2 = mean(g2), z1 = mean(z1), x1 = mean(x1))
+##### Calculate RMSE and MAE of estimations.
+model2_gwr_err <- c("Intercept", "g1", "g2", "z1", "x1") %>%
+  sapply(function(coef, beta_true, beta_hat) {
+    coef_true <- beta_true[[coef]]
+    coef_hat <- beta_hat[[coef]]
+    mae <- mean(abs(coef_true - coef_hat))
+    rmse <- sqrt(mean((coef_true - coef_hat)^2))
+    list("RMSE" = rmse, "MAE" = mae)
+  }, hgwr_beta, model2_gwr_coef) %>%
+  as.data.frame()
+model2_gwr_err
+```
+
+And also a HLM model calibrated with the following codes.
+
+```{r}
+library(lme4)
+model2_hlm <- lmer(
+  formula = y ~ g1 + g2 + x1 + (z1 | group),
+  data = hgwr_data
+)
+model2_hlm_coef <- coef(model2_hlm)$group
+colnames(model2_hlm_coef)[which(colnames(model2_hlm_coef) == "(Intercept)")] <- "Intercept"
+model2_hlm_err <- c("Intercept", "g1", "g2", "z1", "x1") %>%
+  sapply(function(coef, beta_true, beta_hat) {
+    coef_true <- beta_true[[coef]]
+    coef_hat <- beta_hat[[coef]]
+    mae <- mean(abs(coef_true - coef_hat))
+    rmse <- sqrt(mean((coef_true - coef_hat)^2))
+    list("RMSE" = rmse, "MAE" = mae)
+  }, hgwr_beta, model2_hlm_coef) %>%
+  as.data.frame()
+model2_hlm_err
+```
+
+A bar plot will be helpful here to compare the fitness of these three models.
+
+```{r}
+list(HGWR = model2_hgwr_err, GWR = model2_gwr_err, HLM = model2_gwr_err) %>% {
+  lapply(names(.), function(algorithm, err_list, coef_list) {
+    lapply(coef_list, function(coef, err) {
+      data.frame(Algorithm = algorithm, Coefficient = coef,
+                 Label = rownames(err), Value = unlist(err[[coef]]))
+    }, err_list[[algorithm]]) %>% Reduce(rbind, .)
+  }, ., c("Intercept", "g1", "g2", "z1", "x1")) %>% Reduce(rbind, .)
+} %>%
+  ggplot(aes(x = Coefficient, y = Value, group = Algorithm, fill = Algorithm)) +
+    geom_col(position = "dodge") +
+    facet_grid(rows = vars(Label)) +
+    scale_y_continuous(trans = "pseudo_log") +
+    theme_bw()
+```
+
+We can say that HGWR has best fitness among these three models.
+It is ablt to give more precise estimations for local fixed effects,
+global fixed effects and also random effects.
 
 ## References
