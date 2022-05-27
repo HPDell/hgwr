@@ -1113,7 +1113,7 @@ calibrated with the following codes.</p>
 </div>
 <p>A bar plot will be helpful here to compare the fitness of these three
 models.</p>
-<div class="sourceCode" id="cb27"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">list</span>(<span class="at">HGWR =</span> model2_hgwr_err, <span class="at">GWR =</span> model2_gwr_err, <span class="at">HLM =</span> model2_gwr_err) <span class="sc">%&gt;%</span> {</span>
+<div class="sourceCode" id="cb27"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">list</span>(<span class="at">HGWR =</span> model2_hgwr_err, <span class="at">GWR =</span> model2_gwr_err, <span class="at">HLM =</span> model2_hlm_err) <span class="sc">%&gt;%</span> {</span>
 <span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">lapply</span>(<span class="fu">names</span>(.), <span class="cf">function</span>(algorithm, err_list, coef_list) {</span>
 <span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">lapply</span>(coef_list, <span class="cf">function</span>(coef, err) {</span>
 <span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>      <span class="fu">data.frame</span>(<span class="at">Algorithm =</span> algorithm, <span class="at">Coefficient =</span> coef,</span>
@@ -1123,13 +1123,22 @@ models.</p>
 <span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>} <span class="sc">%&gt;%</span></span>
 <span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> Coefficient, <span class="at">y =</span> Value, <span class="at">group =</span> Algorithm, <span class="at">fill =</span> Algorithm)) <span class="sc">+</span></span>
 <span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_col</span>(<span class="at">position =</span> <span class="st">&quot;dodge&quot;</span>) <span class="sc">+</span></span>
-<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">facet_grid</span>(<span class="at">rows =</span> <span class="fu">vars</span>(Label)) <span class="sc">+</span></span>
-<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_y_continuous</span>(<span class="at">trans =</span> <span class="st">&quot;pseudo_log&quot;</span>) <span class="sc">+</span></span>
-<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_bw</span>()</span></code></pre></div>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_text</span>(<span class="fu">aes</span>(<span class="at">label =</span> <span class="fu">round</span>(Value, <span class="dv">2</span>), <span class="at">y =</span> <span class="fu">pmin</span>(Value, <span class="dv">10</span>), <span class="at">vjust =</span> <span class="sc">-</span><span class="fl">0.2</span>),</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>              <span class="at">position =</span> <span class="fu">position_dodge</span>(<span class="fl">0.9</span>)) <span class="sc">+</span></span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">facet_grid</span>(<span class="at">rows =</span> <span class="fu">vars</span>(Label)) <span class="sc">+</span></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_y_continuous</span>(<span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">10</span>), <span class="at">oob =</span> scales<span class="sc">::</span>squish,</span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>                       <span class="at">expand =</span> <span class="fu">expansion</span>(<span class="at">add =</span> <span class="fu">c</span>(<span class="fl">0.5</span>, <span class="dv">1</span>))) <span class="sc">+</span></span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_bw</span>()</span></code></pre></div>
 <p><img src="index_files/figure-html/unnamed-chunk-16-1.png" width="768" /></p>
+<blockquote>
+<p>Note that in this figure we limited the scale of y axis to make the
+bar for <code>x1</code> and <code>z1</code> more obvious. The actual
+numbers are labelled above bars.</p>
+</blockquote>
 <p>We can say that HGWR has best fitness among these three models. It is
-ablt to give more precise estimations for local fixed effects, global
-fixed effects and also random effects.</p>
+able to give more precise estimations for local fixed effects. And it
+can estimate global fixed effects and also random effects as precisely
+as HLM does, but more precisely than GWR does.</p>
 </div>
 </div>
 <div id="case-study-impact-factors-of-house-price-in-wuhan"

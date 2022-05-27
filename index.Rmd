@@ -377,7 +377,7 @@ model2_hlm_err
 A bar plot will be helpful here to compare the fitness of these three models.
 
 ```{r}
-list(HGWR = model2_hgwr_err, GWR = model2_gwr_err, HLM = model2_gwr_err) %>% {
+list(HGWR = model2_hgwr_err, GWR = model2_gwr_err, HLM = model2_hlm_err) %>% {
   lapply(names(.), function(algorithm, err_list, coef_list) {
     lapply(coef_list, function(coef, err) {
       data.frame(Algorithm = algorithm, Coefficient = coef,
@@ -387,14 +387,22 @@ list(HGWR = model2_hgwr_err, GWR = model2_gwr_err, HLM = model2_gwr_err) %>% {
 } %>%
   ggplot(aes(x = Coefficient, y = Value, group = Algorithm, fill = Algorithm)) +
     geom_col(position = "dodge") +
+    geom_text(aes(label = round(Value, 2), y = pmin(Value, 10), vjust = -0.2),
+              position = position_dodge(0.9)) +
     facet_grid(rows = vars(Label)) +
-    scale_y_continuous(trans = "pseudo_log") +
+    scale_y_continuous(limits = c(0, 10), oob = scales::squish,
+                       expand = expansion(add = c(0.5, 1))) +
     theme_bw()
 ```
 
+> Note that in this figure we limited the scale of y axis to make the bar for
+> `x1` and `z1` more obvious.
+> The actual numbers are labelled above bars.
+
 We can say that HGWR has best fitness among these three models.
-It is ablt to give more precise estimations for local fixed effects,
-global fixed effects and also random effects.
+It is able to give more precise estimations for local fixed effects.
+And it can estimate global fixed effects and also random effects as precisely as HLM does,
+but more precisely than GWR does.
 
 ### Case Study: Impact Factors of House Price in Wuhan
 
@@ -487,7 +495,7 @@ hp_basemap <- tm_shape(wuhan) + tm_polygons(col = "white")
 
 Then visualize coefficients estimations with the basemap.
 
-```{r, fig.height=7, fig.width=14, dpi=300}
+```{r, fig.height=7, fig.width=14, dpi=300, cache=T}
 c("d.Water", "d.Commercial", "d.PrimarySchool", "d.Kindergarten",
   "Fee", "BuildingArea", "Floor.High", "Intercept") %>%
   lapply(function(var) {
