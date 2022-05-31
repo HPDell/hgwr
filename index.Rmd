@@ -281,33 +281,29 @@ Then we check the estimations of intercept, `g1`, `g2` and `z1` via some scatter
 
 ```{r}
 library(dplyr)
-c("Intercept", "g1", "g2", "z1") %>% 
-  lapply(function(coef, beta_true, beta_hat) {
-     data.frame(label = coef, Truth = beta_true[[coef]], Estimated = beta_hat[[coef]])
-  }, hgwr_beta, coef(model2)) %>% {
-    Reduce(rbind, ., data.frame())
-  } %>%
+library(purrr)
+coef(model2) %>%
+  select(Intercept, g1, g2, z1) %>% 
+  list(label = names(.), Truth = hgwr_beta[names(.)], Estimated = .) %>%
+  pmap_df(data.frame) %>%
   mutate(label = factor(label, levels = c("Intercept", "g1", "g2", "z1"))) %>%
-  ggplot(aes(x = Truth, y = Estimated)) +
-    geom_point() +
-    facet_wrap(~ label) +
-    theme_bw() +
-    scale_y_continuous(limits = c(-25, 25))
+  ggplot(aes(x = Truth, y = Estimated)) + geom_point() +
+    coord_fixed() + scale_y_continuous(limits = c(-25, 25)) +
+    facet_wrap(~ label) + 
+    theme_bw()
 ```
 
 In addition to these scatter plots, root mean squared errors (RMSE) and mean absolute errors of
 estimations and true values are also very useful to assess the fitting performance.
 
 ```{r}
-model2_hgwr_err <- c("Intercept", "g1", "g2", "z1", "x1") %>%
-  sapply(function(coef, beta_true, beta_hat) {
-    coef_true <- beta_true[[coef]]
-    coef_hat <- beta_hat[[coef]]
-    mae <- mean(abs(coef_true - coef_hat))
-    rmse <- sqrt(mean((coef_true - coef_hat)^2))
-    list("RMSE" = rmse, "MAE" = mae)
-  }, hgwr_beta, coef(model2)) %>%
-  as.data.frame()
+model2_hgwr_err <- coef(model2) %>%
+  select(Intercept, g1, g2, x1, z1) %>% {
+    as.data.frame(rbind(
+      MAE = map2_dbl(hgwr_beta, ., ~ mean(abs(.x - .y))),
+      RMSE = map2_dbl(hgwr_beta, ., ~ sqrt(mean((.x - .y)^2)))
+    ))
+  }
 model2_hgwr_err
 ```
 
@@ -340,15 +336,13 @@ model2_gwr_coef <- cbind(model2_gwr$SDF@data, group = gwr_data$group) %>%
   summarise(Intercept = mean(Intercept),
             g1 = mean(g1), g2 = mean(g2), z1 = mean(z1), x1 = mean(x1))
 ##### Calculate RMSE and MAE of estimations.
-model2_gwr_err <- c("Intercept", "g1", "g2", "z1", "x1") %>%
-  sapply(function(coef, beta_true, beta_hat) {
-    coef_true <- beta_true[[coef]]
-    coef_hat <- beta_hat[[coef]]
-    mae <- mean(abs(coef_true - coef_hat))
-    rmse <- sqrt(mean((coef_true - coef_hat)^2))
-    list("RMSE" = rmse, "MAE" = mae)
-  }, hgwr_beta, model2_gwr_coef) %>%
-  as.data.frame()
+model2_gwr_err <- model2_gwr_coef %>%
+  select(Intercept, g1, g2, x1, z1) %>% {
+    as.data.frame(rbind(
+      MAE = map2_dbl(hgwr_beta, ., ~ mean(abs(.x - .y))),
+      RMSE = map2_dbl(hgwr_beta, ., ~ sqrt(mean((.x - .y)^2)))
+    ))
+  }
 model2_gwr_err
 ```
 
@@ -362,29 +356,25 @@ model2_hlm <- lmer(
 )
 model2_hlm_coef <- coef(model2_hlm)$group
 colnames(model2_hlm_coef)[which(colnames(model2_hlm_coef) == "(Intercept)")] <- "Intercept"
-model2_hlm_err <- c("Intercept", "g1", "g2", "z1", "x1") %>%
-  sapply(function(coef, beta_true, beta_hat) {
-    coef_true <- beta_true[[coef]]
-    coef_hat <- beta_hat[[coef]]
-    mae <- mean(abs(coef_true - coef_hat))
-    rmse <- sqrt(mean((coef_true - coef_hat)^2))
-    list("RMSE" = rmse, "MAE" = mae)
-  }, hgwr_beta, model2_hlm_coef) %>%
-  as.data.frame()
+model2_hlm_err <- model2_hlm_coef %>%
+  select(Intercept, g1, g2, x1, z1) %>% {
+    as.data.frame(rbind(
+      MAE = map2_dbl(hgwr_beta, ., ~ mean(abs(.x - .y))),
+      RMSE = map2_dbl(hgwr_beta, ., ~ sqrt(mean((.x - .y)^2)))
+    ))
+  }
 model2_hlm_err
 ```
 
 A bar plot will be helpful here to compare the fitness of these three models.
 
 ```{r}
-list(HGWR = model2_hgwr_err, GWR = model2_gwr_err, HLM = model2_hlm_err) %>% {
-  lapply(names(.), function(algorithm, err_list, coef_list) {
-    lapply(coef_list, function(coef, err) {
-      data.frame(Algorithm = algorithm, Coefficient = coef,
-                 Label = rownames(err), Value = unlist(err[[coef]]))
-    }, err_list[[algorithm]]) %>% Reduce(rbind, .)
-  }, ., c("Intercept", "g1", "g2", "z1", "x1")) %>% Reduce(rbind, .)
-} %>%
+list(HGWR = model2_hgwr_err, GWR = model2_gwr_err, HLM = model2_hlm_err) %>%
+  map2_dfr(., names(.), function(x, nx) {
+    map2_dfr(x, colnames(x), function(i, ni) {
+      data.frame(Coefficient = ni, Label = rownames(x), Value = i)
+    }) %>% cbind(Algorithm = nx, .)
+  }) %>%
   ggplot(aes(x = Coefficient, y = Value, group = Algorithm, fill = Algorithm)) +
     geom_col(position = "dodge") +
     geom_text(aes(label = round(Value, 2), y = pmin(Value, 10), vjust = -0.2),
@@ -498,7 +488,7 @@ Then visualize coefficients estimations with the basemap.
 ```{r, fig.height=7, fig.width=14, dpi=300, cache=T}
 c("d.Water", "d.Commercial", "d.PrimarySchool", "d.Kindergarten",
   "Fee", "BuildingArea", "Floor.High", "Intercept") %>%
-  lapply(function(var) {
+  map(function(var) {
     hp_basemap +
       tm_shape(hp_coef_sp, is.master = T) +
       tm_dots(col = var, size = 0.1, midpoint = 0,
