@@ -62,7 +62,7 @@ jobs:
       - name: CMake build and check
         run: |
           mkdir build
-          cmake -B build -S . -DWITH_R=ON -DBLAS_LIBRARIES="C:/usr/lib/libopenblas.lib" -DLAPACK_LIBRARIES="C:/usr/lib/libopenblas.lib" -DCMAKE_PREFIX_PATH=C:/usr -DR_ROOT="C:/Program Files/R/R-4.1.2/"
+          cmake -B build -S . -DWITH_R=ON -DBLAS_LIBRARIES="C:/usr/lib/libopenblas.lib" -DLAPACK_LIBRARIES="C:/usr/lib/libopenblas.lib" -DCMAKE_PREFIX_PATH=C:/usr -DR_ROOT="C:/R/"
           cmake --build build --config Release --target hgwrr_rbuild
           cd build && ctest -R Test_R_hgwr -C Release --output-on-failure --verbose
   
