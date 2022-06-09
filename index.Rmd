@@ -38,7 +38,7 @@ $X$ also the group level independent variables, $\beta$ the global fixed effects
 $Z$ the individual level independent variables, $\mu$ the random effects,
 $\epsilon$ the individual errors.
 
-### Why HLGWR model?
+### Why HGWR model?
 
 As we know, hierarchical structure is commonly existing in spatial data.
 For example, cities can be grouped by provinces or other higher-level administrative district they belong to;
@@ -419,27 +419,27 @@ and the table gives information about all available variables.
 
 ![Map of second-hand properties](./assets/CaseStudy1_WuhanHouseData.jpeg)
 
-| Variables         | Value                                                   | Level  | Type          | Logarithm |
-| ----------------- | ------------------------------------------------------- | ------ | ------------- | --------- |
-| *Price*           | House price per square metre                            | Sample | Dependent     | Yes       |
-| *Floor.High*      | 1 if a property is on a high floor, otherwise 0         | Sample | Structural    |           |
-| *Floor.Low*       | 1 if a property is on a low floor, otherwise 0          | Sample | Structural    |           |
-| *Decoration.Fine* | 1 if a property is well decorated, otherwise 0          | Sample | Structural    |           |
-| *PlateTower*      | 1 if a property is of the plate-tower type, otherwise 0 | Sample | Structural    |           |
-| *Steel*           | 1 if a property is of ‘steel’ structure, otherwise 0    | Sample | Structural    |           |
-| *BuildingArea*    | Building area in square metres                          | Sample | Structural    | Yes       |
-| *Fee*             | Management fee per square meter per month               | Group  | Neighbourhood | Yes       |
-| *d.Commercial*    | Distance to the nearest commercial area                 | Group  | Locational    | Yes       |
-| *d.Greenland*     | Distance to the nearest green land                      | Group  | Locational    | Yes       |
-| *d.Water*         | Distance to the nearest river or lake                   | Group  | Locational    | Yes       |
-| *d.University*    | Distance to the nearest university                      | Group  | Locational    | Yes       |
-| *d.HighSchool*    | Distance to the nearest high school                     | Group  | Locational    | Yes       |
-| *d.MiddleSchool*  | Distance to the nearest middle school                   | Group  | Locational    | Yes       |
-| *d.PrimarySchool* | Distance to the nearest primary school                  | Group  | Locational    | Yes       |
-| *d.Kindergarten*  | Distance to the nearest kindergarten                    | Group  | Locational    | Yes       |
-| *d.SubwayStation* | Distance to the nearest subway station                  | Group  | Locational    | Yes       |
-| *d.Supermarket*   | Distance to the nearest supermarket.                    | Group  | Locational    | Yes       |
-| *d.ShoppingMall*  | Distance to the nearest shopping mall                   | Group  | Locational    | Yes       |
+| Variables         | Value                                                    | Level  | Type          | Logarithm |
+| ----------------- | -------------------------------------------------------- | ------ | ------------- | --------- |
+| *Price*           | House price per square metre.                            | Sample | Dependent     | Yes       |
+| *Floor.High*      | 1 if a property is on a high floor, otherwise 0.         | Sample | Structural    |           |
+| *Floor.Low*       | 1 if a property is on a low floor, otherwise 0.          | Sample | Structural    |           |
+| *Decoration.Fine* | 1 if a property is well decorated, otherwise 0.          | Sample | Structural    |           |
+| *PlateTower*      | 1 if a property is of the plate-tower type, otherwise 0. | Sample | Structural    |           |
+| *Steel*           | 1 if a property is of ‘steel’ structure, otherwise 0.    | Sample | Structural    |           |
+| *BuildingArea*    | Building area in square metres.                          | Sample | Structural    | Yes       |
+| *Fee*             | Management fee per square meter per month.               | Group  | Neighbourhood | Yes       |
+| *d.Commercial*    | Distance to the nearest commercial area.                 | Group  | Locational    | Yes       |
+| *d.Greenland*     | Distance to the nearest green land.                      | Group  | Locational    | Yes       |
+| *d.Water*         | Distance to the nearest river or lake.                   | Group  | Locational    | Yes       |
+| *d.University*    | Distance to the nearest university.                      | Group  | Locational    | Yes       |
+| *d.HighSchool*    | Distance to the nearest high school.                     | Group  | Locational    | Yes       |
+| *d.MiddleSchool*  | Distance to the nearest middle school.                   | Group  | Locational    | Yes       |
+| *d.PrimarySchool* | Distance to the nearest primary school.                  | Group  | Locational    | Yes       |
+| *d.Kindergarten*  | Distance to the nearest kindergarten.                    | Group  | Locational    | Yes       |
+| *d.SubwayStation* | Distance to the nearest subway station.                  | Group  | Locational    | Yes       |
+| *d.Supermarket*   | Distance to the nearest supermarket.                     | Group  | Locational    | Yes       |
+| *d.ShoppingMall*  | Distance to the nearest shopping mall.                   | Group  | Locational    | Yes       |
 
 After a variable selection process [@HuLu-2022], we use these factors to build a HGWR model:
 

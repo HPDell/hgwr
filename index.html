@@ -196,7 +196,7 @@
       Model</a>
       <ul>
       <li><a href="#what-is-hgwr-model">What is HGWR model?</a></li>
-      <li><a href="#why-hlgwr-model">Why HLGWR model?</a></li>
+      <li><a href="#why-hgwr-model">Why HGWR model?</a></li>
       </ul></li>
       <li><a href="#modelling-with-hgwr-model">Modelling with HGWR
       Model</a>
@@ -255,8 +255,8 @@ class="math inline">\(Z\)</span> the individual level independent
 variables, <span class="math inline">\(\mu\)</span> the random effects,
 <span class="math inline">\(\epsilon\)</span> the individual errors.</p>
 </div>
-<div id="why-hlgwr-model" class="section level3">
-<h3>Why HLGWR model?</h3>
+<div id="why-hgwr-model" class="section level3">
+<h3>Why HGWR model?</h3>
 <p>As we know, hierarchical structure is commonly existing in spatial
 data. For example, cities can be grouped by provinces or other
 higher-level administrative district they belong to; house prices may
@@ -1364,11 +1364,11 @@ and the table gives information about all available variables.</p>
 </div>
 <table>
 <colgroup>
-<col width="17%" />
+<col width="16%" />
 <col width="55%" />
-<col width="6%" />
-<col width="13%" />
-<col width="9%" />
+<col width="5%" />
+<col width="12%" />
+<col width="8%" />
 </colgroup>
 <thead>
 <tr class="header">
@@ -1382,119 +1382,119 @@ and the table gives information about all available variables.</p>
 <tbody>
 <tr class="odd">
 <td><em>Price</em></td>
-<td>House price per square metre</td>
+<td>House price per square metre.</td>
 <td>Sample</td>
 <td>Dependent</td>
 <td>Yes</td>
 </tr>
 <tr class="even">
 <td><em>Floor.High</em></td>
-<td>1 if a property is on a high floor, otherwise 0</td>
+<td>1 if a property is on a high floor, otherwise 0.</td>
 <td>Sample</td>
 <td>Structural</td>
 <td></td>
 </tr>
 <tr class="odd">
 <td><em>Floor.Low</em></td>
-<td>1 if a property is on a low floor, otherwise 0</td>
+<td>1 if a property is on a low floor, otherwise 0.</td>
 <td>Sample</td>
 <td>Structural</td>
 <td></td>
 </tr>
 <tr class="even">
 <td><em>Decoration.Fine</em></td>
-<td>1 if a property is well decorated, otherwise 0</td>
+<td>1 if a property is well decorated, otherwise 0.</td>
 <td>Sample</td>
 <td>Structural</td>
 <td></td>
 </tr>
 <tr class="odd">
 <td><em>PlateTower</em></td>
-<td>1 if a property is of the plate-tower type, otherwise 0</td>
+<td>1 if a property is of the plate-tower type, otherwise 0.</td>
 <td>Sample</td>
 <td>Structural</td>
 <td></td>
 </tr>
 <tr class="even">
 <td><em>Steel</em></td>
-<td>1 if a property is of ‘steel’ structure, otherwise 0</td>
+<td>1 if a property is of ‘steel’ structure, otherwise 0.</td>
 <td>Sample</td>
 <td>Structural</td>
 <td></td>
 </tr>
 <tr class="odd">
 <td><em>BuildingArea</em></td>
-<td>Building area in square metres</td>
+<td>Building area in square metres.</td>
 <td>Sample</td>
 <td>Structural</td>
 <td>Yes</td>
 </tr>
 <tr class="even">
 <td><em>Fee</em></td>
-<td>Management fee per square meter per month</td>
+<td>Management fee per square meter per month.</td>
 <td>Group</td>
 <td>Neighbourhood</td>
 <td>Yes</td>
 </tr>
 <tr class="odd">
 <td><em>d.Commercial</em></td>
-<td>Distance to the nearest commercial area</td>
+<td>Distance to the nearest commercial area.</td>
 <td>Group</td>
 <td>Locational</td>
 <td>Yes</td>
 </tr>
 <tr class="even">
 <td><em>d.Greenland</em></td>
-<td>Distance to the nearest green land</td>
+<td>Distance to the nearest green land.</td>
 <td>Group</td>
 <td>Locational</td>
 <td>Yes</td>
 </tr>
 <tr class="odd">
 <td><em>d.Water</em></td>
-<td>Distance to the nearest river or lake</td>
+<td>Distance to the nearest river or lake.</td>
 <td>Group</td>
 <td>Locational</td>
 <td>Yes</td>
 </tr>
 <tr class="even">
 <td><em>d.University</em></td>
-<td>Distance to the nearest university</td>
+<td>Distance to the nearest university.</td>
 <td>Group</td>
 <td>Locational</td>
 <td>Yes</td>
 </tr>
 <tr class="odd">
 <td><em>d.HighSchool</em></td>
-<td>Distance to the nearest high school</td>
+<td>Distance to the nearest high school.</td>
 <td>Group</td>
 <td>Locational</td>
 <td>Yes</td>
 </tr>
 <tr class="even">
 <td><em>d.MiddleSchool</em></td>
-<td>Distance to the nearest middle school</td>
+<td>Distance to the nearest middle school.</td>
 <td>Group</td>
 <td>Locational</td>
 <td>Yes</td>
 </tr>
 <tr class="odd">
 <td><em>d.PrimarySchool</em></td>
-<td>Distance to the nearest primary school</td>
+<td>Distance to the nearest primary school.</td>
 <td>Group</td>
 <td>Locational</td>
 <td>Yes</td>
 </tr>
 <tr class="even">
 <td><em>d.Kindergarten</em></td>
-<td>Distance to the nearest kindergarten</td>
+<td>Distance to the nearest kindergarten.</td>
 <td>Group</td>
 <td>Locational</td>
 <td>Yes</td>
 </tr>
 <tr class="odd">
 <td><em>d.SubwayStation</em></td>
-<td>Distance to the nearest subway station</td>
+<td>Distance to the nearest subway station.</td>
 <td>Group</td>
 <td>Locational</td>
 <td>Yes</td>
@@ -1508,7 +1508,7 @@ and the table gives information about all available variables.</p>
 </tr>
 <tr class="odd">
 <td><em>d.ShoppingMall</em></td>
-<td>Distance to the nearest shopping mall</td>
+<td>Distance to the nearest shopping mall.</td>
 <td>Group</td>
 <td>Locational</td>
 <td>Yes</td>
