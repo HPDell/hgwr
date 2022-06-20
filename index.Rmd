@@ -101,7 +101,7 @@ Simply type the following codes to install it.
 install.packages("hgwrr")
 ```
 
-Or download [latest released source package](https://github.com/HPDell/hlmgwr-backfitting-ml/releases/latest)
+Or download [latest released source package](https://github.com/HPDell/hgwr/releases/latest)
 and run the following command to install this package.
 
 ```bash
