@@ -164,7 +164,7 @@ A data set "multisampling" is provided with this package,
 ```{r}
 data(multisampling)
 head(multisampling$data)
-head(multisampling$coord)
+head(multisampling$coords)
 ```
 
 where `y` is the dependent variable,
@@ -177,14 +177,14 @@ We regards `g1` and `g2` have local fixed effects, `x1` have global fixed effect
 Then we can calibrate an HGWR model with like this
 
 ```{r, cache=T}
-model1 <- hgwr(
+ms_hgwr <- hgwr(
   formula = y ~ g1 + g2 + x1 + (z1 | group),
   data = multisampling$data,
   local.fixed = c("g1", "g2"),
-  coords = multisampling$coord,
+  coords = multisampling$coords,
   bw = 10
 )
-model1
+ms_hgwr
 ```
 
 The output of the model shows estimations of global fixed effects,
@@ -194,17 +194,17 @@ Also there are the standard deviations of random effects and correlation coeffic
 Then we can have a look on the coefficient estimations.
 
 ```{r}
-coef(model1)
+coef(ms_hgwr)
 ```
 
 With **ggplot2** or other packages, we can create some figures.
 
 ```{r}
 library(ggplot2)
-model1_coef_coord <- as.data.frame(cbind(multisampling$coord, coef(model1)))
-ggplot(model1_coef_coord, aes(x = U, y = V)) +
+ms_hgwr_coef <- as.data.frame(cbind(multisampling$coords, coef(ms_hgwr)))
+ggplot(ms_hgwr_coef, aes(x = U, y = V)) +
   geom_point(aes(color = g1)) +
-  theme_bw()
+  coord_fixed() + theme_bw()
 ```
 
 We can also convert it to spatial data and use **tmap** to visualize.
@@ -212,10 +212,10 @@ We can also convert it to spatial data and use **tmap** to visualize.
 ```{r}
 library(sf)
 library(tmap)
-model1_coef_coord_sf <- st_as_sf(model1_coef_coord,
-                                 coords = names(multisampling$coord),
-                                 crs = 27700)
-tm_shape(model1_coef_coord_sf) + tm_dots(col = c("g1", "g2"), size = 0.5)
+ms_hgwr_coef_sf <- st_as_sf(ms_hgwr_coef,
+                            coords = names(multisampling$coords),
+                            crs = 27700)
+tm_shape(ms_hgwr_coef_sf) + tm_dots(col = c("g1", "g2"), size = 0.5)
 ```
 
 And we can also fetch the fitted and residuals.
@@ -223,15 +223,15 @@ And we can also fetch the fitted and residuals.
 ```{r}
 head(data.frame(
   real = multisampling$data$y,
-  fitted = fitted(model1),
-  residuals = residuals(model1)
+  fitted = fitted(ms_hgwr),
+  residuals = residuals(ms_hgwr)
 ))
 ```
 
 The `summary()` function will give some statistical information about this model.
 
 ```{r}
-summary(model1)
+summary(ms_hgwr)
 ```
 
 On the current stage, only pesudo $R^2$ is available.
@@ -239,19 +239,21 @@ In the future, more diagnostic information will be provided in this package.
 
 ### Example: Large Scale Simulated Data
 
-In the former example, there are only `r nrow(multisampling$data)` observations and `r nrow(multisampling$coord)` groups.
+In the former example, there are only `r nrow(multisampling$data)` observations and `r nrow(multisampling$coords)` groups.
 They are not adequate enough to get precises estimations.
 Here, we are going to use a large scale simulated data set to show the performance of HGWR model.
-As the true value of coefficients are already known (stored in variable `hgwr_beta`),
+As the true value of coefficients are already known (stored in variable `msl_beta`),
 closeness between estimated and true values is an appliable performance metric.
 
 The data set is provided [here](./data/example2.rda).
 Its structure is similar to data `multisampling`.
 
 ```{r}
-load("data/example2.rda")
-head(hgwr_data)
-head(hgwr_coords)
+data(multisampling.large)
+head(multisampling.large$data)
+head(multisampling.large$coords)
+msl_beta <- multisampling.large$beta
+head(msl_beta)
 ```
 
 In this data, we also regards
@@ -261,35 +263,35 @@ In this data, we also regards
 and `U`, `V` as longitude and latitude coordinate values of all groups.
 Then we calibrate an HGWR model.
 
-> As the data is large (`r nrow(hgwr_data)` observations),
+> As the data is large (`r nrow(multisampling.large$data)` observations),
 > it may take some time to get results.
 
 ```{r, cache=T}
-hgwr_formula <- y ~ g1 + g2 + x1 + (z1 | group)
-model2 <- hgwr(formula = hgwr_formula,
-               data = hgwr_data,
-               local.fixed = c("g1", "g2"),
-               coords = hgwr_coords,
-               bw = 32,
-               kernel = "bisquared")
-model2
+msl_hgwr <- hgwr(
+  formula = y ~ g1 + g2 + x1 + (z1 | group),
+  data = multisampling.large$data,
+  local.fixed = c("g1", "g2"),
+  coords = multisampling.large$coords,
+  bw = 32, kernel = "bisquared"
+)
+msl_hgwr
 ```
 
 #### Fitness Assessment
 
 Then we check the estimations of intercept, `g1`, `g2` and `z1` via some scatter plots.
 
-```{r}
+```{r, fig.width=9, fig.height=3, dpi=300}
 library(dplyr)
 library(purrr)
-coef(model2) %>%
+coef(msl_hgwr) %>%
   select(Intercept, g1, g2, z1) %>% 
-  list(label = names(.), Truth = hgwr_beta[names(.)], Estimated = .) %>%
+  list(label = names(.), Truth = msl_beta[names(.)], Estimated = .) %>%
   pmap_df(data.frame) %>%
   mutate(label = factor(label, levels = c("Intercept", "g1", "g2", "z1"))) %>%
   ggplot(aes(x = Truth, y = Estimated)) + geom_point() +
     coord_fixed() + scale_y_continuous(limits = c(-25, 25)) +
-    facet_wrap(~ label) + 
+    facet_grid(cols = vars(label)) +
     theme_bw()
 ```
 
@@ -297,14 +299,14 @@ In addition to these scatter plots, root mean squared errors (RMSE) and mean abs
 estimations and true values are also very useful to assess the fitting performance.
 
 ```{r}
-model2_hgwr_err <- coef(model2) %>%
+msl_hgwr_err <- coef(msl_hgwr) %>%
   select(Intercept, g1, g2, x1, z1) %>% {
     as.data.frame(rbind(
-      MAE = map2_dbl(hgwr_beta, ., ~ mean(abs(.x - .y))),
-      RMSE = map2_dbl(hgwr_beta, ., ~ sqrt(mean((.x - .y)^2)))
+      MAE = map2_dbl(msl_beta, ., ~ mean(abs(.x - .y))),
+      RMSE = map2_dbl(msl_beta, ., ~ sqrt(mean((.x - .y)^2)))
     ))
   }
-model2_hgwr_err
+msl_hgwr_err
 ```
 
 #### Comparison of HGWR, GWR and HLM
@@ -316,60 +318,60 @@ THe GWR model can be calibrated with the following codes.
 ```{r, cache=T}
 ### GWR model
 library(GWmodel)
-gwr_data <- hgwr_data
-coordinates(gwr_data) <- hgwr_coords[hgwr_data$group, ]
+msl_gwr_data <- multisampling.large$data
+coordinates(msl_gwr_data) <- with(multisampling.large, coords[data$group, ])
 ##### Get optimized bandwidth via golden minimization algorithm.
-gwr_bw <- bw.gwr(
-  formula = y ~ g1 + g2 + x1 + z1, data = gwr_data, approach = "AIC",
-  adaptive = TRUE, parallel.method = "omp", parallel.arg = 8
+msl_gwr_bw <- bw.gwr(
+  formula = y ~ g1 + g2 + x1 + z1, data = msl_gwr_data, approach = "AIC",
+  adaptive = TRUE, parallel.method = "omp"
 )
 ##### Calibrate GWR model with optimized bandwidth.
-model2_gwr <- gwr.basic(
-  formula = y ~ g1 + g2 + x1 + z1, data = gwr_data, bw = gwr_bw,
-  adaptive = TRUE, parallel.method = "omp", parallel.arg = 8
+msl_gwr <- gwr.basic(
+  formula = y ~ g1 + g2 + x1 + z1, data = msl_gwr_data, bw = msl_gwr_bw,
+  adaptive = TRUE, parallel.method = "omp"
 )
 #### Get coefficient estimations.
 #### As samples in one group have equal estimations,
 #### we use mean value of each group to represent them.
-model2_gwr_coef <- cbind(model2_gwr$SDF@data, group = gwr_data$group) %>%
+msl_gwr_coef <- cbind(msl_gwr$SDF@data, group = msl_gwr_data$group) %>%
+  select(Intercept, g1, g2, x1, z1, group) %>%
   group_by(group) %>%
-  summarise(Intercept = mean(Intercept),
-            g1 = mean(g1), g2 = mean(g2), z1 = mean(z1), x1 = mean(x1))
+  summarise_all(mean)
 ##### Calculate RMSE and MAE of estimations.
-model2_gwr_err <- model2_gwr_coef %>%
+msl_gwr_err <- msl_gwr_coef %>%
   select(Intercept, g1, g2, x1, z1) %>% {
     as.data.frame(rbind(
-      MAE = map2_dbl(hgwr_beta, ., ~ mean(abs(.x - .y))),
-      RMSE = map2_dbl(hgwr_beta, ., ~ sqrt(mean((.x - .y)^2)))
+      MAE = map2_dbl(msl_beta, ., ~ mean(abs(.x - .y))),
+      RMSE = map2_dbl(msl_beta, ., ~ sqrt(mean((.x - .y)^2)))
     ))
   }
-model2_gwr_err
+msl_gwr_err
 ```
 
 And also a HLM model calibrated with the following codes.
 
 ```{r}
 library(lme4)
-model2_hlm <- lmer(
+msl_hlm <- lmer(
   formula = y ~ g1 + g2 + x1 + (z1 | group),
-  data = hgwr_data
+  data = multisampling.large$data
 )
-model2_hlm_coef <- coef(model2_hlm)$group
-colnames(model2_hlm_coef)[which(colnames(model2_hlm_coef) == "(Intercept)")] <- "Intercept"
-model2_hlm_err <- model2_hlm_coef %>%
+msl_hlm_coef <- coef(msl_hlm)$group
+colnames(msl_hlm_coef)[which(colnames(msl_hlm_coef) == "(Intercept)")] <- "Intercept"
+msl_hlm_err <- msl_hlm_coef %>%
   select(Intercept, g1, g2, x1, z1) %>% {
     as.data.frame(rbind(
-      MAE = map2_dbl(hgwr_beta, ., ~ mean(abs(.x - .y))),
-      RMSE = map2_dbl(hgwr_beta, ., ~ sqrt(mean((.x - .y)^2)))
+      MAE = map2_dbl(msl_beta, ., ~ mean(abs(.x - .y))),
+      RMSE = map2_dbl(msl_beta, ., ~ sqrt(mean((.x - .y)^2)))
     ))
   }
-model2_hlm_err
+msl_hlm_err
 ```
 
 A bar plot will be helpful here to compare the fitness of these three models.
 
-```{r}
-list(HGWR = model2_hgwr_err, GWR = model2_gwr_err, HLM = model2_hlm_err) %>%
+```{r, dpi=300}
+list(HGWR = msl_hgwr_err, GWR = msl_gwr_err, HLM = msl_hlm_err) %>%
   map2_dfr(., names(.), function(x, nx) {
     map2_dfr(x, colnames(x), function(i, ni) {
       data.frame(Coefficient = ni, Label = rownames(x), Value = i)
@@ -402,9 +404,9 @@ Here we are going to use a case study to show the usage of HGWR on this type of 
 The data set is provided in this [file](./data/wuhan_house_price.rda).
 
 ```{r}
-load("data/wuhan_house_price.rda")
-head(house_price)
-head(house_coords)
+data(wuhan.hp)
+head(wuhan.hp$data)
+head(wuhan.hp$coords)
 ```
 
 This data set, collected in 2018, has 19,854 properties located in 795 communities.
@@ -454,20 +456,20 @@ After a variable selection process [@HuLu-2022], we use these factors to build a
 And regards the locational and Fee as local fixed effects, the BuildingArea as global fixed effects and Floor.High as random effects.
 Then we can calibrate a HGWR model with the following codes.
 
-```{r}
-hp_hgwr <- hgwr(
+```{r, cache=T}
+whhp_hgwr <- hgwr(
   formula = Price ~ d.Water + d.Commercial + d.PrimarySchool +
             d.Kindergarten + Fee + BuildingArea + (Floor.High | group),
-  data = house_price,
+  data = wuhan.hp$data,
   local.fixed = c("d.Water", "d.Commercial", "d.PrimarySchool",
                   "d.Kindergarten", "Fee"),
-  coords = house_coords,
+  coords = wuhan.hp$coords,
   bw = 50,
   kernel = "bisquared",
   eps_gradient = 1e-16,
   eps_iter = 1e-16
 )
-hp_hgwr
+whhp_hgwr
 ```
 
 We can also make some maps to visualize the estimated coefficients.
@@ -478,9 +480,9 @@ Because coefficients, coordinates and groups can be one-to-one matched.
 
 ```{r}
 wuhan <- rgdal::readOGR("data/wuhan.geojson")
-hp_coef_sp <- cbind(coef(hp_hgwr), as.data.frame(house_coords)) %>%
+wuhp_coef_sf <- cbind(coef(whhp_hgwr), as.data.frame(wuhan.hp$coords)) %>%
   st_as_sf(coords = c("X", "Y"), crs = 4547)
-hp_basemap <- tm_shape(wuhan) + tm_polygons(col = "white")
+wh_basemap <- tm_shape(wuhan) + tm_polygons(col = "white")
 ```
 
 Then visualize coefficients estimations with the basemap.
@@ -489,8 +491,8 @@ Then visualize coefficients estimations with the basemap.
 c("d.Water", "d.Commercial", "d.PrimarySchool", "d.Kindergarten",
   "Fee", "BuildingArea", "Floor.High", "Intercept") %>%
   map(function(var) {
-    hp_basemap +
-      tm_shape(hp_coef_sp, is.master = T) +
+    wh_basemap +
+      tm_shape(wuhp_coef_sf, is.master = T) +
       tm_dots(col = var, size = 0.1, midpoint = 0,
               palette = "-RdBu", legend.col.reverse = T)
   }) %>%

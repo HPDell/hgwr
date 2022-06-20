@@ -450,7 +450,7 @@ model is with this data set.</em></p>
 </tbody>
 </table>
 </div>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(multisampling<span class="sc">$</span>coord)</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(multisampling<span class="sc">$</span>coords)</span></code></pre></div>
 <div class="kable-table">
 <table>
 <thead>
@@ -497,14 +497,14 @@ groups.</p>
 effects, <code>x1</code> have global fixed effects and <code>z1</code>
 have random effects. Then we can calibrate an HGWR model with like
 this</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>model1 <span class="ot">&lt;-</span> <span class="fu">hgwr</span>(</span>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>ms_hgwr <span class="ot">&lt;-</span> <span class="fu">hgwr</span>(</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> y <span class="sc">~</span> g1 <span class="sc">+</span> g2 <span class="sc">+</span> x1 <span class="sc">+</span> (z1 <span class="sc">|</span> group),</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> multisampling<span class="sc">$</span>data,</span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">local.fixed =</span> <span class="fu">c</span>(<span class="st">&quot;g1&quot;</span>, <span class="st">&quot;g2&quot;</span>),</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">coords =</span> multisampling<span class="sc">$</span>coord,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">coords =</span> multisampling<span class="sc">$</span>coords,</span>
 <span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">bw =</span> <span class="dv">10</span></span>
 <span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>model1</span></code></pre></div>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>ms_hgwr</span></code></pre></div>
 <pre><code>## Hierarchical and geographically weighted regression model 
 ## ========================================================= 
 ## Formula: y ~ g1 + g2 + x1 + (z1 | group) 
@@ -539,7 +539,7 @@ summary of those of local fixed effects. Also there are the standard
 deviations of random effects and correlation coefficients between
 them.</p>
 <p>Then we can have a look on the coefficient estimations.</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">coef</span>(model1)</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">coef</span>(ms_hgwr)</span></code></pre></div>
 <div class="kable-table">
 <table>
 <thead>
@@ -687,25 +687,25 @@ them.</p>
 <p>With <strong>ggplot2</strong> or other packages, we can create some
 figures.</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>model1_coef_coord <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(<span class="fu">cbind</span>(multisampling<span class="sc">$</span>coord, <span class="fu">coef</span>(model1)))</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(model1_coef_coord, <span class="fu">aes</span>(<span class="at">x =</span> U, <span class="at">y =</span> V)) <span class="sc">+</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>ms_hgwr_coef <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(<span class="fu">cbind</span>(multisampling<span class="sc">$</span>coords, <span class="fu">coef</span>(ms_hgwr)))</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(ms_hgwr_coef, <span class="fu">aes</span>(<span class="at">x =</span> U, <span class="at">y =</span> V)) <span class="sc">+</span></span>
 <span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="fu">aes</span>(<span class="at">color =</span> g1)) <span class="sc">+</span></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>()</span></code></pre></div>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coord_fixed</span>() <span class="sc">+</span> <span class="fu">theme_bw</span>()</span></code></pre></div>
 <p><img src="index_files/figure-html/unnamed-chunk-6-1.png" width="768" /></p>
 <p>We can also convert it to spatial data and use <strong>tmap</strong>
 to visualize.</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sf)</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tmap)</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>model1_coef_coord_sf <span class="ot">&lt;-</span> <span class="fu">st_as_sf</span>(model1_coef_coord,</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>                                 <span class="at">coords =</span> <span class="fu">names</span>(multisampling<span class="sc">$</span>coord),</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>                                 <span class="at">crs =</span> <span class="dv">27700</span>)</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="fu">tm_shape</span>(model1_coef_coord_sf) <span class="sc">+</span> <span class="fu">tm_dots</span>(<span class="at">col =</span> <span class="fu">c</span>(<span class="st">&quot;g1&quot;</span>, <span class="st">&quot;g2&quot;</span>), <span class="at">size =</span> <span class="fl">0.5</span>)</span></code></pre></div>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>ms_hgwr_coef_sf <span class="ot">&lt;-</span> <span class="fu">st_as_sf</span>(ms_hgwr_coef,</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>                            <span class="at">coords =</span> <span class="fu">names</span>(multisampling<span class="sc">$</span>coords),</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>                            <span class="at">crs =</span> <span class="dv">27700</span>)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="fu">tm_shape</span>(ms_hgwr_coef_sf) <span class="sc">+</span> <span class="fu">tm_dots</span>(<span class="at">col =</span> <span class="fu">c</span>(<span class="st">&quot;g1&quot;</span>, <span class="st">&quot;g2&quot;</span>), <span class="at">size =</span> <span class="fl">0.5</span>)</span></code></pre></div>
 <p><img src="index_files/figure-html/unnamed-chunk-7-1.png" width="768" /></p>
 <p>And we can also fetch the fitted and residuals.</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(<span class="fu">data.frame</span>(</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">real =</span> multisampling<span class="sc">$</span>data<span class="sc">$</span>y,</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">fitted =</span> <span class="fu">fitted</span>(model1),</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">residuals =</span> <span class="fu">residuals</span>(model1)</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">fitted =</span> <span class="fu">fitted</span>(ms_hgwr),</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">residuals =</span> <span class="fu">residuals</span>(ms_hgwr)</span>
 <span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>))</span></code></pre></div>
 <div class="kable-table">
 <table>
@@ -752,7 +752,7 @@ to visualize.</p>
 </div>
 <p>The <code>summary()</code> function will give some statistical
 information about this model.</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(model1)</span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(ms_hgwr)</span></code></pre></div>
 <pre><code>## Hierarchical and geographically weighted regression model 
 ## ========================================================= 
 ## Formula: y ~ g1 + g2 + x1 + (z1 | group) 
@@ -783,12 +783,12 @@ diagnostic information will be provided in this package.</p>
 They are not adequate enough to get precises estimations. Here, we are
 going to use a large scale simulated data set to show the performance of
 HGWR model. As the true value of coefficients are already known (stored
-in variable <code>hgwr_beta</code>), closeness between estimated and
-true values is an appliable performance metric.</p>
+in variable <code>msl_beta</code>), closeness between estimated and true
+values is an appliable performance metric.</p>
 <p>The data set is provided <a href="./data/example2.rda">here</a>. Its
 structure is similar to data <code>multisampling</code>.</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">&quot;data/example2.rda&quot;</span>)</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(hgwr_data)</span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(multisampling.large)</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(multisampling.large<span class="sc">$</span>data)</span></code></pre></div>
 <div class="kable-table">
 <table>
 <thead>
@@ -853,7 +853,7 @@ structure is similar to data <code>multisampling</code>.</p>
 </tbody>
 </table>
 </div>
-<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(hgwr_coords)</span></code></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(multisampling.large<span class="sc">$</span>coords)</span></code></pre></div>
 <pre><code>##            V1       V2
 ## [1,] 2940.897 2851.943
 ## [2,] 3002.659 3157.717
@@ -861,6 +861,65 @@ structure is similar to data <code>multisampling</code>.</p>
 ## [4,] 2863.735 2907.999
 ## [5,] 3117.849 2800.236
 ## [6,] 2906.585 2972.770</code></pre>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>msl_beta <span class="ot">&lt;-</span> multisampling.large<span class="sc">$</span>beta</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(msl_beta)</span></code></pre></div>
+<div class="kable-table">
+<table>
+<thead>
+<tr class="header">
+<th align="right">Intercept</th>
+<th align="right">g1</th>
+<th align="right">g2</th>
+<th align="right">z1</th>
+<th align="right">x1</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">0.7114818</td>
+<td align="right">11.309720</td>
+<td align="right">3.336207</td>
+<td align="right">-0.1359245</td>
+<td align="right">1</td>
+</tr>
+<tr class="even">
+<td align="right">1.6523106</td>
+<td align="right">12.438025</td>
+<td align="right">4.972805</td>
+<td align="right">-0.0407970</td>
+<td align="right">1</td>
+</tr>
+<tr class="odd">
+<td align="right">1.4783712</td>
+<td align="right">6.876733</td>
+<td align="right">-5.069080</td>
+<td align="right">1.0105390</td>
+<td align="right">1</td>
+</tr>
+<tr class="even">
+<td align="right">3.2734732</td>
+<td align="right">6.088872</td>
+<td align="right">-3.877653</td>
+<td align="right">-0.1582624</td>
+<td align="right">1</td>
+</tr>
+<tr class="odd">
+<td align="right">3.8245206</td>
+<td align="right">21.341706</td>
+<td align="right">3.814638</td>
+<td align="right">-2.1566375</td>
+<td align="right">1</td>
+</tr>
+<tr class="even">
+<td align="right">0.4886921</td>
+<td align="right">1.243364</td>
+<td align="right">-2.469626</td>
+<td align="right">0.4986468</td>
+<td align="right">1</td>
+</tr>
+</tbody>
+</table>
+</div>
 <p>In this data, we also regards <code>g1</code> and <code>g2</code> as
 two group-level variables, <code>z1</code> and <code>x1</code> as two
 sample-level variables, <code>group</code> as the labels of the groups
@@ -871,19 +930,19 @@ model.</p>
 <p>As the data is large (13862 observations), it may take some time to
 get results.</p>
 </blockquote>
-<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>hgwr_formula <span class="ot">&lt;-</span> y <span class="sc">~</span> g1 <span class="sc">+</span> g2 <span class="sc">+</span> x1 <span class="sc">+</span> (z1 <span class="sc">|</span> group)</span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>model2 <span class="ot">&lt;-</span> <span class="fu">hgwr</span>(<span class="at">formula =</span> hgwr_formula,</span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>               <span class="at">data =</span> hgwr_data,</span>
-<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>               <span class="at">local.fixed =</span> <span class="fu">c</span>(<span class="st">&quot;g1&quot;</span>, <span class="st">&quot;g2&quot;</span>),</span>
-<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>               <span class="at">coords =</span> hgwr_coords,</span>
-<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>               <span class="at">bw =</span> <span class="dv">32</span>,</span>
-<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>               <span class="at">kernel =</span> <span class="st">&quot;bisquared&quot;</span>)</span>
-<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>model2</span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>msl_hgwr <span class="ot">&lt;-</span> <span class="fu">hgwr</span>(</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> y <span class="sc">~</span> g1 <span class="sc">+</span> g2 <span class="sc">+</span> x1 <span class="sc">+</span> (z1 <span class="sc">|</span> group),</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> multisampling.large<span class="sc">$</span>data,</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">local.fixed =</span> <span class="fu">c</span>(<span class="st">&quot;g1&quot;</span>, <span class="st">&quot;g2&quot;</span>),</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">coords =</span> multisampling.large<span class="sc">$</span>coords,</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">bw =</span> <span class="dv">32</span>, <span class="at">kernel =</span> <span class="st">&quot;bisquared&quot;</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>msl_hgwr</span></code></pre></div>
 <pre><code>## Hierarchical and geographically weighted regression model 
 ## ========================================================= 
-## Formula: hgwr_formula 
+## Formula: y ~ g1 + g2 + x1 + (z1 | group) 
 ##  Method: Back-fitting and Maximum likelihood 
-##    Data: hgwr_data 
+##    Data: multisampling.large$data 
 ## 
 ## Global Fixed Effects 
 ## ------------------- 
@@ -912,29 +971,29 @@ get results.</p>
 <h4>Fitness Assessment</h4>
 <p>Then we check the estimations of intercept, <code>g1</code>,
 <code>g2</code> and <code>z1</code> via some scatter plots.</p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(purrr)</span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="fu">coef</span>(model2) <span class="sc">%&gt;%</span></span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, z1) <span class="sc">%&gt;%</span> </span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list</span>(<span class="at">label =</span> <span class="fu">names</span>(.), <span class="at">Truth =</span> hgwr_beta[<span class="fu">names</span>(.)], <span class="at">Estimated =</span> .) <span class="sc">%&gt;%</span></span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pmap_df</span>(data.frame) <span class="sc">%&gt;%</span></span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">label =</span> <span class="fu">factor</span>(label, <span class="at">levels =</span> <span class="fu">c</span>(<span class="st">&quot;Intercept&quot;</span>, <span class="st">&quot;g1&quot;</span>, <span class="st">&quot;g2&quot;</span>, <span class="st">&quot;z1&quot;</span>))) <span class="sc">%&gt;%</span></span>
-<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> Truth, <span class="at">y =</span> Estimated)) <span class="sc">+</span> <span class="fu">geom_point</span>() <span class="sc">+</span></span>
-<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">coord_fixed</span>() <span class="sc">+</span> <span class="fu">scale_y_continuous</span>(<span class="at">limits =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="dv">25</span>, <span class="dv">25</span>)) <span class="sc">+</span></span>
-<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">facet_wrap</span>(<span class="sc">~</span> label) <span class="sc">+</span> </span>
-<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_bw</span>()</span></code></pre></div>
-<p><img src="index_files/figure-html/unnamed-chunk-12-1.png" width="768" /></p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(purrr)</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="fu">coef</span>(msl_hgwr) <span class="sc">%&gt;%</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, z1) <span class="sc">%&gt;%</span> </span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list</span>(<span class="at">label =</span> <span class="fu">names</span>(.), <span class="at">Truth =</span> msl_beta[<span class="fu">names</span>(.)], <span class="at">Estimated =</span> .) <span class="sc">%&gt;%</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pmap_df</span>(data.frame) <span class="sc">%&gt;%</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">label =</span> <span class="fu">factor</span>(label, <span class="at">levels =</span> <span class="fu">c</span>(<span class="st">&quot;Intercept&quot;</span>, <span class="st">&quot;g1&quot;</span>, <span class="st">&quot;g2&quot;</span>, <span class="st">&quot;z1&quot;</span>))) <span class="sc">%&gt;%</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> Truth, <span class="at">y =</span> Estimated)) <span class="sc">+</span> <span class="fu">geom_point</span>() <span class="sc">+</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">coord_fixed</span>() <span class="sc">+</span> <span class="fu">scale_y_continuous</span>(<span class="at">limits =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="dv">25</span>, <span class="dv">25</span>)) <span class="sc">+</span></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">facet_grid</span>(<span class="at">cols =</span> <span class="fu">vars</span>(label)) <span class="sc">+</span></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_bw</span>()</span></code></pre></div>
+<p><img src="index_files/figure-html/unnamed-chunk-12-1.png" width="2700" /></p>
 <p>In addition to these scatter plots, root mean squared errors (RMSE)
 and mean absolute errors of estimations and true values are also very
 useful to assess the fitting performance.</p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>model2_hgwr_err <span class="ot">&lt;-</span> <span class="fu">coef</span>(model2) <span class="sc">%&gt;%</span></span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, x1, z1) <span class="sc">%&gt;%</span> {</span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as.data.frame</span>(<span class="fu">rbind</span>(</span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>      <span class="at">MAE =</span> <span class="fu">map2_dbl</span>(hgwr_beta, ., <span class="sc">~</span> <span class="fu">mean</span>(<span class="fu">abs</span>(.x <span class="sc">-</span> .y))),</span>
-<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>      <span class="at">RMSE =</span> <span class="fu">map2_dbl</span>(hgwr_beta, ., <span class="sc">~</span> <span class="fu">sqrt</span>(<span class="fu">mean</span>((.x <span class="sc">-</span> .y)<span class="sc">^</span><span class="dv">2</span>)))</span>
-<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    ))</span>
-<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>model2_hgwr_err</span></code></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>msl_hgwr_err <span class="ot">&lt;-</span> <span class="fu">coef</span>(msl_hgwr) <span class="sc">%&gt;%</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, x1, z1) <span class="sc">%&gt;%</span> {</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as.data.frame</span>(<span class="fu">rbind</span>(</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>      <span class="at">MAE =</span> <span class="fu">map2_dbl</span>(msl_beta, ., <span class="sc">~</span> <span class="fu">mean</span>(<span class="fu">abs</span>(.x <span class="sc">-</span> .y))),</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>      <span class="at">RMSE =</span> <span class="fu">map2_dbl</span>(msl_beta, ., <span class="sc">~</span> <span class="fu">sqrt</span>(<span class="fu">mean</span>((.x <span class="sc">-</span> .y)<span class="sc">^</span><span class="dv">2</span>)))</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>    ))</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>msl_hgwr_err</span></code></pre></div>
 <div class="kable-table">
 <table>
 <thead>
@@ -973,15 +1032,15 @@ useful to assess the fitting performance.</p>
 <p>As a comparison, we can also calibrate a GWR model and HLM model and
 have a look at their fitting performance. THe GWR model can be
 calibrated with the following codes.</p>
-<div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="do">### GWR model</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(GWmodel)</span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>gwr_data <span class="ot">&lt;-</span> hgwr_data</span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="fu">coordinates</span>(gwr_data) <span class="ot">&lt;-</span> hgwr_coords[hgwr_data<span class="sc">$</span>group, ]</span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="do">##### Get optimized bandwidth via golden minimization algorithm.</span></span>
-<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>gwr_bw <span class="ot">&lt;-</span> <span class="fu">bw.gwr</span>(</span>
-<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> y <span class="sc">~</span> g1 <span class="sc">+</span> g2 <span class="sc">+</span> x1 <span class="sc">+</span> z1, <span class="at">data =</span> gwr_data, <span class="at">approach =</span> <span class="st">&quot;AIC&quot;</span>,</span>
-<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">adaptive =</span> <span class="cn">TRUE</span>, <span class="at">parallel.method =</span> <span class="st">&quot;omp&quot;</span>, <span class="at">parallel.arg =</span> <span class="dv">8</span></span>
-<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="do">### GWR model</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(GWmodel)</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>msl_gwr_data <span class="ot">&lt;-</span> multisampling.large<span class="sc">$</span>data</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="fu">coordinates</span>(msl_gwr_data) <span class="ot">&lt;-</span> <span class="fu">with</span>(multisampling.large, coords[data<span class="sc">$</span>group, ])</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="do">##### Get optimized bandwidth via golden minimization algorithm.</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>msl_gwr_bw <span class="ot">&lt;-</span> <span class="fu">bw.gwr</span>(</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> y <span class="sc">~</span> g1 <span class="sc">+</span> g2 <span class="sc">+</span> x1 <span class="sc">+</span> z1, <span class="at">data =</span> msl_gwr_data, <span class="at">approach =</span> <span class="st">&quot;AIC&quot;</span>,</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">adaptive =</span> <span class="cn">TRUE</span>, <span class="at">parallel.method =</span> <span class="st">&quot;omp&quot;</span></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
 <pre><code>## Take a cup of tea and have a break, it will take a few minutes.
 ##           -----A kind suggestion from GWmodel development group
 ## Adaptive bandwidth (number of nearest neighbours): 8574 AICc value: 64882.39 
@@ -1002,27 +1061,27 @@ calibrated with the following codes.</p>
 ## Adaptive bandwidth (number of nearest neighbours): 288 AICc value: 60255.59 
 ## Adaptive bandwidth (number of nearest neighbours): 281 AICc value: 60239.58 
 ## Adaptive bandwidth (number of nearest neighbours): 282 AICc value: 60239.58</code></pre>
-<div class="sourceCode" id="cb25"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="do">##### Calibrate GWR model with optimized bandwidth.</span></span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>model2_gwr <span class="ot">&lt;-</span> <span class="fu">gwr.basic</span>(</span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> y <span class="sc">~</span> g1 <span class="sc">+</span> g2 <span class="sc">+</span> x1 <span class="sc">+</span> z1, <span class="at">data =</span> gwr_data, <span class="at">bw =</span> gwr_bw,</span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">adaptive =</span> <span class="cn">TRUE</span>, <span class="at">parallel.method =</span> <span class="st">&quot;omp&quot;</span>, <span class="at">parallel.arg =</span> <span class="dv">8</span></span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a><span class="do">#### Get coefficient estimations.</span></span>
-<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a><span class="do">#### As samples in one group have equal estimations,</span></span>
-<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a><span class="do">#### we use mean value of each group to represent them.</span></span>
-<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>model2_gwr_coef <span class="ot">&lt;-</span> <span class="fu">cbind</span>(model2_gwr<span class="sc">$</span>SDF<span class="sc">@</span>data, <span class="at">group =</span> gwr_data<span class="sc">$</span>group) <span class="sc">%&gt;%</span></span>
-<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(group) <span class="sc">%&gt;%</span></span>
-<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">Intercept =</span> <span class="fu">mean</span>(Intercept),</span>
-<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>            <span class="at">g1 =</span> <span class="fu">mean</span>(g1), <span class="at">g2 =</span> <span class="fu">mean</span>(g2), <span class="at">z1 =</span> <span class="fu">mean</span>(z1), <span class="at">x1 =</span> <span class="fu">mean</span>(x1))</span>
-<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a><span class="do">##### Calculate RMSE and MAE of estimations.</span></span>
-<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>model2_gwr_err <span class="ot">&lt;-</span> model2_gwr_coef <span class="sc">%&gt;%</span></span>
-<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, x1, z1) <span class="sc">%&gt;%</span> {</span>
-<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as.data.frame</span>(<span class="fu">rbind</span>(</span>
-<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>      <span class="at">MAE =</span> <span class="fu">map2_dbl</span>(hgwr_beta, ., <span class="sc">~</span> <span class="fu">mean</span>(<span class="fu">abs</span>(.x <span class="sc">-</span> .y))),</span>
-<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>      <span class="at">RMSE =</span> <span class="fu">map2_dbl</span>(hgwr_beta, ., <span class="sc">~</span> <span class="fu">sqrt</span>(<span class="fu">mean</span>((.x <span class="sc">-</span> .y)<span class="sc">^</span><span class="dv">2</span>)))</span>
-<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>    ))</span>
-<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a>model2_gwr_err</span></code></pre></div>
+<div class="sourceCode" id="cb26"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="do">##### Calibrate GWR model with optimized bandwidth.</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>msl_gwr <span class="ot">&lt;-</span> <span class="fu">gwr.basic</span>(</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> y <span class="sc">~</span> g1 <span class="sc">+</span> g2 <span class="sc">+</span> x1 <span class="sc">+</span> z1, <span class="at">data =</span> msl_gwr_data, <span class="at">bw =</span> msl_gwr_bw,</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">adaptive =</span> <span class="cn">TRUE</span>, <span class="at">parallel.method =</span> <span class="st">&quot;omp&quot;</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="do">#### Get coefficient estimations.</span></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a><span class="do">#### As samples in one group have equal estimations,</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="do">#### we use mean value of each group to represent them.</span></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>msl_gwr_coef <span class="ot">&lt;-</span> <span class="fu">cbind</span>(msl_gwr<span class="sc">$</span>SDF<span class="sc">@</span>data, <span class="at">group =</span> msl_gwr_data<span class="sc">$</span>group) <span class="sc">%&gt;%</span></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, x1, z1, group) <span class="sc">%&gt;%</span></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(group) <span class="sc">%&gt;%</span></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise_all</span>(mean)</span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a><span class="do">##### Calculate RMSE and MAE of estimations.</span></span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>msl_gwr_err <span class="ot">&lt;-</span> msl_gwr_coef <span class="sc">%&gt;%</span></span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, x1, z1) <span class="sc">%&gt;%</span> {</span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as.data.frame</span>(<span class="fu">rbind</span>(</span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>      <span class="at">MAE =</span> <span class="fu">map2_dbl</span>(msl_beta, ., <span class="sc">~</span> <span class="fu">mean</span>(<span class="fu">abs</span>(.x <span class="sc">-</span> .y))),</span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>      <span class="at">RMSE =</span> <span class="fu">map2_dbl</span>(msl_beta, ., <span class="sc">~</span> <span class="fu">sqrt</span>(<span class="fu">mean</span>((.x <span class="sc">-</span> .y)<span class="sc">^</span><span class="dv">2</span>)))</span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a>    ))</span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>msl_gwr_err</span></code></pre></div>
 <div class="kable-table">
 <table>
 <thead>
@@ -1056,21 +1115,21 @@ calibrated with the following codes.</p>
 </table>
 </div>
 <p>And also a HLM model calibrated with the following codes.</p>
-<div class="sourceCode" id="cb26"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(lme4)</span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>model2_hlm <span class="ot">&lt;-</span> <span class="fu">lmer</span>(</span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> y <span class="sc">~</span> g1 <span class="sc">+</span> g2 <span class="sc">+</span> x1 <span class="sc">+</span> (z1 <span class="sc">|</span> group),</span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> hgwr_data</span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>model2_hlm_coef <span class="ot">&lt;-</span> <span class="fu">coef</span>(model2_hlm)<span class="sc">$</span>group</span>
-<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(model2_hlm_coef)[<span class="fu">which</span>(<span class="fu">colnames</span>(model2_hlm_coef) <span class="sc">==</span> <span class="st">&quot;(Intercept)&quot;</span>)] <span class="ot">&lt;-</span> <span class="st">&quot;Intercept&quot;</span></span>
-<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>model2_hlm_err <span class="ot">&lt;-</span> model2_hlm_coef <span class="sc">%&gt;%</span></span>
-<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, x1, z1) <span class="sc">%&gt;%</span> {</span>
-<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as.data.frame</span>(<span class="fu">rbind</span>(</span>
-<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>      <span class="at">MAE =</span> <span class="fu">map2_dbl</span>(hgwr_beta, ., <span class="sc">~</span> <span class="fu">mean</span>(<span class="fu">abs</span>(.x <span class="sc">-</span> .y))),</span>
-<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>      <span class="at">RMSE =</span> <span class="fu">map2_dbl</span>(hgwr_beta, ., <span class="sc">~</span> <span class="fu">sqrt</span>(<span class="fu">mean</span>((.x <span class="sc">-</span> .y)<span class="sc">^</span><span class="dv">2</span>)))</span>
-<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>    ))</span>
-<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>model2_hlm_err</span></code></pre></div>
+<div class="sourceCode" id="cb27"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(lme4)</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>msl_hlm <span class="ot">&lt;-</span> <span class="fu">lmer</span>(</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> y <span class="sc">~</span> g1 <span class="sc">+</span> g2 <span class="sc">+</span> x1 <span class="sc">+</span> (z1 <span class="sc">|</span> group),</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> multisampling.large<span class="sc">$</span>data</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>msl_hlm_coef <span class="ot">&lt;-</span> <span class="fu">coef</span>(msl_hlm)<span class="sc">$</span>group</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(msl_hlm_coef)[<span class="fu">which</span>(<span class="fu">colnames</span>(msl_hlm_coef) <span class="sc">==</span> <span class="st">&quot;(Intercept)&quot;</span>)] <span class="ot">&lt;-</span> <span class="st">&quot;Intercept&quot;</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>msl_hlm_err <span class="ot">&lt;-</span> msl_hlm_coef <span class="sc">%&gt;%</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, x1, z1) <span class="sc">%&gt;%</span> {</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as.data.frame</span>(<span class="fu">rbind</span>(</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>      <span class="at">MAE =</span> <span class="fu">map2_dbl</span>(msl_beta, ., <span class="sc">~</span> <span class="fu">mean</span>(<span class="fu">abs</span>(.x <span class="sc">-</span> .y))),</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>      <span class="at">RMSE =</span> <span class="fu">map2_dbl</span>(msl_beta, ., <span class="sc">~</span> <span class="fu">sqrt</span>(<span class="fu">mean</span>((.x <span class="sc">-</span> .y)<span class="sc">^</span><span class="dv">2</span>)))</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>    ))</span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>msl_hlm_err</span></code></pre></div>
 <div class="kable-table">
 <table>
 <thead>
@@ -1105,21 +1164,21 @@ calibrated with the following codes.</p>
 </div>
 <p>A bar plot will be helpful here to compare the fitness of these three
 models.</p>
-<div class="sourceCode" id="cb27"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">list</span>(<span class="at">HGWR =</span> model2_hgwr_err, <span class="at">GWR =</span> model2_gwr_err, <span class="at">HLM =</span> model2_hlm_err) <span class="sc">%&gt;%</span></span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">map2_dfr</span>(., <span class="fu">names</span>(.), <span class="cf">function</span>(x, nx) {</span>
-<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">map2_dfr</span>(x, <span class="fu">colnames</span>(x), <span class="cf">function</span>(i, ni) {</span>
-<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>      <span class="fu">data.frame</span>(<span class="at">Coefficient =</span> ni, <span class="at">Label =</span> <span class="fu">rownames</span>(x), <span class="at">Value =</span> i)</span>
-<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    }) <span class="sc">%&gt;%</span> <span class="fu">cbind</span>(<span class="at">Algorithm =</span> nx, .)</span>
-<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>  }) <span class="sc">%&gt;%</span></span>
-<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> Coefficient, <span class="at">y =</span> Value, <span class="at">group =</span> Algorithm, <span class="at">fill =</span> Algorithm)) <span class="sc">+</span></span>
-<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_col</span>(<span class="at">position =</span> <span class="st">&quot;dodge&quot;</span>) <span class="sc">+</span></span>
-<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_text</span>(<span class="fu">aes</span>(<span class="at">label =</span> <span class="fu">round</span>(Value, <span class="dv">2</span>), <span class="at">y =</span> <span class="fu">pmin</span>(Value, <span class="dv">10</span>), <span class="at">vjust =</span> <span class="sc">-</span><span class="fl">0.2</span>),</span>
-<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>              <span class="at">position =</span> <span class="fu">position_dodge</span>(<span class="fl">0.9</span>)) <span class="sc">+</span></span>
-<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">facet_grid</span>(<span class="at">rows =</span> <span class="fu">vars</span>(Label)) <span class="sc">+</span></span>
-<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_y_continuous</span>(<span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">10</span>), <span class="at">oob =</span> scales<span class="sc">::</span>squish,</span>
-<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>                       <span class="at">expand =</span> <span class="fu">expansion</span>(<span class="at">add =</span> <span class="fu">c</span>(<span class="fl">0.5</span>, <span class="dv">1</span>))) <span class="sc">+</span></span>
-<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_bw</span>()</span></code></pre></div>
-<p><img src="index_files/figure-html/unnamed-chunk-16-1.png" width="768" /></p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">list</span>(<span class="at">HGWR =</span> msl_hgwr_err, <span class="at">GWR =</span> msl_gwr_err, <span class="at">HLM =</span> msl_hlm_err) <span class="sc">%&gt;%</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">map2_dfr</span>(., <span class="fu">names</span>(.), <span class="cf">function</span>(x, nx) {</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">map2_dfr</span>(x, <span class="fu">colnames</span>(x), <span class="cf">function</span>(i, ni) {</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>      <span class="fu">data.frame</span>(<span class="at">Coefficient =</span> ni, <span class="at">Label =</span> <span class="fu">rownames</span>(x), <span class="at">Value =</span> i)</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>    }) <span class="sc">%&gt;%</span> <span class="fu">cbind</span>(<span class="at">Algorithm =</span> nx, .)</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>  }) <span class="sc">%&gt;%</span></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> Coefficient, <span class="at">y =</span> Value, <span class="at">group =</span> Algorithm, <span class="at">fill =</span> Algorithm)) <span class="sc">+</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_col</span>(<span class="at">position =</span> <span class="st">&quot;dodge&quot;</span>) <span class="sc">+</span></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_text</span>(<span class="fu">aes</span>(<span class="at">label =</span> <span class="fu">round</span>(Value, <span class="dv">2</span>), <span class="at">y =</span> <span class="fu">pmin</span>(Value, <span class="dv">10</span>), <span class="at">vjust =</span> <span class="sc">-</span><span class="fl">0.2</span>),</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>              <span class="at">position =</span> <span class="fu">position_dodge</span>(<span class="fl">0.9</span>)) <span class="sc">+</span></span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">facet_grid</span>(<span class="at">rows =</span> <span class="fu">vars</span>(Label)) <span class="sc">+</span></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_y_continuous</span>(<span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">10</span>), <span class="at">oob =</span> scales<span class="sc">::</span>squish,</span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>                       <span class="at">expand =</span> <span class="fu">expansion</span>(<span class="at">add =</span> <span class="fu">c</span>(<span class="fl">0.5</span>, <span class="dv">1</span>))) <span class="sc">+</span></span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_bw</span>()</span></code></pre></div>
+<p><img src="index_files/figure-html/unnamed-chunk-16-1.png" width="2400" /></p>
 <blockquote>
 <p>Note that in this figure we limited the scale of y axis to make the
 bar for <code>x1</code> and <code>z1</code> more obvious. The actual
@@ -1139,8 +1198,8 @@ are thing about applying it in collected data sets. Here we are going to
 use a case study to show the usage of HGWR on this type of data. The
 data set is provided in this <a
 href="./data/wuhan_house_price.rda">file</a>.</p>
-<div class="sourceCode" id="cb28"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">&quot;data/wuhan_house_price.rda&quot;</span>)</span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(house_price)</span></code></pre></div>
+<div class="sourceCode" id="cb29"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(wuhan.hp)</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(wuhan.hp<span class="sc">$</span>data)</span></code></pre></div>
 <div class="kable-table">
 <table>
 <colgroup>
@@ -1341,7 +1400,7 @@ href="./data/wuhan_house_price.rda">file</a>.</p>
 </tbody>
 </table>
 </div>
-<div class="sourceCode" id="cb29"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(house_coords)</span></code></pre></div>
+<div class="sourceCode" id="cb30"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(wuhan.hp<span class="sc">$</span>coords)</span></code></pre></div>
 <pre><code>##          X       Y
 ## 1 529753.7 3378166
 ## 2 527904.4 3397964
@@ -1530,24 +1589,24 @@ we use these factors to build a HGWR model:</p>
 <p>And regards the locational and Fee as local fixed effects, the
 BuildingArea as global fixed effects and Floor.High as random effects.
 Then we can calibrate a HGWR model with the following codes.</p>
-<div class="sourceCode" id="cb31"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>hp_hgwr <span class="ot">&lt;-</span> <span class="fu">hgwr</span>(</span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> Price <span class="sc">~</span> d.Water <span class="sc">+</span> d.Commercial <span class="sc">+</span> d.PrimarySchool <span class="sc">+</span></span>
-<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>            d.Kindergarten <span class="sc">+</span> Fee <span class="sc">+</span> BuildingArea <span class="sc">+</span> (Floor.High <span class="sc">|</span> group),</span>
-<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> house_price,</span>
-<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">local.fixed =</span> <span class="fu">c</span>(<span class="st">&quot;d.Water&quot;</span>, <span class="st">&quot;d.Commercial&quot;</span>, <span class="st">&quot;d.PrimarySchool&quot;</span>,</span>
-<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>                  <span class="st">&quot;d.Kindergarten&quot;</span>, <span class="st">&quot;Fee&quot;</span>),</span>
-<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">coords =</span> house_coords,</span>
-<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">bw =</span> <span class="dv">50</span>,</span>
-<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">kernel =</span> <span class="st">&quot;bisquared&quot;</span>,</span>
-<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">eps_gradient =</span> <span class="fl">1e-16</span>,</span>
-<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">eps_iter =</span> <span class="fl">1e-16</span></span>
-<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>hp_hgwr</span></code></pre></div>
+<div class="sourceCode" id="cb32"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>whhp_hgwr <span class="ot">&lt;-</span> <span class="fu">hgwr</span>(</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> Price <span class="sc">~</span> d.Water <span class="sc">+</span> d.Commercial <span class="sc">+</span> d.PrimarySchool <span class="sc">+</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>            d.Kindergarten <span class="sc">+</span> Fee <span class="sc">+</span> BuildingArea <span class="sc">+</span> (Floor.High <span class="sc">|</span> group),</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> wuhan.hp<span class="sc">$</span>data,</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">local.fixed =</span> <span class="fu">c</span>(<span class="st">&quot;d.Water&quot;</span>, <span class="st">&quot;d.Commercial&quot;</span>, <span class="st">&quot;d.PrimarySchool&quot;</span>,</span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>                  <span class="st">&quot;d.Kindergarten&quot;</span>, <span class="st">&quot;Fee&quot;</span>),</span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">coords =</span> wuhan.hp<span class="sc">$</span>coords,</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">bw =</span> <span class="dv">50</span>,</span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">kernel =</span> <span class="st">&quot;bisquared&quot;</span>,</span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">eps_gradient =</span> <span class="fl">1e-16</span>,</span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">eps_iter =</span> <span class="fl">1e-16</span></span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>whhp_hgwr</span></code></pre></div>
 <pre><code>## Hierarchical and geographically weighted regression model 
 ## ========================================================= 
 ## Formula: Price ~ d.Water + d.Commercial + d.PrimarySchool + d.Kindergarten +      Fee + BuildingArea + (Floor.High | group) 
 ##  Method: Back-fitting and Maximum likelihood 
-##    Data: house_price 
+##    Data: wuhan.hp$data 
 ## 
 ## Global Fixed Effects 
 ## ------------------- 
@@ -1581,24 +1640,24 @@ It is in GeoJSON format and can be loaded by package
 <strong>rgdal</strong>. For coefficients, we can simply combine it with
 coordinates of houses. Because coefficients, coordinates and groups can
 be one-to-one matched.</p>
-<div class="sourceCode" id="cb33"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>wuhan <span class="ot">&lt;-</span> rgdal<span class="sc">::</span><span class="fu">readOGR</span>(<span class="st">&quot;data/wuhan.geojson&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb34"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>wuhan <span class="ot">&lt;-</span> rgdal<span class="sc">::</span><span class="fu">readOGR</span>(<span class="st">&quot;data/wuhan.geojson&quot;</span>)</span></code></pre></div>
 <pre><code>## OGR data source with driver: GeoJSON 
 ## Source: &quot;C:\Users\rd21411\Develop\hlmgwr-backfitting-ml-doc\data\wuhan.geojson&quot;, layer: &quot;Wuhan&quot;
 ## with 13 features
 ## It has 6 fields</code></pre>
-<div class="sourceCode" id="cb35"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>hp_coef_sp <span class="ot">&lt;-</span> <span class="fu">cbind</span>(<span class="fu">coef</span>(hp_hgwr), <span class="fu">as.data.frame</span>(house_coords)) <span class="sc">%&gt;%</span></span>
-<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_as_sf</span>(<span class="at">coords =</span> <span class="fu">c</span>(<span class="st">&quot;X&quot;</span>, <span class="st">&quot;Y&quot;</span>), <span class="at">crs =</span> <span class="dv">4547</span>)</span>
-<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>hp_basemap <span class="ot">&lt;-</span> <span class="fu">tm_shape</span>(wuhan) <span class="sc">+</span> <span class="fu">tm_polygons</span>(<span class="at">col =</span> <span class="st">&quot;white&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb36"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>wuhp_coef_sf <span class="ot">&lt;-</span> <span class="fu">cbind</span>(<span class="fu">coef</span>(whhp_hgwr), <span class="fu">as.data.frame</span>(wuhan.hp<span class="sc">$</span>coords)) <span class="sc">%&gt;%</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_as_sf</span>(<span class="at">coords =</span> <span class="fu">c</span>(<span class="st">&quot;X&quot;</span>, <span class="st">&quot;Y&quot;</span>), <span class="at">crs =</span> <span class="dv">4547</span>)</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>wh_basemap <span class="ot">&lt;-</span> <span class="fu">tm_shape</span>(wuhan) <span class="sc">+</span> <span class="fu">tm_polygons</span>(<span class="at">col =</span> <span class="st">&quot;white&quot;</span>)</span></code></pre></div>
 <p>Then visualize coefficients estimations with the basemap.</p>
-<div class="sourceCode" id="cb36"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="fu">c</span>(<span class="st">&quot;d.Water&quot;</span>, <span class="st">&quot;d.Commercial&quot;</span>, <span class="st">&quot;d.PrimarySchool&quot;</span>, <span class="st">&quot;d.Kindergarten&quot;</span>,</span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;Fee&quot;</span>, <span class="st">&quot;BuildingArea&quot;</span>, <span class="st">&quot;Floor.High&quot;</span>, <span class="st">&quot;Intercept&quot;</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">map</span>(<span class="cf">function</span>(var) {</span>
-<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>    hp_basemap <span class="sc">+</span></span>
-<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>      <span class="fu">tm_shape</span>(hp_coef_sp, <span class="at">is.master =</span> T) <span class="sc">+</span></span>
-<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>      <span class="fu">tm_dots</span>(<span class="at">col =</span> var, <span class="at">size =</span> <span class="fl">0.1</span>, <span class="at">midpoint =</span> <span class="dv">0</span>,</span>
-<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">palette =</span> <span class="st">&quot;-RdBu&quot;</span>, <span class="at">legend.col.reverse =</span> T)</span>
-<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>  }) <span class="sc">%&gt;%</span></span>
-<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">tmap_arrange</span>(<span class="at">nrow =</span> <span class="dv">2</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb37"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="fu">c</span>(<span class="st">&quot;d.Water&quot;</span>, <span class="st">&quot;d.Commercial&quot;</span>, <span class="st">&quot;d.PrimarySchool&quot;</span>, <span class="st">&quot;d.Kindergarten&quot;</span>,</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;Fee&quot;</span>, <span class="st">&quot;BuildingArea&quot;</span>, <span class="st">&quot;Floor.High&quot;</span>, <span class="st">&quot;Intercept&quot;</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">map</span>(<span class="cf">function</span>(var) {</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>    wh_basemap <span class="sc">+</span></span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>      <span class="fu">tm_shape</span>(wuhp_coef_sf, <span class="at">is.master =</span> T) <span class="sc">+</span></span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>      <span class="fu">tm_dots</span>(<span class="at">col =</span> var, <span class="at">size =</span> <span class="fl">0.1</span>, <span class="at">midpoint =</span> <span class="dv">0</span>,</span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">palette =</span> <span class="st">&quot;-RdBu&quot;</span>, <span class="at">legend.col.reverse =</span> T)</span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>  }) <span class="sc">%&gt;%</span></span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">tmap_arrange</span>(<span class="at">nrow =</span> <span class="dv">2</span>)</span></code></pre></div>
 <p><img src="index_files/figure-html/unnamed-chunk-20-1.png" width="4200" /></p>
 <p>From this figure, we can see that as <em>BuildingArea</em> is
 regarded as global fixed effects, for all samples there is only one
