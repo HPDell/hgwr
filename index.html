@@ -206,10 +206,20 @@
       <li><a href="#example-a-small-simulated-data-set">Example: A Small
       Simulated Data Set</a></li>
       <li><a href="#example-large-scale-simulated-data">Example: Large
-      Scale Simulated Data</a></li>
+      Scale Simulated Data</a>
+      <ul>
+      <li><a href="#fitness-assessment">Fitness Assessment</a></li>
+      <li><a href="#comparison-of-hgwr-gwr-and-hlm">Comparison of HGWR,
+      GWR and HLM</a></li>
+      </ul></li>
       <li><a
       href="#case-study-impact-factors-of-house-price-in-wuhan">Case
-      Study: Impact Factors of House Price in Wuhan</a></li>
+      Study: Impact Factors of House Price in Wuhan</a>
+      <ul>
+      <li><a href="#coefficient-visualization">Coefficient
+      Visualization</a></li>
+      <li><a href="#residual-analysis">Residual Analysis</a></li>
+      </ul></li>
       </ul></li>
       <li><a href="#references">References</a></li>
       </ul>
@@ -229,10 +239,10 @@ Hu</p>
 <div id="main">
 <p>A brief tutorial to Hierarchical and Geographically Weighted
 Regression model and <strong>hgwrr</strong> package in R.</p>
-<div id="introduction-to-hgwr-model" class="section level2">
-<h2>Introduction to HGWR Model</h2>
-<div id="what-is-hgwr-model" class="section level3">
-<h3>What is HGWR model?</h3>
+<div id="introduction-to-hgwr-model" class="section level1">
+<h1>Introduction to HGWR Model</h1>
+<div id="what-is-hgwr-model" class="section level2">
+<h2>What is HGWR model?</h2>
 <p>Hierarchical and Geographically Weighted Regression, shorted for
 HGWR, is a spatial modelling method designed for data of spatial
 hierarchical structures. Just as its name implies, this is a combination
@@ -255,8 +265,8 @@ class="math inline">\(Z\)</span> the individual level independent
 variables, <span class="math inline">\(\mu\)</span> the random effects,
 <span class="math inline">\(\epsilon\)</span> the individual errors.</p>
 </div>
-<div id="why-hgwr-model" class="section level3">
-<h3>Why HGWR model?</h3>
+<div id="why-hgwr-model" class="section level2">
+<h2>Why HGWR model?</h2>
 <p>As we know, hierarchical structure is commonly existing in spatial
 data. For example, cities can be grouped by provinces or other
 higher-level administrative district they belong to; house prices may
@@ -318,12 +328,12 @@ heterogeneity simultaneously. Examples below can show that it works well
 for spatial hierarchical data.</p>
 </div>
 </div>
-<div id="modelling-with-hgwr-model" class="section level2">
-<h2>Modelling with HGWR Model</h2>
+<div id="modelling-with-hgwr-model" class="section level1">
+<h1>Modelling with HGWR Model</h1>
 <p>The R package <strong>hgwrr</strong> is built for calibrating HGWR
 model. In this section, we are going to show how to use it.</p>
-<div id="installation" class="section level3">
-<h3>Installation</h3>
+<div id="installation" class="section level2">
+<h2>Installation</h2>
 <p>Package <strong>hgwrr</strong> is available on <a
 href="https://cran.r-project.org/package=hgwrr">CRAN</a>. Simply type
 the following codes to install it.</p>
@@ -338,8 +348,8 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="
 href="https://cran.r-project.org/bin/windows/Rtools/">RTools</a> is
 required on Windows.</p>
 </div>
-<div id="usage" class="section level3">
-<h3>Usage</h3>
+<div id="usage" class="section level2">
+<h2>Usage</h2>
 <p>We are going to show the usage of <strong>hgwrr</strong> package with
 a simulated data.</p>
 <p>First, we need to load this package in an R session.</p>
@@ -378,8 +388,8 @@ fine. If the default values cause some problems and you want change some
 of them, please check the documentation of function <code>hgwr()</code>
 for more infomation.</p>
 </div>
-<div id="example-a-small-simulated-data-set" class="section level3">
-<h3>Example: A Small Simulated Data Set</h3>
+<div id="example-a-small-simulated-data-set" class="section level2">
+<h2>Example: A Small Simulated Data Set</h2>
 <p><em>This example is used to show the usage of this package and to
 test whether it works. We don’t care about how good the fitness of this
 model is with this data set.</em></p>
@@ -691,7 +701,7 @@ figures.</p>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(ms_hgwr_coef, <span class="fu">aes</span>(<span class="at">x =</span> U, <span class="at">y =</span> V)) <span class="sc">+</span></span>
 <span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="fu">aes</span>(<span class="at">color =</span> g1)) <span class="sc">+</span></span>
 <span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coord_fixed</span>() <span class="sc">+</span> <span class="fu">theme_bw</span>()</span></code></pre></div>
-<p><img src="index_files/figure-html/unnamed-chunk-6-1.png" width="768" /></p>
+<p><img src="index_files/figure-html/unnamed-chunk-4-1.png" width="768" /></p>
 <p>We can also convert it to spatial data and use <strong>tmap</strong>
 to visualize.</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sf)</span>
@@ -700,7 +710,7 @@ to visualize.</p>
 <span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>                            <span class="at">coords =</span> <span class="fu">names</span>(multisampling<span class="sc">$</span>coords),</span>
 <span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>                            <span class="at">crs =</span> <span class="dv">27700</span>)</span>
 <span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="fu">tm_shape</span>(ms_hgwr_coef_sf) <span class="sc">+</span> <span class="fu">tm_dots</span>(<span class="at">col =</span> <span class="fu">c</span>(<span class="st">&quot;g1&quot;</span>, <span class="st">&quot;g2&quot;</span>), <span class="at">size =</span> <span class="fl">0.5</span>)</span></code></pre></div>
-<p><img src="index_files/figure-html/unnamed-chunk-7-1.png" width="768" /></p>
+<p><img src="index_files/figure-html/unnamed-chunk-5-1.png" width="768" /></p>
 <p>And we can also fetch the fitted and residuals.</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(<span class="fu">data.frame</span>(</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">real =</span> multisampling<span class="sc">$</span>data<span class="sc">$</span>y,</span>
@@ -777,8 +787,8 @@ information about this model.</p>
 class="math inline">\(R^2\)</span> is available. In the future, more
 diagnostic information will be provided in this package.</p>
 </div>
-<div id="example-large-scale-simulated-data" class="section level3">
-<h3>Example: Large Scale Simulated Data</h3>
+<div id="example-large-scale-simulated-data" class="section level2">
+<h2>Example: Large Scale Simulated Data</h2>
 <p>In the former example, there are only 484 observations and 16 groups.
 They are not adequate enough to get precises estimations. Here, we are
 going to use a large scale simulated data set to show the performance of
@@ -967,8 +977,8 @@ get results.</p>
 ## ----------------- 
 ## Number of Obs: 13862 
 ##        Groups: group , 200</code></pre>
-<div id="fitness-assessment" class="section level4">
-<h4>Fitness Assessment</h4>
+<div id="fitness-assessment" class="section level3">
+<h3>Fitness Assessment</h3>
 <p>Then we check the estimations of intercept, <code>g1</code>,
 <code>g2</code> and <code>z1</code> via some scatter plots.</p>
 <div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
@@ -982,7 +992,7 @@ get results.</p>
 <span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">coord_fixed</span>() <span class="sc">+</span> <span class="fu">scale_y_continuous</span>(<span class="at">limits =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="dv">25</span>, <span class="dv">25</span>)) <span class="sc">+</span></span>
 <span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">facet_grid</span>(<span class="at">cols =</span> <span class="fu">vars</span>(label)) <span class="sc">+</span></span>
 <span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_bw</span>()</span></code></pre></div>
-<p><img src="index_files/figure-html/unnamed-chunk-12-1.png" width="2700" /></p>
+<p><img src="index_files/figure-html/unnamed-chunk-9-1.png" width="2700" /></p>
 <p>In addition to these scatter plots, root mean squared errors (RMSE)
 and mean absolute errors of estimations and true values are also very
 useful to assess the fitting performance.</p>
@@ -1027,8 +1037,8 @@ useful to assess the fitting performance.</p>
 </table>
 </div>
 </div>
-<div id="comparison-of-hgwr-gwr-and-hlm" class="section level4">
-<h4>Comparison of HGWR, GWR and HLM</h4>
+<div id="comparison-of-hgwr-gwr-and-hlm" class="section level3">
+<h3>Comparison of HGWR, GWR and HLM</h3>
 <p>As a comparison, we can also calibrate a GWR model and HLM model and
 have a look at their fitting performance. THe GWR model can be
 calibrated with the following codes.</p>
@@ -1178,7 +1188,7 @@ models.</p>
 <span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_y_continuous</span>(<span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">10</span>), <span class="at">oob =</span> scales<span class="sc">::</span>squish,</span>
 <span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>                       <span class="at">expand =</span> <span class="fu">expansion</span>(<span class="at">add =</span> <span class="fu">c</span>(<span class="fl">0.5</span>, <span class="dv">1</span>))) <span class="sc">+</span></span>
 <span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_bw</span>()</span></code></pre></div>
-<p><img src="index_files/figure-html/unnamed-chunk-16-1.png" width="2400" /></p>
+<p><img src="index_files/figure-html/unnamed-chunk-11-1.png" width="2400" /></p>
 <blockquote>
 <p>Note that in this figure we limited the scale of y axis to make the
 bar for <code>x1</code> and <code>z1</code> more obvious. The actual
@@ -1191,8 +1201,8 @@ as HLM does, but more precisely than GWR does.</p>
 </div>
 </div>
 <div id="case-study-impact-factors-of-house-price-in-wuhan"
-class="section level3">
-<h3>Case Study: Impact Factors of House Price in Wuhan</h3>
+class="section level2">
+<h2>Case Study: Impact Factors of House Price in Wuhan</h2>
 <p>As the fitness of HGWR has been demonstrated with simulation data, we
 are thing about applying it in collected data sets. Here we are going to
 use a case study to show the usage of HGWR on this type of data. The
@@ -1201,7 +1211,7 @@ href="./data/wuhan_house_price.rda">file</a>.</p>
 <div class="sourceCode" id="cb29"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(wuhan.hp)</span>
 <span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(wuhan.hp<span class="sc">$</span>data)</span></code></pre></div>
 <div class="kable-table">
-<table>
+<table style="width:100%;">
 <colgroup>
 <col width="3%" />
 <col width="4%" />
@@ -1222,7 +1232,7 @@ href="./data/wuhan_house_price.rda">file</a>.</p>
 <col width="6%" />
 <col width="5%" />
 <col width="5%" />
-<col width="2%" />
+<col width="3%" />
 <col width="3%" />
 <col width="2%" />
 </colgroup>
@@ -1254,169 +1264,169 @@ href="./data/wuhan_house_price.rda">file</a>.</p>
 </thead>
 <tbody>
 <tr class="odd">
-<td align="right">9.948652</td>
+<td align="right">9.458528</td>
 <td align="right">0</td>
 <td align="right">1</td>
-<td align="right">1</td>
 <td align="right">0</td>
 <td align="right">0</td>
-<td align="right">4.443474</td>
-<td align="right">0.4121097</td>
 <td align="right">0</td>
-<td align="right">0.0109903</td>
-<td align="right">0.0235564</td>
-<td align="right">-4.633394</td>
-<td align="right">-6.538925</td>
-<td align="right">-5.711257</td>
-<td align="right">-4.977189</td>
-<td align="right">-3.608064</td>
-<td align="right">-4.234066</td>
-<td align="right">-6.290058</td>
-<td align="right">-5.20265</td>
-<td align="right">114.31</td>
-<td align="right">30.5233</td>
+<td align="right">4.887639</td>
+<td align="right">0.1823216</td>
+<td align="right">0.0741679</td>
+<td align="right">0.0521697</td>
+<td align="right">0.0350293</td>
+<td align="right">-3.083466</td>
+<td align="right">-5.237382</td>
+<td align="right">-5.694951</td>
+<td align="right">-2.686764</td>
+<td align="right">-2.677074</td>
+<td align="right">-2.956452</td>
+<td align="right">-5.874491</td>
+<td align="right">-6.23154</td>
+<td align="right">114.1187</td>
+<td align="right">30.55188</td>
 <td align="right">1</td>
 </tr>
 <tr class="even">
-<td align="right">9.964630</td>
+<td align="right">9.355739</td>
+<td align="right">0</td>
 <td align="right">1</td>
 <td align="right">0</td>
 <td align="right">0</td>
 <td align="right">0</td>
-<td align="right">0</td>
-<td align="right">3.688379</td>
-<td align="right">0.4121097</td>
-<td align="right">0</td>
-<td align="right">0.0109903</td>
-<td align="right">0.0235564</td>
-<td align="right">-4.633394</td>
-<td align="right">-6.538925</td>
-<td align="right">-5.711257</td>
-<td align="right">-4.977189</td>
-<td align="right">-3.608064</td>
-<td align="right">-4.234066</td>
-<td align="right">-6.290058</td>
-<td align="right">-5.20265</td>
-<td align="right">114.31</td>
-<td align="right">30.5233</td>
+<td align="right">4.990433</td>
+<td align="right">0.1823216</td>
+<td align="right">0.0741679</td>
+<td align="right">0.0521697</td>
+<td align="right">0.0350293</td>
+<td align="right">-3.083466</td>
+<td align="right">-5.237382</td>
+<td align="right">-5.694951</td>
+<td align="right">-2.686764</td>
+<td align="right">-2.677074</td>
+<td align="right">-2.956452</td>
+<td align="right">-5.874491</td>
+<td align="right">-6.23154</td>
+<td align="right">114.1187</td>
+<td align="right">30.55188</td>
 <td align="right">1</td>
 </tr>
 <tr class="odd">
-<td align="right">9.920984</td>
-<td align="right">1</td>
-<td align="right">0</td>
-<td align="right">1</td>
+<td align="right">9.435402</td>
 <td align="right">0</td>
 <td align="right">0</td>
-<td align="right">4.476769</td>
-<td align="right">0.4121097</td>
 <td align="right">0</td>
-<td align="right">0.0109903</td>
-<td align="right">0.0235564</td>
-<td align="right">-4.633394</td>
-<td align="right">-6.538925</td>
-<td align="right">-5.711257</td>
-<td align="right">-4.977189</td>
-<td align="right">-3.608064</td>
-<td align="right">-4.234066</td>
-<td align="right">-6.290058</td>
-<td align="right">-5.20265</td>
-<td align="right">114.31</td>
-<td align="right">30.5233</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">4.880906</td>
+<td align="right">0.1823216</td>
+<td align="right">0.0741679</td>
+<td align="right">0.0521697</td>
+<td align="right">0.0350293</td>
+<td align="right">-3.083466</td>
+<td align="right">-5.237382</td>
+<td align="right">-5.694951</td>
+<td align="right">-2.686764</td>
+<td align="right">-2.677074</td>
+<td align="right">-2.956452</td>
+<td align="right">-5.874491</td>
+<td align="right">-6.23154</td>
+<td align="right">114.1187</td>
+<td align="right">30.55188</td>
 <td align="right">1</td>
 </tr>
 <tr class="even">
-<td align="right">9.980958</td>
+<td align="right">9.573524</td>
+<td align="right">0</td>
+<td align="right">1</td>
 <td align="right">0</td>
 <td align="right">0</td>
 <td align="right">0</td>
-<td align="right">0</td>
-<td align="right">0</td>
-<td align="right">4.742843</td>
-<td align="right">0.4121097</td>
-<td align="right">0</td>
-<td align="right">0.0109903</td>
-<td align="right">0.0235564</td>
-<td align="right">-4.633394</td>
-<td align="right">-6.538925</td>
-<td align="right">-5.711257</td>
-<td align="right">-4.977189</td>
-<td align="right">-3.608064</td>
-<td align="right">-4.234066</td>
-<td align="right">-6.290058</td>
-<td align="right">-5.20265</td>
-<td align="right">114.31</td>
-<td align="right">30.5233</td>
+<td align="right">4.883862</td>
+<td align="right">0.1823216</td>
+<td align="right">0.0741679</td>
+<td align="right">0.0521697</td>
+<td align="right">0.0350293</td>
+<td align="right">-3.083466</td>
+<td align="right">-5.237382</td>
+<td align="right">-5.694951</td>
+<td align="right">-2.686764</td>
+<td align="right">-2.677074</td>
+<td align="right">-2.956452</td>
+<td align="right">-5.874491</td>
+<td align="right">-6.23154</td>
+<td align="right">114.1187</td>
+<td align="right">30.55188</td>
 <td align="right">1</td>
 </tr>
 <tr class="odd">
-<td align="right">9.904037</td>
-<td align="right">1</td>
+<td align="right">9.657779</td>
 <td align="right">0</td>
 <td align="right">1</td>
 <td align="right">0</td>
 <td align="right">0</td>
-<td align="right">3.688379</td>
-<td align="right">0.4121097</td>
 <td align="right">0</td>
-<td align="right">0.0109903</td>
-<td align="right">0.0235564</td>
-<td align="right">-4.633394</td>
-<td align="right">-6.538925</td>
-<td align="right">-5.711257</td>
-<td align="right">-4.977189</td>
-<td align="right">-3.608064</td>
-<td align="right">-4.234066</td>
-<td align="right">-6.290058</td>
-<td align="right">-5.20265</td>
-<td align="right">114.31</td>
-<td align="right">30.5233</td>
+<td align="right">4.364753</td>
+<td align="right">0.1823216</td>
+<td align="right">0.0741679</td>
+<td align="right">0.0521697</td>
+<td align="right">0.0350293</td>
+<td align="right">-3.083466</td>
+<td align="right">-5.237382</td>
+<td align="right">-5.694951</td>
+<td align="right">-2.686764</td>
+<td align="right">-2.677074</td>
+<td align="right">-2.956452</td>
+<td align="right">-5.874491</td>
+<td align="right">-6.23154</td>
+<td align="right">114.1187</td>
+<td align="right">30.55188</td>
 <td align="right">1</td>
 </tr>
 <tr class="even">
-<td align="right">10.001249</td>
+<td align="right">9.662498</td>
+<td align="right">0</td>
+<td align="right">1</td>
 <td align="right">0</td>
 <td align="right">0</td>
 <td align="right">0</td>
-<td align="right">0</td>
-<td align="right">0</td>
-<td align="right">3.708927</td>
-<td align="right">0.4121097</td>
-<td align="right">0</td>
-<td align="right">0.0109903</td>
-<td align="right">0.0235564</td>
-<td align="right">-4.633394</td>
-<td align="right">-6.538925</td>
-<td align="right">-5.711257</td>
-<td align="right">-4.977189</td>
-<td align="right">-3.608064</td>
-<td align="right">-4.234066</td>
-<td align="right">-6.290058</td>
-<td align="right">-5.20265</td>
-<td align="right">114.31</td>
-<td align="right">30.5233</td>
+<td align="right">4.810557</td>
+<td align="right">0.1823216</td>
+<td align="right">0.0741679</td>
+<td align="right">0.0521697</td>
+<td align="right">0.0350293</td>
+<td align="right">-3.083466</td>
+<td align="right">-5.237382</td>
+<td align="right">-5.694951</td>
+<td align="right">-2.686764</td>
+<td align="right">-2.677074</td>
+<td align="right">-2.956452</td>
+<td align="right">-5.874491</td>
+<td align="right">-6.23154</td>
+<td align="right">114.1187</td>
+<td align="right">30.55188</td>
 <td align="right">1</td>
 </tr>
 </tbody>
 </table>
 </div>
 <div class="sourceCode" id="cb30"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(wuhan.hp<span class="sc">$</span>coords)</span></code></pre></div>
-<pre><code>##          X       Y
-## 1 529753.7 3378166
-## 2 527904.4 3397964
-## 3 517830.9 3388271
-## 4 524841.7 3399656
-## 5 531325.0 3378675
-## 6 524219.7 3398945</code></pre>
-<p>This data set, collected in 2018, has 19,854 properties located in
-795 communities. In each observation, there are fields of house
-properties, locational and neighbourhood variables. In details, they are
-distances to nearby educational resources (kindergartens, primary
-schools, middle schools, high schools, universities), commercial areas
-(business districts, shopping malls and supermarkets), transportation
-facilities (metro stations and bus stations), rivers, lakes, and green
-lands. The following figure shows the distribution of these properties,
-and the table gives information about all available variables.</p>
+<pre><code>##             X       Y
+## [1,] 511387.8 3381299
+## [2,] 512928.1 3387722
+## [3,] 513303.3 3392168
+## [4,] 513462.6 3391487
+## [5,] 513777.9 3388737
+## [6,] 513813.1 3392252</code></pre>
+<p>This data set, collected in 2018, has 19599 properties located in 776
+communities. In each observation, there are fields of house properties,
+locational and neighbourhood variables. In details, they are distances
+to nearby educational resources (kindergartens, primary schools, middle
+schools, high schools, universities), commercial areas (business
+districts, shopping malls and supermarkets), transportation facilities
+(metro stations and bus stations), rivers, lakes, and green lands. The
+following figure shows the distribution of these properties, and the
+table gives information about all available variables.</p>
 <div class="figure">
 <img src="assets/CaseStudy1_WuhanHouseData.jpeg" alt="" />
 <p class="caption">Map of second-hand properties</p>
@@ -1574,9 +1584,9 @@ and the table gives information about all available variables.</p>
 </tr>
 </tbody>
 </table>
-<p>After a variable selection process <span class="citation">(<a
-href="#ref-HuLu-2022" role="doc-biblioref">Hu et al. 2022</a>)</span>,
-we use these factors to build a HGWR model:</p>
+<p>A variable selection process <span class="citation">(<a
+href="#ref-HuLu-2022" role="doc-biblioref">Hu et al. 2022</a>)</span>
+suggests us to use the following variables to build a HGWR model:</p>
 <ul>
 <li><em>Fee</em></li>
 <li><em>d.Water</em></li>
@@ -1586,15 +1596,17 @@ we use these factors to build a HGWR model:</p>
 <li><em>BuildingArea</em></li>
 <li><em>Floor.High</em></li>
 </ul>
-<p>And regards the locational and Fee as local fixed effects, the
-BuildingArea as global fixed effects and Floor.High as random effects.
-Then we can calibrate a HGWR model with the following codes.</p>
+<p>But we are going to append a variable <em>d.ShoppingMall</em> which
+is usually concerned by customers and researchers. And regards the
+locational and Fee as local fixed effects, the BuildingArea as global
+fixed effects and Floor.High as random effects. Then we can calibrate a
+HGWR model with the following codes.</p>
 <div class="sourceCode" id="cb32"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>whhp_hgwr <span class="ot">&lt;-</span> <span class="fu">hgwr</span>(</span>
-<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> Price <span class="sc">~</span> d.Water <span class="sc">+</span> d.Commercial <span class="sc">+</span> d.PrimarySchool <span class="sc">+</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> Price <span class="sc">~</span> d.Water <span class="sc">+</span> d.Commercial <span class="sc">+</span> d.PrimarySchool <span class="sc">+</span> d.ShoppingMall <span class="sc">+</span></span>
 <span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>            d.Kindergarten <span class="sc">+</span> Fee <span class="sc">+</span> BuildingArea <span class="sc">+</span> (Floor.High <span class="sc">|</span> group),</span>
 <span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> wuhan.hp<span class="sc">$</span>data,</span>
-<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">local.fixed =</span> <span class="fu">c</span>(<span class="st">&quot;d.Water&quot;</span>, <span class="st">&quot;d.Commercial&quot;</span>, <span class="st">&quot;d.PrimarySchool&quot;</span>,</span>
-<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>                  <span class="st">&quot;d.Kindergarten&quot;</span>, <span class="st">&quot;Fee&quot;</span>),</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">local.fixed =</span> <span class="fu">c</span>(<span class="st">&quot;d.Water&quot;</span>, <span class="st">&quot;d.Commercial&quot;</span>, <span class="st">&quot;d.PrimarySchool&quot;</span>, </span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>                  <span class="st">&quot;d.ShoppingMall&quot;</span>, <span class="st">&quot;d.Kindergarten&quot;</span>, <span class="st">&quot;Fee&quot;</span>),</span>
 <span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">coords =</span> wuhan.hp<span class="sc">$</span>coords,</span>
 <span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">bw =</span> <span class="dv">50</span>,</span>
 <span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">kernel =</span> <span class="st">&quot;bisquared&quot;</span>,</span>
@@ -1604,36 +1616,39 @@ Then we can calibrate a HGWR model with the following codes.</p>
 <span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>whhp_hgwr</span></code></pre></div>
 <pre><code>## Hierarchical and geographically weighted regression model 
 ## ========================================================= 
-## Formula: Price ~ d.Water + d.Commercial + d.PrimarySchool + d.Kindergarten +      Fee + BuildingArea + (Floor.High | group) 
+## Formula: Price ~ d.Water + d.Commercial + d.PrimarySchool + d.ShoppingMall +      d.Kindergarten + Fee + BuildingArea + (Floor.High | group) 
 ##  Method: Back-fitting and Maximum likelihood 
 ##    Data: wuhan.hp$data 
 ## 
 ## Global Fixed Effects 
 ## ------------------- 
 ##  Intercept  BuildingArea 
-##   9.937560     -0.018742 
+##  10.271682     -0.019036 
 ## 
 ## Local Fixed Effects 
 ## ------------------- 
 ##      Coefficient         Min  1st Quartile     Median  3rd Quartile        Max 
-##        Intercept   -4.231886     -0.306639   0.008463      0.336110   6.876787 
-##          d.Water  -29.299502     -7.077296  -1.779663      2.195323  17.210490 
-##     d.Commercial  -60.736536     -6.656764  -2.714291      2.985110  89.944929 
-##  d.PrimarySchool   -0.199244     -0.049623  -0.024770      0.006988   0.203054 
-##   d.Kindergarten   -0.947448     -0.031277   0.000478      0.018205   1.433052 
-##              Fee    0.007114      0.099858   0.141523      0.186026   0.370990 
+##        Intercept   -5.655311     -0.753470  -0.335763     -0.007905   2.481812 
+##          d.Water  -29.363638     -7.449347  -1.706057      2.879884  16.308855 
+##     d.Commercial  -56.248990     -7.554371  -2.721221      2.859166  90.103118 
+##  d.PrimarySchool   -0.215276     -0.048748  -0.025535      0.004450   0.203624 
+##   d.ShoppingMall   -0.204345     -0.039703  -0.006851      0.026344   0.092649 
+##   d.Kindergarten   -1.094823     -0.032577   0.003839      0.017043   0.669662 
+##              Fee    0.000741      0.099061   0.142559      0.187511   0.381820 
 ## 
 ## Random Effects 
 ## -------------- 
 ##    Groups        Name  Std.Dev.      Corr 
-##     group   Intercept  0.081804           
-##            Floor.High  0.081804  0.000000 
-##  Residual              0.081804           
+##     group   Intercept  0.081694           
+##            Floor.High  0.081694  0.000000 
+##  Residual              0.081694           
 ## 
 ## Other Information 
 ## ----------------- 
 ## Number of Obs: 19599 
-##        Groups: group , 779</code></pre>
+##        Groups: group , 776</code></pre>
+<div id="coefficient-visualization" class="section level3">
+<h3>Coefficient Visualization</h3>
 <p>We can also make some maps to visualize the estimated coefficients.
 <a href="./data/wuhan.geojson">Boundary data of Wuhan</a> is provided.
 It is in GeoJSON format and can be loaded by package
@@ -1649,16 +1664,15 @@ be one-to-one matched.</p>
 <span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_as_sf</span>(<span class="at">coords =</span> <span class="fu">c</span>(<span class="st">&quot;X&quot;</span>, <span class="st">&quot;Y&quot;</span>), <span class="at">crs =</span> <span class="dv">4547</span>)</span>
 <span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>wh_basemap <span class="ot">&lt;-</span> <span class="fu">tm_shape</span>(wuhan) <span class="sc">+</span> <span class="fu">tm_polygons</span>(<span class="at">col =</span> <span class="st">&quot;white&quot;</span>)</span></code></pre></div>
 <p>Then visualize coefficients estimations with the basemap.</p>
-<div class="sourceCode" id="cb37"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="fu">c</span>(<span class="st">&quot;d.Water&quot;</span>, <span class="st">&quot;d.Commercial&quot;</span>, <span class="st">&quot;d.PrimarySchool&quot;</span>, <span class="st">&quot;d.Kindergarten&quot;</span>,</span>
-<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;Fee&quot;</span>, <span class="st">&quot;BuildingArea&quot;</span>, <span class="st">&quot;Floor.High&quot;</span>, <span class="st">&quot;Intercept&quot;</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">map</span>(<span class="cf">function</span>(var) {</span>
-<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>    wh_basemap <span class="sc">+</span></span>
-<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>      <span class="fu">tm_shape</span>(wuhp_coef_sf, <span class="at">is.master =</span> T) <span class="sc">+</span></span>
-<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>      <span class="fu">tm_dots</span>(<span class="at">col =</span> var, <span class="at">size =</span> <span class="fl">0.1</span>, <span class="at">midpoint =</span> <span class="dv">0</span>,</span>
-<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">palette =</span> <span class="st">&quot;-RdBu&quot;</span>, <span class="at">legend.col.reverse =</span> T)</span>
-<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>  }) <span class="sc">%&gt;%</span></span>
-<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">tmap_arrange</span>(<span class="at">nrow =</span> <span class="dv">2</span>)</span></code></pre></div>
-<p><img src="index_files/figure-html/unnamed-chunk-20-1.png" width="4200" /></p>
+<div class="sourceCode" id="cb37"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="fu">with</span>(whhp_hgwr<span class="sc">$</span>effects, <span class="fu">c</span>(local.fixed, random, global.fixed, <span class="st">&quot;Intercept&quot;</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">map</span>(<span class="cf">function</span>(var) {</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>    wh_basemap <span class="sc">+</span></span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>      <span class="fu">tm_shape</span>(wuhp_coef_sf, <span class="at">is.master =</span> T) <span class="sc">+</span></span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>      <span class="fu">tm_dots</span>(<span class="at">col =</span> var, <span class="at">size =</span> <span class="fl">0.1</span>, <span class="at">midpoint =</span> <span class="dv">0</span>,</span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">palette =</span> <span class="st">&quot;-RdBu&quot;</span>, <span class="at">legend.col.reverse =</span> T)</span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>  }) <span class="sc">%&gt;%</span></span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">tmap_arrange</span>(<span class="at">ncol =</span> <span class="dv">3</span>)</span></code></pre></div>
+<p><img src="index_files/figure-html/whhp-hgwr-coef-1.png" width="2700" /></p>
 <p>From this figure, we can see that as <em>BuildingArea</em> is
 regarded as global fixed effects, for all samples there is only one
 estimations. As <em>Floor.High</em> is regarded as random effects, each
@@ -1667,9 +1681,83 @@ For local fixed effects, their estimations seems to be locally related.
 This is suggested by the first law of geography. Besides, spatial
 heterogeneity is also obvious in their estimations.</p>
 </div>
+<div id="residual-analysis" class="section level3">
+<h3>Residual Analysis</h3>
+<p>Via the standard function <code>residuals()</code>, we have the
+access to residuals estimated by this model. Then we can visualize them
+by combining the summary statistics of residuals with coordinates. For
+example, here we created a map showing mean residual of each group
+together with standard deviation.</p>
+<div class="sourceCode" id="cb38"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>whhp_hgwr_res <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">residuals =</span> <span class="fu">residuals</span>(whhp_hgwr),</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">group =</span> wuhan.hp<span class="sc">$</span>data<span class="sc">$</span>group</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>) <span class="sc">%&gt;%</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(group) <span class="sc">%&gt;%</span></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">res.abs.mean =</span> <span class="fu">mean</span>(<span class="fu">abs</span>(residuals)),</span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>            <span class="at">res.sd =</span> <span class="fu">sd</span>(residuals)) <span class="sc">%&gt;%</span></span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cbind</span>(wuhan.hp<span class="sc">$</span>coords) <span class="sc">%&gt;%</span></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_as_sf</span>(<span class="at">coords =</span> <span class="fu">c</span>(<span class="st">&quot;X&quot;</span>, <span class="st">&quot;Y&quot;</span>), <span class="at">crs =</span> <span class="dv">4547</span>)</span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a>wh_basemap <span class="sc">+</span></span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tm_shape</span>(whhp_hgwr_res, <span class="at">is.master =</span> T) <span class="sc">+</span></span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tm_dots</span>(<span class="at">col =</span> <span class="st">&quot;res.abs.mean&quot;</span>, <span class="at">size =</span> <span class="st">&quot;res.sd&quot;</span>, <span class="at">midpoint =</span> <span class="dv">0</span>,</span>
+<span id="cb38-13"><a href="#cb38-13" aria-hidden="true" tabindex="-1"></a>          <span class="at">palette =</span> <span class="st">&quot;-RdBu&quot;</span>, <span class="at">legend.col.reverse =</span> T)</span></code></pre></div>
+<p><img src="index_files/figure-html/unnamed-chunk-14-1.png" width="768" /></p>
+<p>And we can also convery a global Moran test on the residuals to to
+find well estimated points.</p>
+<div class="sourceCode" id="cb39"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(spdep)</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>whhp_hgwr_res_listw <span class="ot">&lt;-</span> <span class="fu">st_coordinates</span>(whhp_hgwr_res) <span class="sc">%&gt;%</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">knearneigh</span>(<span class="at">k =</span> <span class="dv">20</span>) <span class="sc">%&gt;%</span> <span class="fu">knn2nb</span>() <span class="sc">%&gt;%</span> <span class="fu">nb2listw</span>() <span class="sc">%&gt;%</span> <span class="fu">listw2U</span>()</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a><span class="fu">moran.test</span>(whhp_hgwr_res<span class="sc">$</span>res.abs.mean, whhp_hgwr_res_listw)</span></code></pre></div>
+<pre><code>## 
+##  Moran I test under randomisation
+## 
+## data:  whhp_hgwr_res$res.abs.mean  
+## weights: whhp_hgwr_res_listw    
+## 
+## Moran I statistic standard deviate = 6.4658, p-value = 5.038e-11
+## alternative hypothesis: greater
+## sample estimates:
+## Moran I statistic       Expectation          Variance 
+##       0.066815400      -0.001290323       0.000110949</code></pre>
+<p>From the p-value and Moran’s I value, we can find that although it is
+suggested to reject the null hypothesis, the global spatial
+autocorrelation is too weak to take any effects. Additionally, a local
+Moran test is also useful.</p>
+<div class="sourceCode" id="cb41"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>whhp_hgwr_res_localmoran <span class="ot">&lt;-</span> <span class="fu">localmoran</span>(whhp_hgwr_res<span class="sc">$</span>res.abs.mean, whhp_hgwr_res_listw)</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>wh_basemap <span class="sc">+</span></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tm_shape</span>(<span class="fu">cbind</span>(whhp_hgwr_res, whhp_hgwr_res_localmoran), <span class="at">is.master =</span> T) <span class="sc">+</span></span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tm_dots</span>(<span class="at">col =</span> <span class="st">&quot;Ii&quot;</span>, <span class="at">size =</span> <span class="fl">0.2</span>, <span class="at">palette =</span> <span class="st">&quot;-RdBu&quot;</span>, <span class="at">style =</span> <span class="st">&quot;quantile&quot;</span>,</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>          <span class="at">midpoint =</span> <span class="dv">0</span>, <span class="at">title =</span> <span class="st">&quot;Local Moran&quot;</span>)</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>whhp_hgwr_res<span class="sc">$</span>res_c <span class="ot">&lt;-</span> <span class="fu">scale</span>(whhp_hgwr_res<span class="sc">$</span>res.abs.mean, <span class="at">scale =</span> F)</span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a>whhp_hgwr_res<span class="sc">$</span>lmoran_c <span class="ot">&lt;-</span> <span class="fu">scale</span>(whhp_hgwr_res_localmoran[,<span class="dv">1</span>], <span class="at">scale =</span> F)</span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>whhp_hgwr_res<span class="sc">$</span>quadrant <span class="ot">&lt;-</span> <span class="fu">with</span>(whhp_hgwr_res, {</span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a>  quadrant <span class="ot">&lt;-</span> <span class="fu">integer</span>(<span class="fu">length</span>(res_c))</span>
+<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a>  quadrant[res_c <span class="sc">&lt;</span> <span class="dv">0</span> <span class="sc">&amp;</span> lmoran_c <span class="sc">&lt;</span> <span class="dv">0</span>] <span class="ot">&lt;-</span> <span class="dv">1</span></span>
+<span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a>  quadrant[res_c <span class="sc">&lt;</span> <span class="dv">0</span> <span class="sc">&amp;</span> lmoran_c <span class="sc">&gt;</span> <span class="dv">0</span>] <span class="ot">&lt;-</span> <span class="dv">2</span></span>
+<span id="cb41-12"><a href="#cb41-12" aria-hidden="true" tabindex="-1"></a>  quadrant[res_c <span class="sc">&gt;</span> <span class="dv">0</span> <span class="sc">&amp;</span> lmoran_c <span class="sc">&lt;</span> <span class="dv">0</span>] <span class="ot">&lt;-</span> <span class="dv">3</span></span>
+<span id="cb41-13"><a href="#cb41-13" aria-hidden="true" tabindex="-1"></a>  quadrant[res_c <span class="sc">&gt;</span> <span class="dv">0</span> <span class="sc">&amp;</span> lmoran_c <span class="sc">&gt;</span> <span class="dv">0</span>] <span class="ot">&lt;-</span> <span class="dv">4</span></span>
+<span id="cb41-14"><a href="#cb41-14" aria-hidden="true" tabindex="-1"></a>  quadrant[whhp_hgwr_res_localmoran[,<span class="dv">5</span>] <span class="sc">&gt;</span> <span class="fl">0.1</span>] <span class="ot">&lt;-</span> <span class="dv">0</span></span>
+<span id="cb41-15"><a href="#cb41-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.factor</span>(quadrant)</span>
+<span id="cb41-16"><a href="#cb41-16" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb41-17"><a href="#cb41-17" aria-hidden="true" tabindex="-1"></a>LISA_palette <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb41-18"><a href="#cb41-18" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;Insignificant&quot;</span> <span class="ot">=</span> <span class="st">&quot;green&quot;</span>, <span class="st">&quot;Low-Low&quot;</span> <span class="ot">=</span> <span class="st">&quot;darkblue&quot;</span>, <span class="st">&quot;Low-High&quot;</span> <span class="ot">=</span> <span class="st">&quot;blue&quot;</span>,</span>
+<span id="cb41-19"><a href="#cb41-19" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;High-Low&quot;</span> <span class="ot">=</span> <span class="st">&quot;red&quot;</span>, <span class="st">&quot;High-High&quot;</span> <span class="ot">=</span> <span class="st">&quot;darkred&quot;</span></span>
+<span id="cb41-20"><a href="#cb41-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb41-21"><a href="#cb41-21" aria-hidden="true" tabindex="-1"></a><span class="fu">tm_layout</span>(<span class="at">aes.palette =</span> <span class="st">&quot;cat&quot;</span>) <span class="sc">+</span></span>
+<span id="cb41-22"><a href="#cb41-22" aria-hidden="true" tabindex="-1"></a>  wh_basemap <span class="sc">+</span></span>
+<span id="cb41-23"><a href="#cb41-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tm_shape</span>(whhp_hgwr_res, <span class="at">is.master =</span> T) <span class="sc">+</span></span>
+<span id="cb41-24"><a href="#cb41-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tm_dots</span>(<span class="at">col =</span> <span class="st">&quot;quadrant&quot;</span>, <span class="at">size =</span> <span class="fl">0.2</span>,</span>
+<span id="cb41-25"><a href="#cb41-25" aria-hidden="true" tabindex="-1"></a>          <span class="at">palette =</span> <span class="fu">as.vector</span>(<span class="fu">unlist</span>(LISA_palette)),</span>
+<span id="cb41-26"><a href="#cb41-26" aria-hidden="true" tabindex="-1"></a>          <span class="at">labels =</span> <span class="fu">names</span>(LISA_palette))</span></code></pre></div>
+<p><img src="index_files/figure-html/unnamed-chunk-16-1.png" width="49%" /><img src="index_files/figure-html/unnamed-chunk-16-2.png" width="49%" /></p>
+<p>It can be seen that most residuals are not spatially clustered. Most
+of those showing spatial clusters locate near the boundary of this study
+area.</p>
 </div>
-<div id="references" class="section level2 unnumbered">
-<h2 class="unnumbered">References</h2>
+</div>
+</div>
+<div id="references" class="section level1 unnumbered">
+<h1 class="unnumbered">References</h1>
 <div id="refs" class="references csl-bib-body hanging-indent">
 <div id="ref-BrunsdonFotheringham-1996" class="csl-entry">
 Brunsdon, Chris, A. Stewart Fotheringham, and Martin E. Charlton. 1996.

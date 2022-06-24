@@ -14,13 +14,13 @@ link-citations: true
 
 A brief tutorial to Hierarchical and Geographically Weighted Regression model and **hgwrr** package in R.
 
-```{r, include=F}
+```{r setup, include=F}
 knitr::opts_chunk$set(message = F, warning = F)
 ```
 
-## Introduction to HGWR Model
+# Introduction to HGWR Model
 
-### What is HGWR model?
+## What is HGWR model?
 
 Hierarchical and Geographically Weighted Regression, shorted for HGWR,
 is a spatial modelling method designed for data of spatial hierarchical structures.
@@ -38,7 +38,7 @@ $X$ also the group level independent variables, $\beta$ the global fixed effects
 $Z$ the individual level independent variables, $\mu$ the random effects,
 $\epsilon$ the individual errors.
 
-### Why HGWR model?
+## Why HGWR model?
 
 As we know, hierarchical structure is commonly existing in spatial data.
 For example, cities can be grouped by provinces or other higher-level administrative district they belong to;
@@ -87,12 +87,12 @@ To solve the problems mentioned above, we need to use HGWR model.
 It is able to modelling spatial hierarchical structure and spatial heterogeneity simultaneously.
 Examples below can show that it works well for spatial hierarchical data.
 
-## Modelling with HGWR Model
+# Modelling with HGWR Model
 
 The R package **hgwrr** is built for calibrating HGWR model.
 In this section, we are going to show how to use it.
 
-### Installation
+## Installation
 
 Package **hgwrr** is available on [CRAN](https://cran.r-project.org/package=hgwrr).
 Simply type the following codes to install it.
@@ -110,7 +110,7 @@ R CMD INSTALL hgwrr_0.2-0.tar.gz
 
 Note that [RTools](https://cran.r-project.org/bin/windows/Rtools/) is required on Windows.
 
-### Usage
+## Usage
 
 We are going to show the usage of **hgwrr** package with a simulated data.
 
@@ -154,7 +154,7 @@ On most occassions the default values are fine.
 If the default values cause some problems and you want change some of them,
 please check the documentation of function `hgwr()` for more infomation.
 
-### Example: A Small Simulated Data Set
+## Example: A Small Simulated Data Set
 
 *This example is used to show the usage of this package and to test whether it works.
 We don't care about how good the fitness of this model is with this data set.*
@@ -176,7 +176,7 @@ and `U`, `V` are longitude and latitude coordinate values of all groups.
 We regards `g1` and `g2` have local fixed effects, `x1` have global fixed effects and `z1` have random effects.
 Then we can calibrate an HGWR model with like this
 
-```{r, cache=T}
+```{r ms-hgwr, cache=T}
 ms_hgwr <- hgwr(
   formula = y ~ g1 + g2 + x1 + (z1 | group),
   data = multisampling$data,
@@ -237,7 +237,7 @@ summary(ms_hgwr)
 On the current stage, only pesudo $R^2$ is available.
 In the future, more diagnostic information will be provided in this package.
 
-### Example: Large Scale Simulated Data
+## Example: Large Scale Simulated Data
 
 In the former example, there are only `r nrow(multisampling$data)` observations and `r nrow(multisampling$coords)` groups.
 They are not adequate enough to get precises estimations.
@@ -266,7 +266,7 @@ Then we calibrate an HGWR model.
 > As the data is large (`r nrow(multisampling.large$data)` observations),
 > it may take some time to get results.
 
-```{r, cache=T}
+```{r msl-hgwr, cache=T}
 msl_hgwr <- hgwr(
   formula = y ~ g1 + g2 + x1 + (z1 | group),
   data = multisampling.large$data,
@@ -277,7 +277,7 @@ msl_hgwr <- hgwr(
 msl_hgwr
 ```
 
-#### Fitness Assessment
+### Fitness Assessment
 
 Then we check the estimations of intercept, `g1`, `g2` and `z1` via some scatter plots.
 
@@ -309,13 +309,13 @@ msl_hgwr_err <- coef(msl_hgwr) %>%
 msl_hgwr_err
 ```
 
-#### Comparison of HGWR, GWR and HLM
+### Comparison of HGWR, GWR and HLM
 
 As a comparison, we can also calibrate a GWR model and HLM model and
 have a look at their fitting performance.
 THe GWR model can be calibrated with the following codes.
 
-```{r, cache=T}
+```{r msl-gwr, cache=T}
 ### GWR model
 library(GWmodel)
 msl_gwr_data <- multisampling.large$data
@@ -350,7 +350,7 @@ msl_gwr_err
 
 And also a HLM model calibrated with the following codes.
 
-```{r}
+```{r msl-hlm, cache=T}
 library(lme4)
 msl_hlm <- lmer(
   formula = y ~ g1 + g2 + x1 + (z1 | group),
@@ -396,7 +396,7 @@ It is able to give more precise estimations for local fixed effects.
 And it can estimate global fixed effects and also random effects as precisely as HLM does,
 but more precisely than GWR does.
 
-### Case Study: Impact Factors of House Price in Wuhan
+## Case Study: Impact Factors of House Price in Wuhan
 
 As the fitness of HGWR has been demonstrated with simulation data,
 we are thing about applying it in collected data sets.
@@ -409,7 +409,7 @@ head(wuhan.hp$data)
 head(wuhan.hp$coords)
 ```
 
-This data set, collected in 2018, has 19,854 properties located in 795 communities.
+This data set, collected in 2018, has `r nrow(wuhan.hp$data)` properties located in `r nrow(wuhan.hp$coords)` communities.
 In each observation, there are fields of house properties, locational and neighbourhood variables.
 In details, they are distances to nearby educational resources
 (kindergartens, primary schools, middle schools, high schools, universities),
@@ -443,7 +443,7 @@ and the table gives information about all available variables.
 | *d.Supermarket*   | Distance to the nearest supermarket.                     | Group  | Locational    | Yes       |
 | *d.ShoppingMall*  | Distance to the nearest shopping mall.                   | Group  | Locational    | Yes       |
 
-After a variable selection process [@HuLu-2022], we use these factors to build a HGWR model:
+A variable selection process [@HuLu-2022] suggests us to use the following variables to build a HGWR model:
 
 - *Fee*
 - *d.Water*
@@ -453,16 +453,17 @@ After a variable selection process [@HuLu-2022], we use these factors to build a
 - *BuildingArea*
 - *Floor.High*
 
+But we are going to append a variable *d.ShoppingMall* which is usually concerned by customers and researchers.
 And regards the locational and Fee as local fixed effects, the BuildingArea as global fixed effects and Floor.High as random effects.
 Then we can calibrate a HGWR model with the following codes.
 
-```{r, cache=T}
+```{r whhp-hgwr, cache=T}
 whhp_hgwr <- hgwr(
-  formula = Price ~ d.Water + d.Commercial + d.PrimarySchool +
+  formula = Price ~ d.Water + d.Commercial + d.PrimarySchool + d.ShoppingMall +
             d.Kindergarten + Fee + BuildingArea + (Floor.High | group),
   data = wuhan.hp$data,
-  local.fixed = c("d.Water", "d.Commercial", "d.PrimarySchool",
-                  "d.Kindergarten", "Fee"),
+  local.fixed = c("d.Water", "d.Commercial", "d.PrimarySchool", 
+                  "d.ShoppingMall", "d.Kindergarten", "Fee"),
   coords = wuhan.hp$coords,
   bw = 50,
   kernel = "bisquared",
@@ -471,6 +472,8 @@ whhp_hgwr <- hgwr(
 )
 whhp_hgwr
 ```
+
+### Coefficient Visualization
 
 We can also make some maps to visualize the estimated coefficients.
 [Boundary data of Wuhan](./data/wuhan.geojson) is provided.
@@ -487,16 +490,15 @@ wh_basemap <- tm_shape(wuhan) + tm_polygons(col = "white")
 
 Then visualize coefficients estimations with the basemap.
 
-```{r, fig.height=7, fig.width=14, dpi=300, cache=T}
-c("d.Water", "d.Commercial", "d.PrimarySchool", "d.Kindergarten",
-  "Fee", "BuildingArea", "Floor.High", "Intercept") %>%
+```{r whhp-hgwr-coef, fig.height=9, fig.width=9, dpi=300, cache=T}
+with(whhp_hgwr$effects, c(local.fixed, random, global.fixed, "Intercept")) %>%
   map(function(var) {
     wh_basemap +
       tm_shape(wuhp_coef_sf, is.master = T) +
       tm_dots(col = var, size = 0.1, midpoint = 0,
               palette = "-RdBu", legend.col.reverse = T)
   }) %>%
-    tmap_arrange(nrow = 2)
+    tmap_arrange(ncol = 3)
 ```
 
 From this figure, we can see that as *BuildingArea* is regarded as global fixed effects,
@@ -507,4 +509,71 @@ For local fixed effects, their estimations seems to be locally related.
 This is suggested by the first law of geography.
 Besides, spatial heterogeneity is also obvious in their estimations.
 
-## References
+### Residual Analysis
+
+Via the standard function `residuals()`, we have the access to residuals estimated by this model.
+Then we can visualize them by combining the summary statistics of residuals with coordinates.
+For example, here we created a map showing mean residual of each group together with standard deviation.
+
+```{r}
+whhp_hgwr_res <- data.frame(
+  residuals = residuals(whhp_hgwr),
+  group = wuhan.hp$data$group
+) %>%
+  group_by(group) %>%
+  summarise(res.abs.mean = mean(abs(residuals)),
+            res.sd = sd(residuals)) %>%
+  cbind(wuhan.hp$coords) %>%
+  st_as_sf(coords = c("X", "Y"), crs = 4547)
+wh_basemap +
+  tm_shape(whhp_hgwr_res, is.master = T) +
+  tm_dots(col = "res.abs.mean", size = "res.sd", midpoint = 0,
+          palette = "-RdBu", legend.col.reverse = T)
+```
+
+And we can also convery a global Moran test on the residuals to to find well estimated points.
+
+```{r}
+library(spdep)
+whhp_hgwr_res_listw <- st_coordinates(whhp_hgwr_res) %>%
+  knearneigh(k = 20) %>% knn2nb() %>% nb2listw() %>% listw2U()
+moran.test(whhp_hgwr_res$res.abs.mean, whhp_hgwr_res_listw)
+```
+
+From the p-value and Moran's I value, we can find that although it is suggested to reject the null hypothesis,
+the global spatial autocorrelation is too weak to take any effects.
+Additionally, a local Moran test is also useful.
+
+```{r, fig.show="hold", fig.width=4.2, fig.height=4.9, out.width="49%"}
+whhp_hgwr_res_localmoran <- localmoran(whhp_hgwr_res$res.abs.mean, whhp_hgwr_res_listw)
+wh_basemap +
+  tm_shape(cbind(whhp_hgwr_res, whhp_hgwr_res_localmoran), is.master = T) +
+  tm_dots(col = "Ii", size = 0.2, palette = "-RdBu", style = "quantile",
+          midpoint = 0, title = "Local Moran")
+whhp_hgwr_res$res_c <- scale(whhp_hgwr_res$res.abs.mean, scale = F)
+whhp_hgwr_res$lmoran_c <- scale(whhp_hgwr_res_localmoran[,1], scale = F)
+whhp_hgwr_res$quadrant <- with(whhp_hgwr_res, {
+  quadrant <- integer(length(res_c))
+  quadrant[res_c < 0 & lmoran_c < 0] <- 1
+  quadrant[res_c < 0 & lmoran_c > 0] <- 2
+  quadrant[res_c > 0 & lmoran_c < 0] <- 3
+  quadrant[res_c > 0 & lmoran_c > 0] <- 4
+  quadrant[whhp_hgwr_res_localmoran[,5] > 0.1] <- 0
+  as.factor(quadrant)
+})
+LISA_palette <- list(
+  "Insignificant" = "green", "Low-Low" = "darkblue", "Low-High" = "blue",
+  "High-Low" = "red", "High-High" = "darkred"
+)
+tm_layout(aes.palette = "cat") +
+  wh_basemap +
+  tm_shape(whhp_hgwr_res, is.master = T) +
+  tm_dots(col = "quadrant", size = 0.2,
+          palette = as.vector(unlist(LISA_palette)),
+          labels = names(LISA_palette))
+```
+
+It can be seen that most residuals are not spatially clustered.
+Most of those showing spatial clusters locate near the boundary of this study area.
+
+# References
