@@ -997,7 +997,7 @@ get results.</p>
 and mean absolute errors of estimations and true values are also very
 useful to assess the fitting performance.</p>
 <div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>msl_hgwr_err <span class="ot">&lt;-</span> <span class="fu">coef</span>(msl_hgwr) <span class="sc">%&gt;%</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, x1, z1) <span class="sc">%&gt;%</span> {</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, z1, x1) <span class="sc">%&gt;%</span> {</span>
 <span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as.data.frame</span>(<span class="fu">rbind</span>(</span>
 <span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>      <span class="at">MAE =</span> <span class="fu">map2_dbl</span>(msl_beta, ., <span class="sc">~</span> <span class="fu">mean</span>(<span class="fu">abs</span>(.x <span class="sc">-</span> .y))),</span>
 <span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>      <span class="at">RMSE =</span> <span class="fu">map2_dbl</span>(msl_beta, ., <span class="sc">~</span> <span class="fu">sqrt</span>(<span class="fu">mean</span>((.x <span class="sc">-</span> .y)<span class="sc">^</span><span class="dv">2</span>)))</span>
@@ -1022,16 +1022,16 @@ useful to assess the fitting performance.</p>
 <td align="right">0.3529462</td>
 <td align="right">2.437674</td>
 <td align="right">2.134569</td>
-<td align="right">1.165641</td>
-<td align="right">1.148090</td>
+<td align="right">0.2027014</td>
+<td align="right">0.0106994</td>
 </tr>
 <tr class="even">
 <td align="left">RMSE</td>
 <td align="right">0.4856966</td>
 <td align="right">3.703679</td>
 <td align="right">2.862071</td>
-<td align="right">1.382563</td>
-<td align="right">1.371016</td>
+<td align="right">0.2575985</td>
+<td align="right">0.0106994</td>
 </tr>
 </tbody>
 </table>
@@ -1085,7 +1085,7 @@ calibrated with the following codes.</p>
 <span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise_all</span>(mean)</span>
 <span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a><span class="do">##### Calculate RMSE and MAE of estimations.</span></span>
 <span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>msl_gwr_err <span class="ot">&lt;-</span> msl_gwr_coef <span class="sc">%&gt;%</span></span>
-<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, x1, z1) <span class="sc">%&gt;%</span> {</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, z1, x1) <span class="sc">%&gt;%</span> {</span>
 <span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as.data.frame</span>(<span class="fu">rbind</span>(</span>
 <span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>      <span class="at">MAE =</span> <span class="fu">map2_dbl</span>(msl_beta, ., <span class="sc">~</span> <span class="fu">mean</span>(<span class="fu">abs</span>(.x <span class="sc">-</span> .y))),</span>
 <span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>      <span class="at">RMSE =</span> <span class="fu">map2_dbl</span>(msl_beta, ., <span class="sc">~</span> <span class="fu">sqrt</span>(<span class="fu">mean</span>((.x <span class="sc">-</span> .y)<span class="sc">^</span><span class="dv">2</span>)))</span>
@@ -1110,16 +1110,16 @@ calibrated with the following codes.</p>
 <td align="right">5.27123</td>
 <td align="right">54.27019</td>
 <td align="right">206.523</td>
-<td align="right">1.145032</td>
-<td align="right">0.9914012</td>
+<td align="right">0.4871780</td>
+<td align="right">0.1620288</td>
 </tr>
 <tr class="even">
 <td align="left">RMSE</td>
 <td align="right">44.07530</td>
 <td align="right">478.03679</td>
 <td align="right">2667.250</td>
-<td align="right">1.376936</td>
-<td align="right">1.1573819</td>
+<td align="right">0.6847527</td>
+<td align="right">0.1980524</td>
 </tr>
 </tbody>
 </table>
@@ -1133,7 +1133,7 @@ calibrated with the following codes.</p>
 <span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>msl_hlm_coef <span class="ot">&lt;-</span> <span class="fu">coef</span>(msl_hlm)<span class="sc">$</span>group</span>
 <span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(msl_hlm_coef)[<span class="fu">which</span>(<span class="fu">colnames</span>(msl_hlm_coef) <span class="sc">==</span> <span class="st">&quot;(Intercept)&quot;</span>)] <span class="ot">&lt;-</span> <span class="st">&quot;Intercept&quot;</span></span>
 <span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>msl_hlm_err <span class="ot">&lt;-</span> msl_hlm_coef <span class="sc">%&gt;%</span></span>
-<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, x1, z1) <span class="sc">%&gt;%</span> {</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(Intercept, g1, g2, z1, x1) <span class="sc">%&gt;%</span> {</span>
 <span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as.data.frame</span>(<span class="fu">rbind</span>(</span>
 <span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>      <span class="at">MAE =</span> <span class="fu">map2_dbl</span>(msl_beta, ., <span class="sc">~</span> <span class="fu">mean</span>(<span class="fu">abs</span>(.x <span class="sc">-</span> .y))),</span>
 <span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>      <span class="at">RMSE =</span> <span class="fu">map2_dbl</span>(msl_beta, ., <span class="sc">~</span> <span class="fu">sqrt</span>(<span class="fu">mean</span>((.x <span class="sc">-</span> .y)<span class="sc">^</span><span class="dv">2</span>)))</span>
@@ -1158,16 +1158,16 @@ calibrated with the following codes.</p>
 <td align="right">0.5403015</td>
 <td align="right">3.961721</td>
 <td align="right">3.183228</td>
-<td align="right">1.165328</td>
-<td align="right">1.128811</td>
+<td align="right">0.2036397</td>
+<td align="right">0.0102346</td>
 </tr>
 <tr class="even">
 <td align="left">RMSE</td>
 <td align="right">0.8043435</td>
 <td align="right">5.423963</td>
 <td align="right">4.610203</td>
-<td align="right">1.382253</td>
-<td align="right">1.340799</td>
+<td align="right">0.2584218</td>
+<td align="right">0.0102346</td>
 </tr>
 </tbody>
 </table>

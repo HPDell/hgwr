@@ -300,7 +300,7 @@ estimations and true values are also very useful to assess the fitting performan
 
 ```{r}
 msl_hgwr_err <- coef(msl_hgwr) %>%
-  select(Intercept, g1, g2, x1, z1) %>% {
+  select(Intercept, g1, g2, z1, x1) %>% {
     as.data.frame(rbind(
       MAE = map2_dbl(msl_beta, ., ~ mean(abs(.x - .y))),
       RMSE = map2_dbl(msl_beta, ., ~ sqrt(mean((.x - .y)^2)))
@@ -339,7 +339,7 @@ msl_gwr_coef <- cbind(msl_gwr$SDF@data, group = msl_gwr_data$group) %>%
   summarise_all(mean)
 ##### Calculate RMSE and MAE of estimations.
 msl_gwr_err <- msl_gwr_coef %>%
-  select(Intercept, g1, g2, x1, z1) %>% {
+  select(Intercept, g1, g2, z1, x1) %>% {
     as.data.frame(rbind(
       MAE = map2_dbl(msl_beta, ., ~ mean(abs(.x - .y))),
       RMSE = map2_dbl(msl_beta, ., ~ sqrt(mean((.x - .y)^2)))
@@ -359,7 +359,7 @@ msl_hlm <- lmer(
 msl_hlm_coef <- coef(msl_hlm)$group
 colnames(msl_hlm_coef)[which(colnames(msl_hlm_coef) == "(Intercept)")] <- "Intercept"
 msl_hlm_err <- msl_hlm_coef %>%
-  select(Intercept, g1, g2, x1, z1) %>% {
+  select(Intercept, g1, g2, z1, x1) %>% {
     as.data.frame(rbind(
       MAE = map2_dbl(msl_beta, ., ~ mean(abs(.x - .y))),
       RMSE = map2_dbl(msl_beta, ., ~ sqrt(mean((.x - .y)^2)))
