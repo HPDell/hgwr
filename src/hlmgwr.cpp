@@ -609,6 +609,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
             beta = beta0;
             mu = mu0;
             D = D0;
+            rss = rss0;
             retry++;
         }
         else if (retry > 0) retry = 0;
