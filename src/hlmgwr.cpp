@@ -340,8 +340,18 @@ void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps
     if (verbose)
     {
         ostringstream sout;
-        sout << setprecision(precision) << fixed << minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << minimizer->x->data[2] << ";";
-        sout << setprecision(precision) << fixed << minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << minimizer->gradient->data[2] << ";";
+        sout << setprecision(precision) << fixed << minimizer->x->data[0];
+        for (size_t i = 1; i < D_tril_vec.n_elem; i++)
+        {
+            sout << "," << minimizer->x->data[i];
+        }
+        sout << ";";
+        sout << setprecision(precision) << fixed << minimizer->gradient->data[0] << ",";
+        for (size_t i = 1; i < D_tril_vec.n_elem; i++)
+        {
+            sout << "," << minimizer->gradient->data[i];
+        }
+        sout << ";";
         sout << minimizer->f << '\r';
         pcout(sout.str());
     }
@@ -354,8 +364,18 @@ void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps
         if (verbose)
         {
             ostringstream sout;
-            sout << setprecision(precision) << fixed << minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << minimizer->x->data[2] << ";";
-            sout << setprecision(precision) << fixed << minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << minimizer->gradient->data[2] << ";";
+            sout << setprecision(precision) << fixed << minimizer->x->data[0];
+            for (size_t i = 1; i < D_tril_vec.n_elem; i++)
+            {
+                sout << "," << minimizer->x->data[i];
+            }
+            sout << ";";
+            sout << setprecision(precision) << fixed << minimizer->gradient->data[0];
+            for (size_t i = 1; i < D_tril_vec.n_elem; i++)
+            {
+                sout << "," << minimizer->gradient->data[i];
+            }
+            sout << ";";
             sout << minimizer->f << '\r';
             pcout(sout.str());
         }
@@ -407,12 +427,28 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
     if (verbose)
     {
         ostringstream sout;
-        sout << setprecision(precision) << fixed << 
-            minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << 
-            minimizer->x->data[2] << "," << minimizer->x->data[3] << "," << minimizer->x->data[4] << ";";
-        sout << setprecision(precision) << fixed << 
-            minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << 
-            minimizer->gradient->data[2] << "," << minimizer->gradient->data[3] << "," << minimizer->gradient->data[4] << ";";
+        sout << setprecision(precision) << fixed;
+        for (size_t i = 0; i < p; i++)
+        {
+            sout << minimizer->x->data[i] << ",";
+        }
+        sout << minimizer->x->data[p];
+        for (size_t i = 1; i < D_tril_vec.n_elem; i++)
+        {
+            sout << "," << minimizer->x->data[p + i];
+        }
+        sout << ";";
+        sout << setprecision(precision) << fixed;
+        for (size_t i = 0; i < p; i++)
+        {
+            sout << minimizer->gradient->data[i] << ",";
+        }
+        sout << minimizer->x->data[p];
+        for (size_t i = 1; i < D_tril_vec.n_elem; i++)
+        {
+            sout << "," << minimizer->gradient->data[p + i];
+        }
+        sout << ";"; 
         sout << minimizer->f << '\r';
         pcout(sout.str());
     }
@@ -425,12 +461,28 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
         if (verbose)
         {
             ostringstream sout;
-            sout << setprecision(precision) << fixed << 
-                minimizer->x->data[0] << "," << minimizer->x->data[1] << "," << 
-                minimizer->x->data[2] << "," << minimizer->x->data[3] << "," << minimizer->x->data[4] << ";";
-            sout << setprecision(precision) << fixed << 
-                minimizer->gradient->data[0] << "," << minimizer->gradient->data[1] << "," << 
-                minimizer->gradient->data[2] << "," << minimizer->gradient->data[3] << "," << minimizer->gradient->data[4] << ";";
+            sout << setprecision(precision) << fixed;
+            for (size_t i = 0; i < p; i++)
+            {
+                sout << minimizer->x->data[i] << ",";
+            }
+            sout << minimizer->x->data[p];
+            for (size_t i = 1; i < D_tril_vec.n_elem; i++)
+            {
+                sout << "," << minimizer->x->data[p + i];
+            }
+            sout << ";";
+            sout << setprecision(precision) << fixed;
+            for (size_t i = 0; i < p; i++)
+            {
+                sout << minimizer->gradient->data[i] << ",";
+            }
+            sout << minimizer->x->data[p];
+            for (size_t i = 1; i < D_tril_vec.n_elem; i++)
+            {
+                sout << "," << minimizer->gradient->data[p + i];
+            }
+            sout << ";"; 
             sout << minimizer->f << '\r';
             pcout(sout.str());
         }
