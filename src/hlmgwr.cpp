@@ -606,10 +606,6 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     double rss = 0.0, rss0 = 0.0, diff = DBL_MAX;
     for (size_t iter = 0; iter < max_iters && diff > eps_iter && retry < max_retries; iter++)
     {
-        gamma0 = gamma;
-        beta0 = beta;
-        mu0 = mu;
-        D0 = D;
         rss0 = rss;
         //--------------------
         // Initial Guess for M
@@ -656,24 +652,24 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         vec residual = yhat % yhat;
         rss = sum(residual);
         diff = abs(rss - rss0);
-        if (rss > rss0 && iter > 0) {
-            gamma = gamma0;
-            beta = beta0;
-            mu = mu0;
-            D = D0;
-            rss = rss0;
-            retry++;
+        if (rss < rss0) 
+        {
+            gamma0 = gamma;
+            beta0 = beta;
+            mu0 = mu;
+            D0 = D;
+            if (retry > 0) retry = 0;
         }
-        else if (retry > 0) retry = 0;
+        else if (iter > 0) retry++;
         if (verbose > 0)
         {
             ostringstream sout;
             sout << fixed << setprecision(prescition) <<
                 "RSS: " << rss << ", " <<
                 "diff: " << diff << ", " <<
-                "R2: " << (1 - rss / tss) << ", " <<
-                "Retry: " << retry + 1 <<
-                endl;
+                "R2: " << (1 - rss / tss);
+            if (retry > 0) sout << ", " << "Retry: " << retry;
+            sout << endl;
             pcout(sout.str());
         }
     }
@@ -683,5 +679,5 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     delete[] Yf;
     delete[] Ygf;
     delete[] Yhf ;
-    return { gamma, beta, mu, D, sigma };
+    return { gamma0, beta0, mu0, D0, sigma };
 }
