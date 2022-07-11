@@ -603,8 +603,8 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     // Backfitting
     //============
     size_t retry = 0;
-    double rss = 0.0, rss0 = 0.0, diff = DBL_MAX;
-    for (size_t iter = 0; iter < max_iters && diff > eps_iter && retry < max_retries; iter++)
+    double rss = DBL_MAX, rss0 = 0.0, diff = DBL_MAX;
+    for (size_t iter = 0; (rss > rss0 || diff > eps_iter) && iter < max_iters && retry < max_retries; iter++)
     {
         rss0 = rss;
         //--------------------
