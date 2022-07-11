@@ -603,10 +603,10 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     // Backfitting
     //============
     size_t retry = 0;
-    double rss = DBL_MAX, rss0 = 0.0, diff = DBL_MAX;
-    for (size_t iter = 0; (rss > rss0 || diff > eps_iter) && iter < max_iters && retry < max_retries; iter++)
+    double rss = DBL_MAX, rss0 = DBL_MAX, diff = DBL_MAX;
+    for (size_t iter = 0; (rss > rss0 || abs(diff) > eps_iter) && iter < max_iters && retry < max_retries; iter++)
     {
-        rss0 = rss;
+        // rss0 = rss;
         //--------------------
         // Initial Guess for M
         //--------------------
@@ -651,23 +651,23 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         vec yhat = yh - (X * beta) - sum(Z % (mu.rows(group)), 1);
         vec residual = yhat % yhat;
         rss = sum(residual);
-        diff = abs(rss - rss0);
+        diff = rss - rss0;
         if (rss < rss0) 
         {
             gamma0 = gamma;
             beta0 = beta;
             mu0 = mu;
             D0 = D;
+            rss0 = rss;
             if (retry > 0) retry = 0;
         }
         else if (iter > 0) retry++;
         if (verbose > 0)
         {
             ostringstream sout;
-            sout << fixed << setprecision(prescition) <<
-                "RSS: " << rss << ", " <<
-                "diff: " << diff << ", " <<
-                "R2: " << (1 - rss / tss);
+            sout << fixed << setprecision(prescition) << "RSS: " << rss << ", ";
+            if (abs(diff) < DBL_MAX) sout << "diff: " << diff << ", ";
+            sout << "R2: " << (1 - rss / tss);
             if (retry > 0) sout << ", " << "Retry: " << retry;
             sout << endl;
             pcout(sout.str());
