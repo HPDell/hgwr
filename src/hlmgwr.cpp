@@ -613,6 +613,13 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
                 endl;
             pcout(sout.str());
         }
+        ////// [test-CoefMidResult]
+        ////// Output the results of each iteration
+        string prefix = string("middle/iter_") + to_string(iter);
+        beta.save(arma::csv_name(prefix + "_beta.csv"));
+        gamma.save(arma::csv_name(prefix + "_gamma.csv"));
+        mu.save(arma::csv_name(prefix + "_mu.csv"));
+        //////
     }
     double sigma = fit_sigma(Xf, Yhf, Zf, ngroup, ndata, beta, D);
     delete[] Zf;
