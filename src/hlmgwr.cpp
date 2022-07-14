@@ -574,10 +574,10 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     uword ngroup = G.n_rows, ndata = X.n_rows;
     uword nvg = G.n_cols, nvx = X.n_cols, nvz = Z.n_cols;
     double tss = sum((y - mean(y)) % (y - mean(y)));
-    mat gamma(ngroup, nvg, arma::fill::zeros), gamma0 = gamma;
-    vec beta(nvx, arma::fill::zeros), beta0 = beta;
-    mat mu(ngroup, nvz, arma::fill::zeros), mu0 = mu;
-    mat D(nvz, nvz, arma::fill::eye), D0 = D;
+    mat gamma(ngroup, nvg, arma::fill::zeros);
+    vec beta(nvx, arma::fill::zeros);
+    mat mu(ngroup, nvz, arma::fill::zeros);
+    mat D(nvz, nvz, arma::fill::eye);
     mat gmap(ndata, ngroup, arma::fill::zeros);
     for (uword i = 0; i < ngroup; i++)
     {
@@ -606,7 +606,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     double rss = DBL_MAX, rss0 = DBL_MAX, diff = DBL_MAX;
     for (size_t iter = 0; (rss > rss0 || abs(diff) > eps_iter) && iter < max_iters && retry < max_retries; iter++)
     {
-        // rss0 = rss;
+        rss0 = rss;
         //--------------------
         // Initial Guess for M
         //--------------------
@@ -654,11 +654,6 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         diff = rss - rss0;
         if (rss < rss0) 
         {
-            gamma0 = gamma;
-            beta0 = beta;
-            mu0 = mu;
-            D0 = D;
-            rss0 = rss;
             if (retry > 0) retry = 0;
         }
         else if (iter > 0) retry++;
@@ -679,5 +674,5 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     delete[] Yf;
     delete[] Ygf;
     delete[] Yhf ;
-    return { gamma0, beta0, mu0, D0, sigma };
+    return { gamma, beta, mu, D, sigma };
 }
