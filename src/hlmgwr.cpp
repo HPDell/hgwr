@@ -315,7 +315,7 @@ void ml_gsl_fdf_D_beta(const gsl_vector* v, void* p, double *f, gsl_vector *df)
     ml_gsl_df_D_beta(v, p, df);
 }
 
-void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose, const PrintFunction pcout)
+double fit_D(mat& D, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose, const PrintFunction pcout)
 {
     int precision = int(log10(1.0 / eps));
     uword q = D.n_cols, ntarget = q * (q + 1) / 2;
@@ -396,6 +396,7 @@ void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps
     D1(D_tril_idx) = D_tri;
     D1(D_triu_idx) = D_tri;
     D = D1;
+    return minimizer->f;
 }
 
 void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose, const PrintFunction pcout)
@@ -603,7 +604,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     // Backfitting
     //============
     size_t retry = 0;
-    double rss = DBL_MAX, rss0 = DBL_MAX, diff = DBL_MAX;
+    double rss = DBL_MAX, rss0 = DBL_MAX, diff = DBL_MAX, mlf = 0.0;
     for (size_t iter = 0; (rss > rss0 || abs(diff) > eps_iter) && iter < max_iters && retry < max_retries; iter++)
     {
         rss0 = rss;
@@ -630,7 +631,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         {
         case 0:
             D = eye(size(D));
-            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
+            mlf = fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             break;
         case 1:
@@ -661,8 +662,9 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         {
             ostringstream sout;
             sout << fixed << setprecision(prescition) << "RSS: " << rss << ", ";
-            if (abs(diff) < DBL_MAX) sout << "diff: " << diff << ", ";
-            sout << "R2: " << (1 - rss / tss);
+            if (abs(diff) < DBL_MAX) sout << "dRSS: " << diff << ", ";
+            sout << "R2: " << (1 - rss / tss) << ", ";
+            sout << "-loglik/n: " << mlf << ", ";
             if (retry > 0) sout << ", " << "Retry: " << retry;
             sout << endl;
             pcout(sout.str());
