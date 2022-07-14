@@ -315,7 +315,7 @@ void ml_gsl_fdf_D_beta(const gsl_vector* v, void* p, double *f, gsl_vector *df)
     ml_gsl_df_D_beta(v, p, df);
 }
 
-void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose, const PrintFunction pcout)
+double fit_D(mat& D, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose, const PrintFunction pcout)
 {
     int precision = int(log10(1.0 / eps));
     uword q = D.n_cols, ntarget = q * (q + 1) / 2;
@@ -396,6 +396,7 @@ void fit_D(mat& D, const ML_Params* params, const double alpha, const double eps
     D1(D_tril_idx) = D_tri;
     D1(D_triu_idx) = D_tri;
     D = D1;
+    return minimizer->f;
 }
 
 void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose, const PrintFunction pcout)
@@ -574,10 +575,10 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     uword ngroup = G.n_rows, ndata = X.n_rows;
     uword nvg = G.n_cols, nvx = X.n_cols, nvz = Z.n_cols;
     double tss = sum((y - mean(y)) % (y - mean(y)));
-    mat gamma(ngroup, nvg, arma::fill::zeros), gamma0 = gamma;
-    vec beta(nvx, arma::fill::zeros), beta0 = beta;
-    mat mu(ngroup, nvz, arma::fill::zeros), mu0 = mu;
-    mat D(nvz, nvz, arma::fill::eye), D0 = D;
+    mat gamma(ngroup, nvg, arma::fill::zeros);
+    vec beta(nvx, arma::fill::zeros);
+    mat mu(ngroup, nvz, arma::fill::zeros);
+    mat D(nvz, nvz, arma::fill::eye);
     mat gmap(ndata, ngroup, arma::fill::zeros);
     for (uword i = 0; i < ngroup; i++)
     {
@@ -603,8 +604,8 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     // Backfitting
     //============
     size_t retry = 0;
-    double rss = 0.0, rss0 = 0.0, diff = DBL_MAX;
-    for (size_t iter = 0; iter < max_iters && diff > eps_iter && retry < max_retries; iter++)
+    double rss = DBL_MAX, rss0 = DBL_MAX, diff = DBL_MAX, mlf = 0.0;
+    for (size_t iter = 0; (rss > rss0 || abs(diff) > eps_iter) && iter < max_iters && retry < max_retries; iter++)
     {
         rss0 = rss;
         //--------------------
@@ -630,7 +631,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         {
         case 0:
             D = eye(size(D));
-            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
+            mlf = fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             break;
         case 1:
@@ -651,23 +652,19 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         vec yhat = yh - (X * beta) - sum(Z % (mu.rows(group)), 1);
         vec residual = yhat % yhat;
         rss = sum(residual);
-        diff = abs(rss - rss0);
+        diff = rss - rss0;
         if (rss < rss0) 
         {
-            gamma0 = gamma;
-            beta0 = beta;
-            mu0 = mu;
-            D0 = D;
             if (retry > 0) retry = 0;
         }
         else if (iter > 0) retry++;
         if (verbose > 0)
         {
             ostringstream sout;
-            sout << fixed << setprecision(prescition) <<
-                "RSS: " << rss << ", " <<
-                "diff: " << diff << ", " <<
-                "R2: " << (1 - rss / tss);
+            sout << fixed << setprecision(prescition) << "RSS: " << rss << ", ";
+            if (abs(diff) < DBL_MAX) sout << "dRSS: " << diff << ", ";
+            sout << "R2: " << (1 - rss / tss) << ", ";
+            sout << "-loglik/n: " << mlf << ", ";
             if (retry > 0) sout << ", " << "Retry: " << retry;
             sout << endl;
             pcout(sout.str());
@@ -686,5 +683,5 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     delete[] Yf;
     delete[] Ygf;
     delete[] Yhf ;
-    return { gamma0, beta0, mu0, D0, sigma };
+    return { gamma, beta, mu, D, sigma };
 }
