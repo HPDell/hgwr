@@ -585,7 +585,10 @@ ac_subst_vars='LTLIBOBJS
 LIBOBJS
 GSL_LIBS
 GSL_CFLAGS
+MONGO_LIBS
+MONGO_CFLAGS
 GSL_CONFIG
+PKG_CONFIG
 CXXCPP
 OBJEXT
 EXEEXT
@@ -2430,6 +2433,53 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
 
 
 
+# Extract the first word of "pkg-config", so it can be a program name with args.
+set dummy pkg-config; ac_word=$2
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if ${ac_cv_path_PKG_CONFIG+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  case $PKG_CONFIG in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_PKG_CONFIG="$PKG_CONFIG" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
+    ac_cv_path_PKG_CONFIG="$as_dir/$ac_word$ac_exec_ext"
+    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+  ;;
+esac
+fi
+PKG_CONFIG=$ac_cv_path_PKG_CONFIG
+if test -n "$PKG_CONFIG"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $PKG_CONFIG" >&5
+$as_echo "$PKG_CONFIG" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+if test "${PKG_CONFIG}" != ""; then
+    MONGO_CFLAGS=`${PKG_CONFIG} --cflags libmongocxx-static`
+    MONGO_LIBS=`${PKG_CONFIG} --libs libmongocxx-static`
+else
+    as_fn_error $? "pkg-config not found, is it installed?" "$LINENO" 5
+fi
+
 # Extract the first word of "gsl-config", so it can be a program name with args.
 set dummy gsl-config; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
@@ -2477,6 +2527,8 @@ if test "${GSL_CONFIG}" != ""; then
 else
     as_fn_error $? "gsl-config not found, is GSL installed?" "$LINENO" 5
 fi
+
+
 
 
 

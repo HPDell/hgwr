@@ -16,6 +16,8 @@
 #include <gsl/gsl_multimin.h>
 #include <gsl/gsl_errno.h>
 
+#include "save_mongo.h"
+
 using namespace std;
 using namespace arma;
 
@@ -671,10 +673,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         }
         ////// [test-CoefMidResult]
         ////// Output the results of each iteration
-        string prefix = string("middle/iter_") + to_string(iter);
-        beta0.save(arma::csv_name(prefix + "_beta.csv"));
-        gamma0.save(arma::csv_name(prefix + "_gamma.csv"));
-        mu0.save(arma::csv_name(prefix + "_mu.csv"));
+        save_mongo(iter, gamma, beta, mu, rss, diff, -mlf*ndata);
         //////
     }
     double sigma = fit_sigma(Xf, Yhf, Zf, ngroup, ndata, beta, D);

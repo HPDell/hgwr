@@ -39,18 +39,28 @@ else()
     message(FATAL_ERROR "GSL cannot found!")
 endif()
 
+find_package(libbsoncxx-static REQUIRED)
+find_package(libmongocxx-static REQUIRED)
+include_directories(${LIBMONGOCXX_STATIC_INCLUDE_DIRS})
+include_directories(${LIBBSONCXX_STATIC_INCLUDE_DIRS})
+
+
 if(OpenMP_FOUND AND ENABLE_OpenMP)
     set(ADDON_LIBRARIES 
         ${ARMADILLO_LIBRARIES}
         ${BLAS_LIBRARIES}
         ${LAPACK_LIBRARIES}
         ${OpenMP_C_LIBRARIES}
-        ${OpenMP_CXX_LIBRARIES})
+        ${OpenMP_CXX_LIBRARIES}
+        ${LIBMONGOCXX_STATIC_LIBRARIES}
+        ${LIBBSONCXX_STATIC_LIBRARIES})
 else()
     set(ADDON_LIBRARIES 
         ${ARMADILLO_LIBRARIES}
         ${BLAS_LIBRARIES}
-        ${LAPACK_LIBRARIES})
+        ${LAPACK_LIBRARIES}
+        ${LIBMONGOCXX_STATIC_LIBRARIES}
+        ${LIBBSONCXX_STATIC_LIBRARIES})
 endif()
 
 set(ADDON_DEBUG_LIBRARIES
@@ -61,5 +71,5 @@ set(ADDON_OPTIMIZED_LIBRARIES
     ${GSL_LIBRARY}
 )
 
-add_library(hgwrbml STATIC hlmgwr.cpp)
+add_library(hgwrbml STATIC hlmgwr.cpp save_mongo.cpp)
 target_link_libraries(hgwrbml ${ADDON_LIBRARIES} debug ${ADDON_DEBUG_LIBRARIES} optimized ${ADDON_OPTIMIZED_LIBRARIES})
