@@ -673,7 +673,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         }
         ////// [test-CoefMidResult]
         ////// Output the results of each iteration
-        save_mongo(iter, gamma, beta, mu, rss, diff, -mlf*ndata);
+        save_mongo(iter, gamma, beta, mu, D, rss, diff, -mlf*ndata);
         //////
     }
     double sigma = fit_sigma(Xf, Yhf, Zf, ngroup, ndata, beta, D);

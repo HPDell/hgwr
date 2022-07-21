@@ -21,7 +21,7 @@ using bsoncxx::document::value;
 
 static mongocxx::instance instance{};
 
-void save_mongo(const size_t iter, const arma::mat& gamma, const arma::vec& beta, const arma::mat& mu, const double rss, const double diff, const double loglik)
+void save_mongo(const size_t iter, const arma::mat& gamma, const arma::vec& beta, const arma::mat& mu, const arma::mat& D, const double rss, const double diff, const double loglik)
 {
     mongocxx::uri uri("mongodb://admin:HuYGChenzxc0559@localhost:27017");
     mongocxx::client client(uri);
@@ -59,6 +59,14 @@ void save_mongo(const size_t iter, const arma::mat& gamma, const arma::vec& beta
         string key = "mu" + to_string(c);
         builder.append(kvp(key, array_value));
     }
+    /// Save D
+    arma::vec D_trimatl = D(arma::trimatl_ind(arma::size(D)));
+    bsoncxx::builder::basic::array Dtrimatl_array_value;
+    for (auto &&i : D_trimatl)
+    {
+        Dtrimatl_array_value.append(i);
+    }
+    builder.append(kvp("Dtrimatl", Dtrimatl_array_value));
     /// Save beta
     for (size_t i = 1; i < beta.n_elem; i++)
     {
