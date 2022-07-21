@@ -663,10 +663,10 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         if (verbose > 0)
         {
             ostringstream sout;
-            sout << fixed << setprecision(prescition) << "RSS: " << rss << ", ";
-            if (abs(diff) < DBL_MAX) sout << "dRSS: " << diff << ", ";
-            sout << "R2: " << (1 - rss / tss) << ", ";
-            sout << "-loglik/n: " << mlf << ", ";
+            sout << fixed << setprecision(prescition) << "RSS: " << rss;
+            if (abs(diff) < DBL_MAX) sout << ", " << "dRSS: " << diff;
+            sout << ", " << "R2: " << (1 - rss / tss);
+            sout << ", " << "-loglik/n: " << mlf;
             if (retry > 0) sout << ", " << "Retry: " << retry;
             sout << endl;
             pcout(sout.str());
