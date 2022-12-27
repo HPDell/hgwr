@@ -6,13 +6,7 @@
 #include <sstream>
 #include <iomanip>
 #include <string>
-
-#ifndef HGWRR_RCPP
 #include <armadillo>
-#else
-#include <RcppArmadillo.h>
-#endif
-
 #include <gsl/gsl_multimin.h>
 #include <gsl/gsl_errno.h>
 
@@ -48,7 +42,7 @@ const GWRKernelFunctionSquared gwr_kernel_functions[] = {
     gwr_kernel_bisquare2
 };
 
-double criterion_bw(const double bw, const HLMGWRBWArgs* args)
+double criterion_bw(const double bw, const HLMGWRBWArgs* args, const bool verbose, const PrintFunction pcout)
 {
     const mat G = args->G;
     const mat Vig = args->Vig;
@@ -62,20 +56,33 @@ double criterion_bw(const double bw, const HLMGWRBWArgs* args)
     {
         mat d_u = u.each_row() - u.row(i);
         vec d2 = sum(d_u % d_u, 1);
-        double b2 = vec(sort(d2))[(int)bw];
+        double b2 = vec(sort(d2))[(int)bw - 1];
         vec wW = (*gwr_kernel)(d2, b2);
-        wW[i] = 0;
-        mat GtWVG = G.t() * (Vig.each_col() % wW);
-        mat GtWVy = G.t() * (Viy % wW);
-        vec bi = solve(GtWVG, GtWVy);
-        vec yhat = G * bi;
-        vec residual = Viy - yhat;
-        cv += sum(residual % residual);
+        wW(i) = 0;
+        mat GtWVG = (G.each_col() % wW).t() * Vig;
+        mat GtWVy = (G.each_col() % wW).t() * Viy;
+        try
+        {
+            vec bi = solve(GtWVG, GtWVy);
+            double yhi = as_scalar(Vig.row(i) * bi);
+            double residual = Viy(i) - yhi;
+            cv += residual * residual;
+        }
+        catch(const std::exception& e)
+        {
+            return DBL_MAX;
+        }
+    }
+    if (verbose)
+    {
+        ostringstream sout;
+        sout << "bw: " << bw << "; " << "cv: " << cv << "\n";
+        pcout(sout.str());
     }
     return cv;
 }
 
-double golden_selection(const double upper, const double lower, const bool adaptive, const HLMGWRBWArgs* args)
+double golden_selection(const double lower, const double upper, const bool adaptive, const HLMGWRBWArgs* args, const bool verbose, const PrintFunction pcout)
 {
     double xU = upper, xL = lower;
     bool adaptBw = adaptive;
@@ -85,8 +92,8 @@ double golden_selection(const double upper, const double lower, const bool adapt
     double d = R * (xU - xL);
     double x1 = adaptBw ? floor(xL + d) : (xL + d);
     double x2 = adaptBw ? round(xU - d) : (xU - d);
-    double f1 = criterion_bw(x1, args);
-    double f2 = criterion_bw(x2, args);
+    double f1 = criterion_bw(x1, args, verbose, pcout);
+    double f2 = criterion_bw(x2, args, verbose, pcout);
     double d1 = f2 - f1;
     double xopt = f1 < f2 ? x1 : x2;
     double ea = 100;
@@ -99,7 +106,7 @@ double golden_selection(const double upper, const double lower, const bool adapt
             x2 = x1;
             x1 = adaptBw ? round(xL + d) : (xL + d);
             f2 = f1;
-            f1 = criterion_bw(x1, args);
+            f1 = criterion_bw(x1, args, verbose, pcout);
         }
         else
         {
@@ -107,7 +114,7 @@ double golden_selection(const double upper, const double lower, const bool adapt
             x1 = x2;
             x2 = adaptBw ? floor(xU - d) : (xU - d);
             f1 = f2;
-            f2 = criterion_bw(x2, args);
+            f2 = criterion_bw(x2, args, verbose, pcout);
         }
         iter = iter + 1;
         xopt = (f1 < f2) ? x1 : x2;
@@ -155,7 +162,7 @@ mat fit_gwr(
     {
         HLMGWRBWArgs bw_args { G, Vig, Viy, u, gwr_kernel };
         double upper = ngroup, lower = k + 1;
-        b = golden_selection(upper, lower, true, &bw_args);
+        b = golden_selection(lower, upper, true, &bw_args, verbose > 1, pcout);
         if (verbose > 0) 
         {
             ostringstream sout;
@@ -168,10 +175,10 @@ mat fit_gwr(
     {
         mat d_u = u.each_row() - u.row(i);
         vec d2 = sum(d_u % d_u, 1);
-        double b2 = vec(sort(d2))[(int)b];
+        double b2 = vec(sort(d2))[(int)b - 1];
         vec wW = (*gwr_kernel)(d2, b2);
-        mat GtWVG = G.t() * (Vig.each_col() % wW);
-        mat GtWVy = G.t() * (Viy % wW);
+        mat GtWVG = (G.each_col() % wW).t() * Vig;
+        mat GtWVy = (G.each_col() % wW).t() * Viy;
         beta.row(i) = solve(GtWVG, GtWVy).t();
     }
     return beta;
