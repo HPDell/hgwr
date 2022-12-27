@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
     desc.add_options()
         ("data-dir,d", boost::program_options::value<string>(), "Data directory")
         ("output-dir,o", boost::program_options::value<string>()->default_value(".", "pwd"), "Output directory")
-        ("bandwidth,b", boost::program_options::value<double>(), "Bandwidth")
+        ("bandwidth,b", boost::program_options::value<double>(), "Bandwidth (set 0 to be optimized)")
         ("kernel,k", boost::program_options::value<size_t>()->default_value(0), "GWR kernel (0 - Gaussian, 1 - Bisquared)")
         ("alpha,a", boost::program_options::value<double>()->default_value(0.01), "Learning speed")
         ("eps-iter,e", boost::program_options::value<double>()->default_value(1e-6, "1e-6"), "Coverage threshold")
@@ -43,8 +43,8 @@ int main(int argc, char *argv[])
     double bw = DBL_MAX;
     if (var_map.count("bandwidth") <= 0)
     {
-        cout << "Bandwidth must be specified!" << endl;
-        return 1;
+        cout << "Bandwidth will be specified." << endl;
+        bw = 0.0;
     } else {
         bw = var_map["bandwidth"].as<double>();
     }

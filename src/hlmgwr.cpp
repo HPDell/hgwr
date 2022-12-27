@@ -33,8 +33,6 @@ struct ML_Params
     uword q;
 };
 
-typedef vec (*GWRKernelFunctionSquared)(vec, double);
-
 inline vec gwr_kernel_gaussian2(vec dist2, double bw2)
 {
     return exp(- dist2 / (2.0 * bw2));
@@ -50,6 +48,74 @@ const GWRKernelFunctionSquared gwr_kernel_functions[] = {
     gwr_kernel_bisquare2
 };
 
+double criterion_bw(const double bw, const HLMGWRBWArgs* args)
+{
+    const mat G = args->G;
+    const mat Vig = args->Vig;
+    const vec Viy = args->Viy;
+    const mat u = args->u;
+    const size_t ngroup = Viy.n_rows;
+    /// Calibrate for each gorup.
+    GWRKernelFunctionSquared gwr_kernel = args->gwr_kernel;
+    double cv = 0.0;
+    for (size_t i = 0; i < ngroup; i++)
+    {
+        mat d_u = u.each_row() - u.row(i);
+        vec d2 = sum(d_u % d_u, 1);
+        double b2 = vec(sort(d2))[(int)bw];
+        vec wW = (*gwr_kernel)(d2, b2);
+        wW[i] = 0;
+        mat GtWVG = G.t() * (Vig.each_col() % wW);
+        mat GtWVy = G.t() * (Viy % wW);
+        vec bi = solve(GtWVG, GtWVy);
+        vec yhat = G * bi;
+        vec residual = Viy - yhat;
+        cv += sum(residual % residual);
+    }
+    return cv;
+}
+
+double golden_selection(const double upper, const double lower, const bool adaptive, const HLMGWRBWArgs* args)
+{
+    double xU = upper, xL = lower;
+    bool adaptBw = adaptive;
+    const double eps = 1e-4;
+    const double R = (sqrt(5)-1)/2;
+    int iter = 0;
+    double d = R * (xU - xL);
+    double x1 = adaptBw ? floor(xL + d) : (xL + d);
+    double x2 = adaptBw ? round(xU - d) : (xU - d);
+    double f1 = criterion_bw(x1, args);
+    double f2 = criterion_bw(x2, args);
+    double d1 = f2 - f1;
+    double xopt = f1 < f2 ? x1 : x2;
+    double ea = 100;
+    while ((fabs(d) > eps) && (fabs(d1) > eps) && iter < ea)
+    {
+        d = R * d;
+        if (f1 < f2)
+        {
+            xL = x2;
+            x2 = x1;
+            x1 = adaptBw ? round(xL + d) : (xL + d);
+            f2 = f1;
+            f1 = criterion_bw(x1, args);
+        }
+        else
+        {
+            xU = x1;
+            x1 = x2;
+            x2 = adaptBw ? floor(xU - d) : (xU - d);
+            f1 = f2;
+            f2 = criterion_bw(x2, args);
+        }
+        iter = iter + 1;
+        xopt = (f1 < f2) ? x1 : x2;
+        d1 = f2 - f1;
+    }
+    return xopt;
+}
+
 /**
  * @brief Estimate $\gamma$.
  * 
@@ -62,7 +128,11 @@ const GWRKernelFunctionSquared gwr_kernel_functions[] = {
  * @param wD Equals to $D$
  * @return mat 
  */
-mat fit_gwr(const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D, const mat& u, const double bw, const GWRKernelType kernel)
+mat fit_gwr(
+    const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup,
+    const mat& D, const mat& u, const double bw, const GWRKernelType kernel,
+    const size_t verbose, const PrintFunction pcout
+)
 {
     uword k = G.n_cols;//, q = Zf[0].n_cols;
     mat beta(ngroup, k, arma::fill::zeros), D_inv = D.i();
@@ -78,13 +148,27 @@ mat fit_gwr(const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup, con
         Vig.row(i) = Visigma * ones(ndata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
     }
-    /// Calibrate for each gorup.
     GWRKernelFunctionSquared gwr_kernel = gwr_kernel_functions[kernel];
+    /// Check whether need to optimize bw
+    double b = bw;
+    if (bw == 0.0)
+    {
+        HLMGWRBWArgs bw_args { G, Vig, Viy, u, gwr_kernel };
+        double upper = ngroup, lower = k + 1;
+        b = golden_selection(upper, lower, true, &bw_args);
+        if (verbose > 0) 
+        {
+            ostringstream sout;
+            sout << "Optimized bandwidth: " << b << "\n";
+            pcout(sout.str());
+        }
+    }
+    /// Calibrate for each gorup.
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
         vec d2 = sum(d_u % d_u, 1);
-        double b2 = vec(sort(d2))[(int)bw];
+        double b2 = vec(sort(d2))[(int)b];
         vec wW = (*gwr_kernel)(d2, b2);
         mat GtWVG = G.t() * (Vig.each_col() % wW);
         mat GtWVy = G.t() * (Viy % wW);
@@ -615,7 +699,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         {
             Ygf[i] = Yf[i] - Xf[i] * beta;
         }
-        gamma = fit_gwr(G, Ygf, Zf, ngroup, D, u, bw, kernel);
+        gamma = fit_gwr(G, Ygf, Zf, ngroup, D, u, bw, kernel, verbose, pcout);
         vec hatMg = sum(G % gamma, 1);
         vec hatM = hatMg.rows(group);
         vec yh = y - hatM;
