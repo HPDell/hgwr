@@ -6,6 +6,7 @@
 #include <sstream>
 #include <iomanip>
 #include <string>
+#include <utility>
 #include <armadillo>
 #include <gsl/gsl_multimin.h>
 #include <gsl/gsl_errno.h>
@@ -135,7 +136,7 @@ double golden_selection(const double lower, const double upper, const bool adapt
  * @param wD Equals to $D$
  * @return mat 
  */
-mat fit_gwr(
+tuple<mat, double> fit_gwr(
     const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup,
     const mat& D, const mat& u, const double bw, const GWRKernelType kernel,
     const size_t verbose, const PrintFunction pcout
@@ -181,7 +182,7 @@ mat fit_gwr(
         mat GtWVy = (G.each_col() % wW).t() * Viy;
         beta.row(i) = solve(GtWVG, GtWVy).t();
     }
-    return beta;
+    return make_tuple(beta, b);
 }
 
 vec fit_gls(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D)
@@ -661,7 +662,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     const vec& y = args.y;
     const mat& u = args.u;
     const uvec& group = args.group;
-    double bw = args.bw;
+    double bw = args.bw, bw_optim = bw;
     GWRKernelType kernel = args.kernel;
     uword ngroup = G.n_rows, ndata = X.n_rows;
     uword nvg = G.n_cols, nvx = X.n_cols, nvz = Z.n_cols;
@@ -706,7 +707,9 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         {
             Ygf[i] = Yf[i] - Xf[i] * beta;
         }
-        gamma = fit_gwr(G, Ygf, Zf, ngroup, D, u, bw, kernel, verbose, pcout);
+        auto gwr_result = fit_gwr(G, Ygf, Zf, ngroup, D, u, bw, kernel, verbose, pcout);
+        gamma = get<0>(gwr_result);
+        bw_optim = get<1>(gwr_result);
         vec hatMg = sum(G % gamma, 1);
         vec hatM = hatMg.rows(group);
         vec yh = y - hatM;
@@ -767,5 +770,5 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     delete[] Yf;
     delete[] Ygf;
     delete[] Yhf ;
-    return { gamma, beta, mu, D, sigma };
+    return { gamma, beta, mu, D, sigma, bw_optim };
 }

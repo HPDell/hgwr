@@ -96,6 +96,7 @@ int main(int argc, char *argv[])
     vec residual = y - yhat;
     vec deviation = y - mean(y);
     double rss = 1 - sum(residual % residual) / sum(deviation % deviation);
+    cout << "Bandwidth: " << alg_params.bw << endl;
     cout << "Rsquared: " << rss << endl;
     cout << "Sigma: " << alg_params.sigma << endl;
     // Save coefficients
