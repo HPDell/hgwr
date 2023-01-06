@@ -56,13 +56,40 @@ jobs:
           ctest --test-dir build -R Test_R_hgwr --output-on-failure --verbose
   
   build_windows:
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v3
+      - name: Cache Dependencies
+        id: cache-dep
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:/vcpkg
+            C:/vcpkg/build/vcpkg_installed
+            !C:/vcpkg/.git
+            !C:/vcpkg/buildtrees
+            !C:/vcpkg/packages
+            !C:/vcpkg/downloads
+          key: |
+            ${{ runner.os }}-cache-key-v1
+      - name: Install Vcpkg Dependencies
+        if: steps.cache-dep.outputs.cache-hit != 'true'
+        run: |
+          C:/vcpkg/vcpkg.exe integrate install
+          C:/vcpkg/vcpkg.exe install gsl openblas[threads] armadillo boost-program-options --triplet x64-windows
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          rtools-version: '42'
+          update-rtools: true
+      - name: Install R Dependencies
+        run: |
+          Rscript.exe -e "install.packages(c('devtools', 'Rcpp', 'RcppArmadillo'))"
       - name: CMake build and check
         run: |
           mkdir build
-          cmake -B build -S . -DWITH_R=ON -DBLAS_LIBRARIES="C:/usr/lib/libopenblas.lib" -DLAPACK_LIBRARIES="C:/usr/lib/libopenblas.lib" -DCMAKE_PREFIX_PATH=C:/usr -DR_ROOT="C:/R/"
+          cmake -B build -S . -DWITH_R=ON -DR_ROOT="C:/R/" "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
           cmake --build build --config Release --target hgwrr_rbuild
           cd build && ctest -R Test_R_hgwr -C Release --output-on-failure --verbose
   
