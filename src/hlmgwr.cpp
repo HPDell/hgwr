@@ -77,7 +77,7 @@ double criterion_bw(const double bw, const HLMGWRBWArgs* args, const bool verbos
     if (verbose)
     {
         ostringstream sout;
-        sout << "bw: " << bw << "; " << "cv: " << cv << "\n";
+        sout << "bw: " << bw << "; " << "cv: " << cv << "\r";
         pcout(sout.str());
     }
     return cv;
@@ -120,6 +120,10 @@ double golden_selection(const double lower, const double upper, const bool adapt
         iter = iter + 1;
         xopt = (f1 < f2) ? x1 : x2;
         d1 = f2 - f1;
+    }
+    if (verbose)
+    {
+        pcout("\n");
     }
     return xopt;
 }
@@ -164,12 +168,6 @@ tuple<mat, double> fit_gwr(
         HLMGWRBWArgs bw_args { G, Vig, Viy, u, gwr_kernel };
         double upper = ngroup, lower = k + 1;
         b = golden_selection(lower, upper, true, &bw_args, verbose > 1, pcout);
-        if (verbose > 0) 
-        {
-            ostringstream sout;
-            sout << "Optimized bandwidth: " << b << "\n";
-            pcout(sout.str());
-        }
     }
     /// Calibrate for each gorup.
     for (size_t i = 0; i < ngroup; i++)
@@ -483,16 +481,19 @@ double fit_D(mat& D, const ML_Params* params, const double alpha, const double e
     {
         pcout("\n");
     }
-    vec D_tri(arma::size(D_tril_idx));
-    for (uword i = 0; i < ntarget; i++)
+    if (minimizer->f >= 0 && !gsl_isnan(minimizer->f))
     {
-        D_tri(i) = gsl_vector_get(minimizer->x, i);
+        mat D1 = mat(arma::size(D), arma::fill::zeros);
+        vec D_tri(arma::size(D_tril_idx));
+        for (uword i = 0; i < ntarget; i++)
+        {
+            D_tri(i) = gsl_vector_get(minimizer->x, i);
+        }
+        D1(D_tril_idx) = D_tri;
+        D1 = D1.t();
+        D1(D_tril_idx) = D_tri;
+        D = D1;
     }
-    mat D1 = mat(arma::size(D), arma::fill::zeros);
-    D1(D_tril_idx) = D_tri;
-    D1 = D1.t();
-    D1(D_tril_idx) = D_tri;
-    D = D1;
     return minimizer->f;
 }
 
@@ -592,22 +593,25 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
     {
         pcout("\n");
     }
-    vec D_tri(arma::size(D_tril_idx));
-    for (uword i = p; i < ntarget; i++)
+    if (minimizer->f >= 0 && !gsl_isnan(minimizer->f))
     {
-        D_tri(i - p) = gsl_vector_get(minimizer->x, i);
+        vec D_tri(arma::size(D_tril_idx));
+        for (uword i = p; i < ntarget; i++)
+        {
+            D_tri(i - p) = gsl_vector_get(minimizer->x, i);
+        }
+        mat D1(arma::size(D), arma::fill::zeros);
+        D1(D_tril_idx) = D_tri;
+        D1 = D1.t();
+        D1(D_tril_idx) = D_tri;
+        vec beta1(arma::size(beta), arma::fill::zeros);
+        for (uword i = 0; i < p; i++)
+        {
+            beta1(i) = gsl_vector_get(minimizer->x, i);
+        }
+        D = D1;
+        beta = beta1;
     }
-    mat D1(arma::size(D), arma::fill::zeros);
-    D1(D_tril_idx) = D_tri;
-    D1 = D1.t();
-    D1(D_tril_idx) = D_tri;
-    vec beta1(arma::size(beta), arma::fill::zeros);
-    for (uword i = 0; i < p; i++)
-    {
-        beta1(i) = gsl_vector_get(minimizer->x, i);
-    }
-    D = D1;
-    beta = beta1;
 }
 
 mat fit_mu(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const vec& beta, const mat& D)
@@ -761,7 +765,9 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         if (verbose > 0)
         {
             ostringstream sout;
-            sout << fixed << setprecision(prescition) << "RSS: " << rss;
+            sout << fixed << setprecision(prescition) << "Iter: " << iter;
+            if (bw == 0.0) sout << ", " << "Bw: " << bw_optim;
+            sout << ", " << "RSS: " << rss;
             if (abs(diff) < DBL_MAX) sout << ", " << "dRSS: " << diff;
             sout << ", " << "R2: " << (1 - rss / tss);
             sout << ", " << "-loglik/n: " << mlf;
