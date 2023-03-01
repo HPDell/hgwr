@@ -36,9 +36,13 @@ set(ADDON_OPTIMIZED_LIBRARIES
     ${Boost_PROGRAM_OPTIONS_LIBRARY_RELEASE}
 )
 
+<<<<<<< HEAD
 if(NOT MSVC)
     add_definitions(-DDBL_MAX=__DBL_MAX__)
 endif()
+=======
+add_definitions(-DDBL_MAX=__DBL_MAX__)
+>>>>>>> 7de6e13 (edit: use aic as convergence)
 
 add_executable(testHGWRBML main.cpp)
 target_link_libraries(testHGWRBML PRIVATE hgwrbml debug ${ADDON_DEBUG_LIBRARIES} optimized ${ADDON_OPTIMIZED_LIBRARIES})

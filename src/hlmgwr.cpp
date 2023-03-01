@@ -674,6 +674,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     GWRKernelType kernel = args.kernel;
     uword ngroup = G.n_rows, ndata = X.n_rows;
     uword nvg = G.n_cols, nvx = X.n_cols, nvz = Z.n_cols;
+    uword nparams = nvg * ngroup + nvx + nvz * (nvz + 1) / 2;
     double tss = sum((y - mean(y)) % (y - mean(y)));
     mat gamma(ngroup, nvg, arma::fill::zeros);
     vec beta(nvx, arma::fill::zeros);
@@ -704,10 +705,12 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     // Backfitting
     //============
     size_t retry = 0;
-    double rss = DBL_MAX, rss0 = DBL_MAX, diff = DBL_MAX, mlf = 0.0;
-    for (size_t iter = 0; (abs(diff) > eps_iter) && iter < max_iters && retry < max_retries; iter++)
+    // double rss = DBL_MAX, rss0 = DBL_MAX, diff = DBL_MAX;
+    double aic = DBL_MAX, aic0 = DBL_MAX, daic = DBL_MAX, mlf = 0.0;
+    for (size_t iter = 0; (aic > aic0 || abs(daic) > eps_iter) && iter < max_iters && retry < max_retries; iter++)
     {
-        rss0 = rss;
+        // rss0 = rss;
+        aic0 = aic;
         //--------------------
         // Initial Guess for M
         //--------------------
@@ -741,7 +744,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
             fit_D_beta(D, beta, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
             break;
         default:
-            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
+            mlf = fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             break;
         }
@@ -751,9 +754,11 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         //------------------------------
         vec yhat = yh - (X * beta) - sum(Z % (mu.rows(group)), 1);
         vec residual = yhat % yhat;
-        rss = sum(residual);
-        diff = rss - rss0;
-        if (rss < rss0) 
+        double rss = sum(residual);
+        aic = 2.0 * nparams + 2.0 * ndata * mlf;
+        // diff = rss - rss0;
+        daic = aic - aic0;
+        if (aic < aic0) 
         {
             if (retry > 0) retry = 0;
         }
@@ -763,8 +768,8 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
             ostringstream sout;
             sout << fixed << setprecision(prescition) << "Iter: " << iter;
             if (bw == 0.0) sout << ", " << "Bw: " << bw_optim;
-            sout << ", " << "RSS: " << rss;
-            if (abs(diff) < DBL_MAX) sout << ", " << "dRSS: " << diff;
+            sout << ", " << "AIC: " << aic;
+            if (abs(daic) < DBL_MAX) sout << ", " << "dAIC: " << daic;
             sout << ", " << "R2: " << (1 - rss / tss);
             sout << ", " << "-loglik/n: " << mlf;
             if (retry > 0) sout << ", " << "Retry: " << retry;
