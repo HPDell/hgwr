@@ -295,7 +295,8 @@ double ml_gsl_f_D(const gsl_vector* v, void* p)
     }
     mat D(q, q, arma::fill::zeros);
     D(trimatl_ind(size(D))) = D_tri;
-    D(trimatu_ind(size(D))) = D_tri;
+    D = D.t();
+    D(trimatl_ind(size(D))) = D_tri;
     double logL = loglikelihood(Xf, Yf, Zf, ngroup, D, *beta, n);
     return -logL / double(n);
 }
@@ -322,7 +323,8 @@ double ml_gsl_f_D_beta(const gsl_vector* v, void* pparams)
     }
     mat D(q, q, arma::fill::zeros);
     D(trimatl_ind(size(D))) = D_tri;
-    D(trimatu_ind(size(D))) = D_tri;
+    D = D.t();
+    D(trimatl_ind(size(D))) = D_tri;
     double logL = loglikelihood(Xf, Yf, Zf, ngroup, D, beta, n);
     return -logL / double(n);
 }
@@ -345,7 +347,8 @@ void ml_gsl_df_D(const gsl_vector* v, void* p, gsl_vector *df)
     }
     mat D(q, q, arma::fill::zeros);
     D(trimatl_ind(size(D))) = D_tri;
-    D(trimatu_ind(size(D))) = D_tri;
+    D = D.t();
+    D(trimatl_ind(size(D))) = D_tri;
     mat dL_D;
     loglikelihood_d(Xf, Yf, Zf, ngroup, D, *beta, n, dL_D);
     dL_D = -dL_D / double(n);
@@ -378,7 +381,8 @@ void ml_gsl_df_D_beta(const gsl_vector* v, void* pparams, gsl_vector *df)
     }
     mat D(q, q, arma::fill::zeros);
     D(trimatl_ind(size(D))) = D_tri;
-    D(trimatu_ind(size(D))) = D_tri;
+    D = D.t();
+    D(trimatl_ind(size(D))) = D_tri;
     mat dL_D;
     vec dL_beta;
     loglikelihood_d(Xf, Yf, Zf, ngroup, D, beta, n, dL_D, dL_beta);
@@ -482,11 +486,12 @@ double fit_D(mat& D, const ML_Params* params, const double alpha, const double e
     vec D_tri(arma::size(D_tril_idx));
     for (uword i = 0; i < ntarget; i++)
     {
-        D_tri(i) = gsl_vector_get(x0, i);
+        D_tri(i) = gsl_vector_get(minimizer->x, i);
     }
     mat D1 = mat(arma::size(D), arma::fill::zeros);
     D1(D_tril_idx) = D_tri;
-    D1(D_triu_idx) = D_tri;
+    D1 = D1.t();
+    D1(D_tril_idx) = D_tri;
     D = D1;
     return minimizer->f;
 }
@@ -594,7 +599,8 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
     }
     mat D1(arma::size(D), arma::fill::zeros);
     D1(D_tril_idx) = D_tri;
-    D1(D_triu_idx) = D_tri;
+    D1 = D1.t();
+    D1(D_tril_idx) = D_tri;
     vec beta1(arma::size(beta), arma::fill::zeros);
     for (uword i = 0; i < p; i++)
     {
