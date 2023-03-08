@@ -36,6 +36,10 @@ set(ADDON_OPTIMIZED_LIBRARIES
     ${Boost_PROGRAM_OPTIONS_LIBRARY_RELEASE}
 )
 
+if(NOT MSVC)
+    add_definitions(-DDBL_MAX=__DBL_MAX__)
+endif()
+
 add_executable(testHGWRBML main.cpp)
 target_link_libraries(testHGWRBML PRIVATE hgwrbml debug ${ADDON_DEBUG_LIBRARIES} optimized ${ADDON_OPTIMIZED_LIBRARIES})
 

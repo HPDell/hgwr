@@ -473,17 +473,16 @@ double fit_D(mat& D, const ML_Params* params, const double alpha, const double e
             sout << minimizer->f << '\r';
             pcout(sout.str());
         }
-        if (status) break;
-        if (minimizer->f < 0 || gsl_isnan(minimizer->f)) break;
+        if (status || gsl_isnan(minimizer->f)) break;
         status = gsl_multimin_test_gradient(minimizer->gradient, eps);
     } while (status == GSL_CONTINUE && (++iter) < max_iters);
     if (verbose) 
     {
         pcout("\n");
     }
-    if (minimizer->f >= 0 && !gsl_isnan(minimizer->f))
+    if (!gsl_isnan(minimizer->f))
     {
-        mat D1 = mat(arma::size(D), arma::fill::zeros);
+        mat D1 = mat(arma::size(D), arma::fill::eye);
         vec D_tri(arma::size(D_tril_idx));
         for (uword i = 0; i < ntarget; i++)
         {
@@ -585,33 +584,32 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
             sout << minimizer->f << '\r';
             pcout(sout.str());
         }
-        if (status) break;
-        if (minimizer->f < 0 || gsl_isnan(minimizer->f)) break;
+        if (status || gsl_isnan(minimizer->f)) break;
         status = gsl_multimin_test_gradient(minimizer->gradient, eps);
     } while (status == GSL_CONTINUE && (++iter) < max_iters);
     if (verbose) 
     {
         pcout("\n");
     }
-    if (minimizer->f >= 0 && !gsl_isnan(minimizer->f))
+    mat D1(arma::size(D), arma::fill::eye);
+    vec beta1(arma::size(beta), arma::fill::ones);
+    if (!gsl_isnan(minimizer->f))
     {
         vec D_tri(arma::size(D_tril_idx));
         for (uword i = p; i < ntarget; i++)
         {
             D_tri(i - p) = gsl_vector_get(minimizer->x, i);
         }
-        mat D1(arma::size(D), arma::fill::zeros);
         D1(D_tril_idx) = D_tri;
         D1 = D1.t();
         D1(D_tril_idx) = D_tri;
-        vec beta1(arma::size(beta), arma::fill::zeros);
         for (uword i = 0; i < p; i++)
         {
             beta1(i) = gsl_vector_get(minimizer->x, i);
         }
-        D = D1;
-        beta = beta1;
     }
+    D = D1;
+    beta = beta1;
 }
 
 mat fit_mu(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const vec& beta, const mat& D)
@@ -707,7 +705,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     //============
     size_t retry = 0;
     double rss = DBL_MAX, rss0 = DBL_MAX, diff = DBL_MAX, mlf = 0.0;
-    for (size_t iter = 0; (rss > rss0 || abs(diff) > eps_iter) && iter < max_iters && retry < max_retries; iter++)
+    for (size_t iter = 0; (abs(diff) > eps_iter) && iter < max_iters && retry < max_retries; iter++)
     {
         rss0 = rss;
         //--------------------
@@ -734,13 +732,11 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         switch (ml_type)
         {
         case 0:
-            D = eye(size(D));
             mlf = fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             break;
         case 1:
             ml_params.beta = nullptr;
-            D = eye(size(D));
             beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
             fit_D_beta(D, beta, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
             break;
