@@ -36,11 +36,15 @@ set(ADDON_OPTIMIZED_LIBRARIES
     ${Boost_PROGRAM_OPTIONS_LIBRARY_RELEASE}
 )
 
+if(NOT MSVC)
+    add_definitions(-DDBL_MAX=__DBL_MAX__)
+endif()
+
 add_executable(testHGWRBML main.cpp)
 target_link_libraries(testHGWRBML PRIVATE hgwrbml debug ${ADDON_DEBUG_LIBRARIES} optimized ${ADDON_OPTIMIZED_LIBRARIES})
 
 add_test(
     NAME Test_HGWRBML
-    COMMAND $<TARGET_FILE:testHGWRBML> -d ${TEST_DATA_DIR} -b 10
+    COMMAND $<TARGET_FILE:testHGWRBML> -d ${TEST_DATA_DIR}
     WORKING_DIRECTORY $<TARGET_FILE_DIR:testHGWRBML>
 )

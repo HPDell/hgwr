@@ -2,16 +2,21 @@
 #define HLMGWR_H
 
 #include <string>
-
-#ifndef HGWRR_RCPP
 #include <armadillo>
-#else
-#include <RcppArmadillo.h>
-#endif
 
 enum GWRKernelType {
     GAUSSIAN,
     BISQUARED
+};
+
+typedef arma::vec (*GWRKernelFunctionSquared)(arma::vec, double);
+
+struct HLMGWRBWArgs {
+    const arma::mat G;
+    const arma::mat Vig; 
+    const arma::vec Viy;
+    const arma::mat u;
+    const GWRKernelFunctionSquared gwr_kernel;
 };
 
 struct HLMGWRArgs {
@@ -47,6 +52,7 @@ struct HLMGWRParams {
     arma::mat mu;
     arma::mat D;
     double sigma;
+    double bw;
 };
 
 struct HLMGWROptions {
