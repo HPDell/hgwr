@@ -2,10 +2,11 @@ name: R Package Check
 
 on:
   push:
-    branches: [ master ]
+    branches:
+      - master
     tags:
-      - 'v*.*.*'
-      - 'v*.*.*-*'
+      - v*.*.*
+      - v*.*.*-*
   pull_request:
     branches: [ master ]
 
