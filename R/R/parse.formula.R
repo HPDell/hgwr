@@ -13,6 +13,8 @@
 #'      - `group`: name of group variable.
 #'      - `random.effects`: a vector of names of random effects.
 #'      - `fixed.effects`: a vector of names of fixed effects.
+#' 
+#' @noRd
 #'
 parse.formula <- function(formula) {
     model <- list()
@@ -70,6 +72,8 @@ parse.formula <- function(formula) {
 #' @param x An object which can be appended to `s`.
 #' 
 #' @rdname parse.formula
+#' 
+#' @noRd 
 #'
 stack.push <- function(s, x) {
     c(s, x)
@@ -81,6 +85,8 @@ stack.push <- function(s, x) {
 #'      function \code{\link[base]{c}}
 #' 
 #' @rdname parse.formula
+#' 
+#' @noRd 
 #'
 stack.pop <- function(s) {
     s[-length(s)]
