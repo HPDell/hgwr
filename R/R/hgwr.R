@@ -6,8 +6,6 @@
 #' Its structure is similar to \code{\link[lme4]{lmer}} function
 #' in **lme4** package.
 #' @param data A DataFrame.
-#' @param local.fixed A character vector.
-#' It contains names of local fixed effects.
 #' @param coords A 2-column matrix.
 #' It consists of coordinates for each group.
 #' @param bw A numeric value. It is the value of bandwidth or `"CV"`.
@@ -66,7 +64,7 @@
 #'      bw = 10)
 #'
 hgwr <- function(
-    formula, data, local.fixed, coords, bw = "CV",
+    formula, data, coords, bw = "CV",
     kernel = c("gaussian", "bisquared"),
     alpha = 0.01, eps_iter = 1e-6, eps_gradient = 1e-6,
     max_iters = 1e6, max_retries = 1e6,
@@ -85,9 +83,8 @@ hgwr <- function(
     group_unique <- unique(group)
     group_index <- match(group, group_unique)
     z <- as.matrix(cbind(1, data[model_desc$random.effects]))
-    fe <- model_desc$fixed.effects
-    lfe <- fe[fe %in% local.fixed]
-    gfe <- fe[!(fe %in% local.fixed)]
+    gfe <- model_desc$fixed.effects
+    lfe <- model_desc$local.fixed.effects
     x <- as.matrix(cbind(1, data[gfe]))
     g <- as.matrix(cbind(1, aggregate(data[lfe], list(group), mean)[,-1]))
 

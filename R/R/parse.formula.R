@@ -22,8 +22,11 @@ parse.formula <- function(formula) {
     stack <- list(root)
     re <- list()
     fe <- list()
+    le <- list()
+    local_mode <- FALSE
     random_mode <- FALSE
     random_start_length <- 0
+    local_start_length <- 0
     while(length(stack) > 0) {
         cur <- tail(stack, 1)[[1]]
         stack <- stack.pop(stack)
@@ -44,11 +47,17 @@ parse.formula <- function(formula) {
                 if (length(cur) > 2)
                     stack <- stack.push(stack, cur[[3]])
             } else if (cur_symbol == '(') {
+                stack <- stack.push(stack, cur[[2]])
+            } else if (cur_symbol == '|') {
+                if (local_mode) stop("Error in formula: cannot set random effects for local fixed effects.")
+                model$group <- as.character(cur[[3]])
                 random_mode <- TRUE
                 random_start_length <- length(stack)
                 stack <- stack.push(stack, cur[[2]])
-            } else if (cur_symbol == '|') {
-                model$group <- as.character(cur[[3]])
+            } else if (cur_symbol == 'L') {
+                if (random_mode) stop("Error in formula: cannot set local fixed effects for random effects.")
+                local_mode <- TRUE
+                local_start_length <- length(stack)
                 stack <- stack.push(stack, cur[[2]])
             } else stop("Error in formula: unrecognized symbol.")
         } else {
@@ -57,11 +66,17 @@ parse.formula <- function(formula) {
                 if (length(stack) == random_start_length) {
                     random_mode <- FALSE
                 }
+            } else if (local_mode) {
+                le <- c(le, cur)
+                if (length(stack) == local_start_length) {
+                    local_mode <- FALSE
+                }
             } else fe <- c(fe, cur)
         }
     }
     model$random.effects <- rev(as.character(re))
     model$fixed.effects <- rev(as.character(fe))
+    model$local.fixed.effects <- rev(as.character(le))
     model
 }
 
@@ -75,9 +90,7 @@ parse.formula <- function(formula) {
 #' 
 #' @noRd 
 #'
-stack.push <- function(s, x) {
-    c(s, x)
-}
+stack.push <- function(s, x) c(s, x)
 
 #' Pop stack
 #'
@@ -88,6 +101,4 @@ stack.push <- function(s, x) {
 #' 
 #' @noRd 
 #'
-stack.pop <- function(s) {
-    s[-length(s)]
-}
+stack.pop <- function(s) s[-length(s)]
