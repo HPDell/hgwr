@@ -4,11 +4,12 @@ on:
   push:
     branches:
       - master
+      - dev-r
     tags:
       - v*.*.*
       - v*.*.*-*
   pull_request:
-    branches: [ master ]
+    branches: [ master, dev-r ]
 
 jobs:
   build_ubuntu:
