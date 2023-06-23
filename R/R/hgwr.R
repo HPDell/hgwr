@@ -5,6 +5,11 @@
 #' @param formula A formula.
 #' Its structure is similar to \code{\link[lme4]{lmer}} function
 #' in **lme4** package.
+#' Models can be specified with the following form:
+#' ```r
+#' response ~ L(local.fixed) + global.fixed + (random | group)
+#' ```
+#' For more information, please see the `formula` subsection in details.
 #' @param data A DataFrame.
 #' @param coords A 2-column matrix.
 #' It consists of coordinates for each group.
@@ -54,6 +59,24 @@
 #'  \item{\code{frame.parsed}}{Variables extracted from the data.}
 #'  \item{\code{groups}}{Unique group labels extracted from the data.}
 #' }
+#' 
+#' @details  
+#' ## Effect Specification in Formula
+#' In the HGWR model, there are three types of effects specified by the
+#' `formula` argument:
+#' \describe{
+#'  \item{Local fixed effects}{Effects wrapped by functional symbol `L`.}
+#'  \item{Random effects}{Effects specified outside the functional symbol `L` but to the left of symbol `|`.}
+#'  \item{Global fixed effects}{Other effects}
+#' }
+#' For example, the following formula in the example of this function below is written as
+#' ```r
+#' y ~ L(g1 + g2) + x1 + (z1 | group)
+#' ```
+#' where `g1` and `g2` are local fixed effects,
+#' `x1` is the global fixed effects,
+#' and `z1` is the random effects grouped by the group indicator `group`.
+#' Note that random effects can only be specified once!
 #'
 #' @examples
 #' data(multisampling)
