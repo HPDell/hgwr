@@ -50,6 +50,7 @@ parse.formula <- function(formula) {
                 stack <- stack.push(stack, cur[[2]])
             } else if (cur_symbol == '|') {
                 if (local_mode) stop("Error in formula: cannot set random effects for local fixed effects.")
+                if (length(re) > 0) stop("Error in formula: only can set random effects once.")
                 model$group <- as.character(cur[[3]])
                 random_mode <- TRUE
                 random_start_length <- length(stack)
