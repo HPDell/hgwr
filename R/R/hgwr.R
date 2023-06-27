@@ -105,9 +105,9 @@ hgwr <- function(
     )
     model_desc <- parse.formula(formula)
     y <- as.vector(data[[model_desc$response]])
-    group <- as.vector(as.integer(data[[model_desc$group]]))
+    group <- data[[model_desc$group]]
     group_unique <- unique(group)
-    group_index <- match(group, group_unique)
+    group_index <- as.vector(match(group, group_unique))
     z <- as.matrix(cbind(1, make.dummy(data[model_desc$random.effects])))
     gfe <- model_desc$fixed.effects
     lfe <- model_desc$local.fixed.effects
@@ -163,7 +163,7 @@ hgwr <- function(
             x = x,
             g = g,
             z = z,
-            group = group
+            group = group_index
         ),
         groups = group_unique
     )
