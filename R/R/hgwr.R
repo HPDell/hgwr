@@ -84,6 +84,10 @@
 #'      data = multisampling$data,
 #'      coords = multisampling$coords,
 #'      bw = 10)
+#' 
+#' @importFrom stats aggregate
+#' 
+#' @export 
 #'
 hgwr <- function(
     formula, data, coords, bw = "CV",
@@ -108,7 +112,7 @@ hgwr <- function(
     gfe <- model_desc$fixed.effects
     lfe <- model_desc$local.fixed.effects
     x <- as.matrix(cbind(1, make.dummy(data[gfe])))
-    g <- as.matrix(cbind(1, make.dummy(aggregate(data[lfe], list(group), mean)[,-1])))
+    g <- as.matrix(cbind(1, aggregate(make.dummy(data[lfe]), list(group), mean)[,-1]))
 
     ### Get bandwidth value
     if (is.character(bw) && bw == "CV") {
@@ -177,6 +181,9 @@ hgwr <- function(
 #' @return A \code{DataFrame} object consists of all estimated coefficients.
 #'
 #' @seealso [hgwr()], [summary.hgwrm()], [fitted.hgwrm()] and [residuals.hgwrm()].
+#' 
+#' @export 
+#' 
 coef.hgwrm <- function(object, ...) {
     if (!inherits(object, "hgwrm")) {
         stop("It's not a hgwrm object.")
@@ -215,6 +222,9 @@ fitted.hgwrm <- function(object, ...) {
 #' @return A vector consists of residuals.
 #'
 #' @seealso [hgwr()], [summary.hgwrm()], [coef.hgwrm()] and [fitted.hgwrm()].
+#' 
+#' @export 
+#' 
 residuals.hgwrm <- function(object, ...) {
     if (!inherits(object, "hgwrm")) {
         stop("It's not a hgwrm object.")
@@ -237,6 +247,8 @@ residuals.hgwrm <- function(object, ...) {
 #' }
 #'
 #' @seealso [hgwr()].
+#' 
+#' @export 
 #'
 summary.hgwrm <- function(object, ...) {
     if (!inherits(object, "hgwrm")) {
@@ -303,6 +315,9 @@ summary.hgwrm <- function(object, ...) {
 #' In this function, characters are right padded by spaces.
 #'
 #' @seealso [print.hgwrm()], [summary.hgwrm()].
+#' 
+#' @export 
+#' 
 print.table.md <- function(x, col.sep = "", header.sep = "",
                            row.begin = "", row.end = "",
                            table.style = c("plain", "md", "latex"), ...) {
@@ -367,6 +382,9 @@ print.table.md <- function(x, col.sep = "", header.sep = "",
 #' @param fmt Format string. Passing to [base::sprintf()].
 #'
 #' @seealso [base::sprintf()], [print.hgwrm()], [print.summary.hgwrm()].
+#' 
+#' @export 
+#' 
 matrix2char <- function(m, fmt = "%.6f") {
     mc <- NULL
     if ("array" %in% class(m)) {
@@ -395,6 +413,10 @@ matrix2char <- function(m, fmt = "%.6f") {
 #' print(model, table.style = "md")
 #'
 #' @seealso [summary.hgwrm()], [print.table.md()].
+#' 
+#' @importFrom stats fivenum
+#' 
+#' @export 
 #'
 print.hgwrm <- function(x, decimal.fmt = "%.6f", ...) {
     if (!inherits(x, "hgwrm")) {
@@ -475,6 +497,8 @@ print.hgwrm <- function(x, decimal.fmt = "%.6f", ...) {
 #'               coords = multisampling$coords,
 #'               bw = 10)
 #' summary(model)
+#' 
+#' @export 
 #'
 print.summary.hgwrm <- function(x, decimal.fmt = "%.6f", ...) {
     if (!inherits(x, "summary.hgwrm")) {

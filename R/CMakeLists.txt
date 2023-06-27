@@ -12,7 +12,6 @@ find_package(R REQUIRED)
 include_directories(${R_INCLUDE_DIRS} ${RCPP_ARMADILLO_INCLUDE_DIR} ${RCPP_INCLUDE_DIR})
 
 configure_file(DESCRIPTION.in ${PROJECT_RBUILD_DIR}/DESCRIPTION)
-configure_file(NAMESPACE.in ${PROJECT_RBUILD_DIR}/NAMESPACE)
 file(COPY cleanup DESTINATION ${PROJECT_RBUILD_DIR})
 file(COPY configure DESTINATION ${PROJECT_RBUILD_DIR})
 file(COPY configure.ac DESTINATION ${PROJECT_RBUILD_DIR})
@@ -27,6 +26,13 @@ file(COPY ${CMAKE_SOURCE_DIR}/src/hlmgwr.cpp DESTINATION ${PROJECT_RBUILD_DIR}/s
 include_directories(../include)
 add_definitions(-DRCPP_USE_GLOBAL_ROSTREAM)
 
+add_custom_target(hgwrr_roxygen
+    VERBATIM
+    WORKING_DIRECTORY ${PROJECT_RBUILD_DIR}
+    COMMAND_EXPAND_LISTS
+    COMMAND ${R_EXECUTABLE} -e "roxygen2::roxygenize(load_code = 'source')"
+)
+
 add_custom_target(hgwrr_install_temp
     VERBATIM
     WORKING_DIRECTORY ${PROJECT_RBUILD_DIR}/..
@@ -34,8 +40,8 @@ add_custom_target(hgwrr_install_temp
     COMMAND ${CMAKE_COMMAND} -E
         make_directory "${PROJECT_NAME}.library"
     COMMAND ${R_EXECUTABLE} CMD INSTALL --preclean --library=${PROJECT_NAME}.library ${PROJECT_NAME}
-    COMMAND ${R_EXECUTABLE} -e "roxygen2::roxygenize('${PROJECT_NAME}', load_code = 'source')"
 )
+add_dependencies(hgwrr_install_temp hgwrr_roxygen)
 
 add_custom_target(hgwrr_rpkg
     VERBATIM
@@ -43,7 +49,7 @@ add_custom_target(hgwrr_rpkg
     COMMAND_EXPAND_LISTS
     COMMAND ${R_EXECUTABLE} CMD build ${PROJECT_NAME}
 )
-add_dependencies(hgwrr_rpkg hgwrr_install_temp)
+add_dependencies(hgwrr_rpkg hgwrr_roxygen)
 
 add_library(hgwrr_rcpp_export SHARED src/RcppExports.cpp)
 target_link_libraries(hgwrr_rcpp_export hgwrbml)

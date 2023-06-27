@@ -14,6 +14,9 @@
 #'      - `random.effects`: a vector of names of random effects.
 #'      - `fixed.effects`: a vector of names of fixed effects.
 #' 
+#' @importFrom stats as.formula
+#' @importFrom utils tail
+#' 
 #' @noRd
 #'
 parse.formula <- function(formula) {
