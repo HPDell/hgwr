@@ -104,11 +104,11 @@ hgwr <- function(
     group <- as.vector(as.integer(data[[model_desc$group]]))
     group_unique <- unique(group)
     group_index <- match(group, group_unique)
-    z <- as.matrix(cbind(1, data[model_desc$random.effects]))
+    z <- as.matrix(cbind(1, make.dummy(data[model_desc$random.effects])))
     gfe <- model_desc$fixed.effects
     lfe <- model_desc$local.fixed.effects
-    x <- as.matrix(cbind(1, data[gfe]))
-    g <- as.matrix(cbind(1, aggregate(data[lfe], list(group), mean)[,-1]))
+    x <- as.matrix(cbind(1, make.dummy(data[gfe])))
+    g <- as.matrix(cbind(1, make.dummy(aggregate(data[lfe], list(group), mean)[,-1])))
 
     ### Get bandwidth value
     if (is.character(bw) && bw == "CV") {
@@ -121,6 +121,8 @@ hgwr <- function(
         bw_value <- Inf
         optim_bw <- FALSE
     }
+
+    dummy.coef()
 
     ### Call C
     hgwr_result <- .hgwr_bml(

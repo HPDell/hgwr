@@ -34,13 +34,13 @@ add_custom_target(hgwrr_install_temp
     COMMAND ${CMAKE_COMMAND} -E
         make_directory "${PROJECT_NAME}.library"
     COMMAND ${R_EXECUTABLE} CMD INSTALL --preclean --library=${PROJECT_NAME}.library ${PROJECT_NAME}
+    COMMAND ${R_EXECUTABLE} -e "roxygen2::roxygenize('${PROJECT_NAME}', load_code = 'source')"
 )
 
 add_custom_target(hgwrr_rpkg
     VERBATIM
     WORKING_DIRECTORY ${PROJECT_RBUILD_DIR}/..
     COMMAND_EXPAND_LISTS
-    COMMAND ${R_EXECUTABLE} -e "roxygen2::roxygenize('${PROJECT_NAME}', load_code = 'source')"
     COMMAND ${R_EXECUTABLE} CMD build ${PROJECT_NAME}
 )
 add_dependencies(hgwrr_rpkg hgwrr_install_temp)
