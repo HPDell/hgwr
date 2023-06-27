@@ -126,8 +126,6 @@ hgwr <- function(
         optim_bw <- FALSE
     }
 
-    dummy.coef()
-
     ### Call C
     hgwr_result <- .hgwr_bml(
         g, x, z, y, as.matrix(coords), group_index, bw_value, kernel,
