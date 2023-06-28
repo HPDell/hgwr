@@ -26,7 +26,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DWITH_R
+          cmake .. -DWITH_R=ON
           cmake --build . --config Release --target hgwrr_rpkg
           ctest -R Test_R_hgwr --output-on-failure --verbose
   
