@@ -99,9 +99,15 @@ jobs:
     if: github.ref_type == 'tag'
     needs: [build_linux, build_macos, build_windows]
     runs-on: ubuntu-20.04
+    container:
+      image: ghcr.io/hpdell/hgwr-${{ matrix.os }}-docker-action:latest
     steps:
       - uses: actions/checkout@v3
-      - uses: docker://ghcr.io/hpdell/hgwr-ubuntu-docker-action:latest
+      - name: Build and check packages
+        run: |
+          mkdir build
+          cmake -S . -B build -DWITH_R=ON
+          cmake --build . --config Release --target hgwrr_rpkg
       - id: extract_r_version
         name: Extract R version number
         run: |
