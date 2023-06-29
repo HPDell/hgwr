@@ -12,23 +12,23 @@ on:
     branches: [ master, dev-r ]
 
 jobs:
-  build_ubuntu:
+  build_linux:
     runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        os: [ubuntu, debian, fedora]
+      fail-fast: false
+    container:
+      image: ghcr.io/hpdell/hgwr-${{ matrix.os }}-docker-action:latest
     steps:
       - uses: actions/checkout@v3
-      - uses: docker://ghcr.io/hpdell/hgwr-ubuntu-docker-action:latest
-      
-  build_fedora:
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v3
-      - uses: docker://ghcr.io/hpdell/hgwr-fedora-docker-action:latest
-      
-  build_debian:
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v3
-      - uses: docker://ghcr.io/hpdell/hgwr-debian-docker-action:latest
+      - name: Build and check packages
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DWITH_R=ON
+          cmake --build . --config Release --target hgwrr_rpkg
+          ctest -R Test_R_hgwr --output-on-failure --verbose
   
   build_macos:
     runs-on: macos-latest
@@ -54,7 +54,7 @@ jobs:
         run: |
           mkdir build
           cmake -B build -S . -DWITH_R=ON
-          cmake --build build --config Release --target hgwrr_rbuild
+          cmake --build build --config Release --target hgwrr_rpkg
           ctest --test-dir build -R Test_R_hgwr --output-on-failure --verbose
   
   build_windows:
@@ -92,16 +92,22 @@ jobs:
         run: |
           mkdir build
           cmake -B build -S . -DWITH_R=ON -DR_ROOT="C:/R/" "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
-          cmake --build build --config Release --target hgwrr_rbuild
+          cmake --build build --config Release --target hgwrr_rpkg
           cd build && ctest -R Test_R_hgwr -C Release --output-on-failure --verbose
   
   deploy_build:
     if: github.ref_type == 'tag'
-    needs: [build_ubuntu, build_fedora, build_debian, build_macos, build_windows]
+    needs: [build_linux, build_macos, build_windows]
     runs-on: ubuntu-20.04
+    container:
+      image: ghcr.io/hpdell/hgwr-${{ matrix.os }}-docker-action:latest
     steps:
       - uses: actions/checkout@v3
-      - uses: docker://ghcr.io/hpdell/hgwr-ubuntu-docker-action:latest
+      - name: Build and check packages
+        run: |
+          mkdir build
+          cmake -S . -B build -DWITH_R=ON
+          cmake --build . --config Release --target hgwrr_rpkg
       - id: extract_r_version
         name: Extract R version number
         run: |
