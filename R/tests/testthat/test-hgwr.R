@@ -39,3 +39,12 @@ test_that("hgwr s3 methods", {
   expect_no_error(summary(m))
   expect_no_error(print(summary(m), table.style = "md"))
 })
+
+test_that("hgwr data.frame coords check", {
+  data(multisampling)
+  expect_error(hgwr(
+    formula = y ~ L(g1 + g2) + x1 + (z1 | group),
+    data = multisampling$data,
+    bw = 10
+  ))
+})
