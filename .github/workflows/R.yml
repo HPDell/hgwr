@@ -50,7 +50,7 @@ jobs:
         run: |
           install.packages(c('pak'))
           pak::pkg_install(c('devtools', 'Rcpp', 'RcppArmadillo', 'sf'))
-        shell: Rscript -e {0}
+        shell: Rscript {0}
       - name: CMake build
         run: |
           mkdir build
@@ -90,7 +90,7 @@ jobs:
         run: |
           install.packages(c('pak'))
           pak::pkg_install(c('devtools', 'Rcpp', 'RcppArmadillo', 'sf'))
-        shell: Rscript -e {0}
+        shell: Rscript {0}
       - name: CMake build and check
         run: |
           mkdir build
