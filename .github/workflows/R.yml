@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        os: [ubuntu, debian, fedora]
+        os: [debian, fedora]
       fail-fast: false
     container:
       image: ghcr.io/hpdell/hgwr-${{ matrix.os }}-docker-action:latest
@@ -47,9 +47,10 @@ jobs:
           cmake --build armadillo/build --config Release
           cmake --install armadillo/build
       - name: Install R dependencies
-        run: |
-          install.packages(c("devtools", "Rcpp", "RcppArmadillo"), type = "mac.binary")
-        shell: Rscript {0}
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::devtools
       - name: CMake build
         run: |
           mkdir build
@@ -86,8 +87,10 @@ jobs:
           rtools-version: '42'
           update-rtools: true
       - name: Install R Dependencies
-        run: |
-          Rscript.exe -e "install.packages(c('devtools', 'Rcpp', 'RcppArmadillo'))"
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::devtools
       - name: CMake build and check
         run: |
           mkdir build
