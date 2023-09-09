@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        os: [ubuntu, debian, fedora]
+        os: [debian, fedora]
       fail-fast: false
     container:
       image: ghcr.io/hpdell/hgwr-${{ matrix.os }}-docker-action:latest
@@ -40,7 +40,7 @@ jobs:
           r-version: '4.1.1'
       - name: Install C++ dependencies
         run: |
-          brew install gsl openblas boost
+          brew install gsl openblas boost udunits geos gdal proj sqlite
           mkdir armadillo
           wget -qO- http://sourceforge.net/projects/arma/files/armadillo-9.900.6.tar.xz | tar -Jxf- --directory=armadillo --strip-components=1
           cmake -B armadillo/build -S armadillo -DCMAKE_INSTALL_PREFIX=/usr/local -DDETECT_HDF5=OFF -DBUILD_SHARED_LIBS=OFF
@@ -48,7 +48,8 @@ jobs:
           cmake --install armadillo/build
       - name: Install R dependencies
         run: |
-          install.packages(c("devtools", "Rcpp", "RcppArmadillo"), type = "mac.binary")
+          install.packages(c('pak'))
+          pak::pkg_install(c('devtools', 'Rcpp', 'RcppArmadillo', 'sf'))
         shell: Rscript {0}
       - name: CMake build
         run: |
@@ -87,7 +88,9 @@ jobs:
           update-rtools: true
       - name: Install R Dependencies
         run: |
-          Rscript.exe -e "install.packages(c('devtools', 'Rcpp', 'RcppArmadillo'))"
+          install.packages(c('pak'))
+          pak::pkg_install(c('devtools', 'Rcpp', 'RcppArmadillo', 'sf'))
+        shell: Rscript {0}
       - name: CMake build and check
         run: |
           mkdir build
