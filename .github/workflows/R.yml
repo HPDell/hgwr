@@ -40,7 +40,7 @@ jobs:
           r-version: '4.1.1'
       - name: Install C++ dependencies
         run: |
-          brew install gsl openblas boost 
+          brew install gsl openblas boost udunits geos gdal proj sqlite
           mkdir armadillo
           wget -qO- http://sourceforge.net/projects/arma/files/armadillo-9.900.6.tar.xz | tar -Jxf- --directory=armadillo --strip-components=1
           cmake -B armadillo/build -S armadillo -DCMAKE_INSTALL_PREFIX=/usr/local -DDETECT_HDF5=OFF -DBUILD_SHARED_LIBS=OFF
