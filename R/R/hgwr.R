@@ -220,6 +220,7 @@ hgwr_fit <- function(
             group = model_desc$group,
             response = model_desc$response
         ),
+        intercept = model_desc$intercept,
         frame = data,
         frame.parsed = list(
             y = y,
@@ -492,10 +493,14 @@ print.hgwrm <- function(x, decimal.fmt = "%.6f", ...) {
     cat("   Data:", deparse(x$call[[3]]), fill = T)
     cat("\n")
     effects <- x$effects
+    intercept <- x$intercept
+    if (intercept$fixed) effects$global.fixed <- c("Intercept", effects$global.fixed)
+    if (intercept$local) effects$local.fixed <- c("Intercept", effects$local.fixed)
+    if (intercept$random) effects$random <- c("Intercept", effects$random)
     cat("Global Fixed Effects", fill = T)
     cat("-------------------", fill = T)
     beta_str <- rbind(
-        c("Intercept", effects$global.fixed),
+        effects$global.fixed,
         matrix2char(x$beta)
     )
     print.table.md(beta_str, ...)
@@ -506,7 +511,7 @@ print.hgwrm <- function(x, decimal.fmt = "%.6f", ...) {
     gamma_fivenum <- t(apply(x$gamma, 2, fivenum))
     gamma_str <- rbind(
         c("Coefficient", "Min", "1st Quartile", "Median", "3rd Quartile", "Max"),
-        cbind(c("Intercept", effects$local.fixed), matrix2char(gamma_fivenum))
+        cbind(effects$local.fixed, matrix2char(gamma_fivenum))
     )
     print.table.md(gamma_str, ...)
     cat("\n")
@@ -520,7 +525,7 @@ print.hgwrm <- function(x, decimal.fmt = "%.6f", ...) {
     random_corr_str <- rbind("", random_corr_str)
     random_corr_str[1, 1] <- "Corr"
     random_dev_str <- cbind(
-        "", c("Intercept", x$effects$random), matrix2char(matrix(random_stddev, ncol = 1))
+        "", effects$random, matrix2char(matrix(random_stddev, ncol = 1))
     )
     random_dev_str[1, 1] <- effects$group
     random_dev_str <- rbind(
