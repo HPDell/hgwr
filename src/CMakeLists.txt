@@ -61,5 +61,5 @@ set(ADDON_OPTIMIZED_LIBRARIES
     ${GSL_LIBRARY}
 )
 
-add_library(hgwrbml STATIC hlmgwr.cpp)
+add_library(hgwrbml STATIC hlmgwr.cpp diagnostic.cpp)
 target_link_libraries(hgwrbml ${ADDON_LIBRARIES} debug ${ADDON_DEBUG_LIBRARIES} optimized ${ADDON_OPTIMIZED_LIBRARIES})

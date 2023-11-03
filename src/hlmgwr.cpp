@@ -140,14 +140,14 @@ double golden_selection(const double lower, const double upper, const bool adapt
  * @param wD Equals to $D$
  * @return mat 
  */
-tuple<mat, double> fit_gwr(
+tuple<mat, double, mat, mat> fit_gwr(
     const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup,
     const mat& D, const mat& u, const double bw, const GWRKernelType kernel,
     const size_t verbose, const PrintFunction pcout
 )
 {
     uword k = G.n_cols;//, q = Zf[0].n_cols;
-    mat beta(ngroup, k, arma::fill::zeros), D_inv = D.i();
+    mat beta(ngroup, k, arma::fill::zeros), betaSE(ngroup, k, arma::fill::zeros), D_inv = D.i();
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
     for (size_t i = 0; i < ngroup; i++)
@@ -170,6 +170,7 @@ tuple<mat, double> fit_gwr(
         b = golden_selection(lower, upper, true, &bw_args, verbose > 1, pcout);
     }
     /// Calibrate for each gorup.
+    mat S(ngroup, ngroup, arma::fill::zeros);
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
@@ -178,9 +179,13 @@ tuple<mat, double> fit_gwr(
         vec wW = (*gwr_kernel)(d2, b2);
         mat GtWVG = (G.each_col() % wW).t() * Vig;
         mat GtWVy = (G.each_col() % wW).t() * Viy;
-        beta.row(i) = solve(GtWVG, GtWVy).t();
+        mat GtWVG_inv = inv(GtWVG);
+        beta.row(i) = (GtWVG_inv * GtWVy).t();
+        mat ci = GtWVG_inv * (G.each_col() % wW).t();
+        betaSE.row(i) = sum(ci % ci, 1).t();
+        S.row(i) = G.row(i) * ci;
     }
-    return make_tuple(beta, b);
+    return make_tuple(beta, b, betaSE, S);
 }
 
 vec fit_gls(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D)
@@ -696,6 +701,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         Xf[i] = X.rows(ind);
         Zf[i] = Z.rows(ind);
     }
+    mat gwrS;
     //----------------------------------------------
     // Generalized Least Squared Estimation for beta
     //----------------------------------------------
@@ -718,6 +724,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         auto gwr_result = fit_gwr(G, Ygf, Zf, ngroup, D, u, bw, kernel, verbose, pcout);
         gamma = get<0>(gwr_result);
         bw_optim = get<1>(gwr_result);
+        gwrS = get<3>(gwr_result);
         vec hatMg = sum(G % gamma, 1);
         vec hatM = hatMg.rows(group);
         vec yh = y - hatM;
