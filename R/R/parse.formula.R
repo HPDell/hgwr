@@ -71,22 +71,21 @@ parse.formula <- function(formula) {
                 stack <- stack.push(stack, cur[[2]])
             } else stop("Error in formula: unrecognized symbol.")
         } else {
-            if (inherits(cur, "numeric") && cur == 0) {
-                if (random_mode) model$intercept$random = FALSE
-                else if (local_mode) model$intercept$local = FALSE
-                else model$intercept$fixed = FALSE
+            if (random_mode) {
+                if (inherits(cur, "numeric") && cur == 0) model$intercept$random = FALSE
+                else re <- c(re, cur)
+                if (length(stack) == random_start_length) {
+                    random_mode <- FALSE
+                }
+            } else if (local_mode) {
+                if (inherits(cur, "numeric") && cur == 0) model$intercept$local = FALSE
+                else le <- c(le, cur)
+                if (length(stack) == local_start_length) {
+                    local_mode <- FALSE
+                }
             } else {
-                if (random_mode) {
-                    re <- c(re, cur)
-                    if (length(stack) == random_start_length) {
-                        random_mode <- FALSE
-                    }
-                } else if (local_mode) {
-                    le <- c(le, cur)
-                    if (length(stack) == local_start_length) {
-                        local_mode <- FALSE
-                    }
-                } else fe <- c(fe, cur)
+                if (inherits(cur, "numeric") && cur == 0) model$intercept$fixed = FALSE
+                else fe <- c(fe, cur)
             }
         }
     }
