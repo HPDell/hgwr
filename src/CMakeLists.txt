@@ -2,24 +2,6 @@ cmake_minimum_required(VERSION 3.12.0)
 
 include_directories(../include)
 
-find_package(Armadillo REQUIRED)
-if(ARMADILLO_FOUND)
-    add_definitions(-DARMA_USE_LAPACK -DARMA_USE_BLAS -DARMA_DONT_USE_WRAPPER)
-    include_directories(${ARMADILLO_INCLUDE_DIRS})
-
-    find_package(BLAS)
-    if(NOT BLAS_FOUND)
-        message(SEND_ERROR "BLAS Not Found!")
-    endif(NOT BLAS_FOUND)
-    
-    find_package(LAPACK)
-    if(NOT LAPACK_FOUND)
-        message(SEND_ERROR "LAPACK Not Found!")
-    endif(NOT LAPACK_FOUND)
-else(ARMADILLO_FOUND)
-    message(FATAL_ERROR "Armadillo Not Found!")
-endif(ARMADILLO_FOUND)
-
 find_package(OpenMP)
 if(OpenMP_FOUND AND OpenMP_C_FOUND AND OpenMP_CXX_FOUND)
     SET (ENABLE_OpenMP TRUE CACHE BOOL "Determines whether OpemMP support should be built")
@@ -63,3 +45,8 @@ set(ADDON_OPTIMIZED_LIBRARIES
 
 add_library(hgwrbml STATIC hlmgwr.cpp)
 target_link_libraries(hgwrbml ${ADDON_LIBRARIES} debug ${ADDON_DEBUG_LIBRARIES} optimized ${ADDON_OPTIMIZED_LIBRARIES})
+
+if(WITH_CLI)
+    add_subdirectory("cli")
+endif()
+
