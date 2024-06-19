@@ -28,7 +28,13 @@ TEST_CASE("HGWR(BFML)")
     HLMGWROptions options { 0.01, 1e-6, 1e-6, 100000, 10, 0, 0 };
 
     HLMGWRArgs alg_args { G, X, Z, y, u, group, bw, kernel };
-    REQUIRE_NOTHROW([&]() {
-        HLMGWRParams alg_params = backfitting_maximum_likelihood(alg_args, options, pcout);
-    });
+    HLMGWRParams alg_params;
+    REQUIRE_NOTHROW([&](){
+        alg_params = backfitting_maximum_likelihood(alg_args, options, pcout);
+        return 0;
+    }());
+    INFO("Results:");
+    CAPTURE(alg_params.bw, alg_params.sigma, alg_params.gamma, alg_params.beta, alg_params.mu, alg_params.D);
+    CHECK_THAT(alg_params.bw, Catch::Matchers::WithinAbs(10.0, 1e-6));
+    CHECK_THAT(alg_params.sigma, Catch::Matchers::WithinAbs(1.9212546213601509, 1e-6));
 }
