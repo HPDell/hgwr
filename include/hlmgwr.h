@@ -220,11 +220,11 @@ private:
     arma::uvec group;
     double bw = 0.0;
     KernelType kernel = KernelType::GAUSSIAN;
-    GWRKernelFunctionSquared gwr_kernel;
+    GWRKernelFunctionSquared gwr_kernel = &gwr_kernel_gaussian2;
 
     /* model parameters */
     arma::mat gamma;
-    arma::mat beta;
+    arma::vec beta;
     arma::mat mu;
     arma::mat D;
     double sigma;

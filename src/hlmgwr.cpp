@@ -621,15 +621,10 @@ HGWR::Parameters HGWR::fit()
     int prescition = (int)log10(1 / eps_iter);
     bw_optim = bw;
     double tss = sum((y - mean(y)) % (y - mean(y)));
-    mat gamma(ngroup, nvg, arma::fill::zeros);
-    vec beta(nvx, arma::fill::zeros);
-    mat mu(ngroup, nvz, arma::fill::zeros);
-    mat D(nvz, nvz, arma::fill::eye);
-    mat gmap(ndata, ngroup, arma::fill::zeros);
-    for (uword i = 0; i < ngroup; i++)
-    {
-        gmap.col(i) = conv_to<vec>::from(group == i);
-    }
+    gamma = mat(ngroup, nvg, arma::fill::zeros);
+    beta = vec(nvx, arma::fill::zeros);
+    mu = mat(ngroup, nvz, arma::fill::zeros);
+    D = mat(nvz, nvz, arma::fill::eye);
     Zf = make_unique<arma::mat[]>(ngroup);
     Xf = make_unique<arma::mat[]>(ngroup);
     Yf = make_unique<arma::vec[]>(ngroup);
