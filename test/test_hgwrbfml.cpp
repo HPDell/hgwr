@@ -27,11 +27,11 @@ TEST_CASE("HGWR(BFML)")
 
     double bw = 10.0;
     auto kernel = HGWR::KernelType::GAUSSIAN;
-    HGWR::Options options { 0.01, 1e-6, 1e-6, 100000, 10, 0, 0 };
+    HGWR::Options options { 0.1, 1e-6, 1e-6, 100000, 10, 0, 0 };
     HGWR algorithm { G, X, Z, y, u, group, kernel, bw, options, pcout };
     REQUIRE_NOTHROW(algorithm.fit());
     INFO("Results:");
     CAPTURE(algorithm.get_bw(), algorithm.get_sigma(), algorithm.get_gamma(), algorithm.get_beta(), algorithm.get_mu(), algorithm.get_D());
     CHECK_THAT(algorithm.get_bw(), Catch::Matchers::WithinAbs(10.0, 1e-6));
-    CHECK_THAT(alg_params.sigma, Catch::Matchers::WithinAbs(1.9472450709, 1e-2));
+    CHECK_THAT(algorithm.get_sigma(), Catch::Matchers::WithinAbs(1.9472450709, 1e-2));
 }
