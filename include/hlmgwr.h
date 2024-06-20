@@ -206,7 +206,7 @@ public:
     arma::vec fit_gls();
     double fit_D(ML_Params* params);
     void fit_D_beta(ML_Params* params);
-    arma::mat fit_mu();
+    void fit_mu();
     double fit_sigma();
     Parameters fit();
 

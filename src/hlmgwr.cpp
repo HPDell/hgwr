@@ -119,7 +119,7 @@ void HGWR::fit_gwr()
     vec Viy(ngroup, arma::fill::zeros);
     for (size_t i = 0; i < ngroup; i++)
     {
-        const mat& Yi = Yf[i];
+        const mat& Yi = Ygf[i];
         const mat& Zi = Zf[i];
         uword ndata = Zi.n_rows;
         mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
@@ -157,7 +157,7 @@ vec HGWR::fit_gls()
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Xi = Xf[i];
-        const mat& Yi = Yf[i];
+        const mat& Yi = Yhf[i];
         const mat& Zi = Zf[i];
         uword ndata = Zi.n_rows;
         mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
@@ -577,14 +577,15 @@ void HGWR::fit_D_beta(ML_Params* params)
     beta = beta1;
 }
 
-mat HGWR::fit_mu()
+void HGWR::fit_mu()
 {
     uword q = Zf[0].n_cols;
-    mat D_inv = D.i(), mu(ngroup, q, arma::fill::zeros);
+    mat D_inv = D.i();
+    mu.fill(arma::fill::zeros);
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Xi = Xf[i];
-        const mat& Yi = Yf[i];
+        const mat& Yi = Yhf[i];
         const mat& Zi = Zf[i];
         uword ndata = Zi.n_rows;
         mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
@@ -592,7 +593,6 @@ mat HGWR::fit_mu()
         vec Ri = Yi - Xi * beta;
         mu.row(i) = (D * Zi.t() * Vi_inv * Ri).t();
     }
-    return mu;
 }
 
 double HGWR::fit_sigma()
@@ -602,7 +602,7 @@ double HGWR::fit_sigma()
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Xi = Xf[i];
-        const mat& Yi = Yf[i];
+        const mat& Yi = Yhf[i];
         const mat& Zi = Zf[i];
         uword ndata = Zi.n_rows;
         mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
@@ -636,6 +636,7 @@ HGWR::Parameters HGWR::fit()
         Yf[i] = y.rows(ind);
         Xf[i] = X.rows(ind);
         Zf[i] = Z.rows(ind);
+        Yhf[i] = y.rows(ind);
     }
     //----------------------------------------------
     // Generalized Least Squared Estimation for beta
@@ -667,7 +668,7 @@ HGWR::Parameters HGWR::fit()
         //------------------------------------
         // Maximum Likelihood Estimation for D
         //------------------------------------
-        ML_Params ml_params = { Xf.get(), Yf.get(), Zf.get(), &beta, ngroup, ndata, nvx, nvz };
+        ML_Params ml_params = { Xf.get(), Yhf.get(), Zf.get(), &beta, ngroup, ndata, nvx, nvz };
         switch (ml_type)
         {
         case 1:
@@ -680,7 +681,7 @@ HGWR::Parameters HGWR::fit()
             beta = fit_gls();
             break;
         }
-        mu = fit_mu();
+        fit_mu();
         //------------------------------
         // Calculate Termination Measure
         //------------------------------
