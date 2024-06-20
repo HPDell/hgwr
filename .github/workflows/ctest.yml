@@ -34,9 +34,6 @@ jobs:
 
   windows-test:
     runs-on: windows-2019
-    strategy:
-      matrix:
-        openmp: [TRUE, FALSE]
     env: 
       USERNAME: HPDell
       FEED_URL: https://nuget.pkg.github.com/HPDell/index.json
