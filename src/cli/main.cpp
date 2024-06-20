@@ -6,8 +6,9 @@
 
 using namespace std;
 using namespace arma;
+using namespace hgwr;
 
-void pcout(string message)
+void pcout(const string& message)
 {
     cout << message;
 }
@@ -15,7 +16,7 @@ void pcout(string message)
 int main(int argc, char *argv[])
 {
 /// Command Line Options
-    HLMGWROptions options;
+    HGWR::Options options;
     boost::program_options::options_description desc("Gradient Descent Solution for HLMGWR");
     desc.add_options()
         ("data-dir,d", boost::program_options::value<string>(), "Data directory")
@@ -49,7 +50,7 @@ int main(int argc, char *argv[])
         bw = var_map["bandwidth"].as<double>();
     }
     string data_dir, output_dir;
-    GWRKernelType kernel = GWRKernelType::GAUSSIAN;
+    auto kernel = HGWR::KernelType::GAUSSIAN;
     if (var_map.count("data-dir") > 0) data_dir = var_map["data-dir"].as<string>();
     else 
     {
@@ -70,7 +71,7 @@ int main(int argc, char *argv[])
     if (var_map.count("verbose") > 0) options.verbose = var_map["verbose"].as<size_t>();
     if (var_map.count("v1") > 0) options.verbose = 1;
     if (var_map.count("v2") > 0) options.verbose = 2;
-    if (var_map.count("kernel") > 0) GWRKernelType(var_map["kernel"].as<size_t>());
+    if (var_map.count("kernel") > 0) kernel = HGWR::KernelType(var_map["kernel"].as<size_t>());
     /// solve
     mat G,X,Z,u;
     vec y;
@@ -82,8 +83,8 @@ int main(int argc, char *argv[])
     u.load(arma::csv_name(string(data_dir) + "/hlmgwr_u.csv"));
     y.load(arma::csv_name(string(data_dir) + "/hlmgwr_y.csv"));
     group.load(arma::csv_name(string(data_dir) + "/hlmgwr_group.csv"));
-    HLMGWRArgs alg_args(G, X, Z, y, u, group, bw, kernel);
-    HLMGWRParams alg_params = backfitting_maximum_likelihood(alg_args, options, pcout);
+    HGWR algorithm(G, X, Z, y, u, group, kernel, bw, options, pcout);
+    HGWR::Parameters alg_params = algorithm.fit();
     // Diagnostic
     const mat &gamma = alg_params.gamma, &beta = alg_params.beta, &mu = alg_params.mu, &D = alg_params.D;
     uword ngroup = G.n_rows, ndata = y.n_rows;
