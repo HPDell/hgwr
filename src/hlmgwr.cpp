@@ -728,7 +728,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         //------------------------------------
         // Maximum Likelihood Estimation for D
         //------------------------------------
-        ML_Params ml_params = { Xf, Yf, Zf, &beta, ngroup, ndata, nvx, nvz };
+        ML_Params ml_params = { Xf, Yhf, Zf, &beta, ngroup, ndata, nvx, nvz };
         switch (ml_type)
         {
         case 0:

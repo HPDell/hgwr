@@ -2,6 +2,7 @@
 #include <catch2/catch_all.hpp>
 #include <armadillo>
 #include "hlmgwr.h"
+#include "helper.h"
 
 using namespace std;
 using namespace arma;
@@ -25,7 +26,7 @@ TEST_CASE("HGWR(BFML)")
 
     double bw = 10.0;
     GWRKernelType kernel = GWRKernelType::GAUSSIAN;
-    HLMGWROptions options { 0.01, 1e-6, 1e-6, 100000, 10, 0, 0 };
+    HLMGWROptions options { 0.1, 1e-6, 1e-6, 100000, 10, 1, 0 };
 
     HLMGWRArgs alg_args { G, X, Z, y, u, group, bw, kernel };
     HLMGWRParams alg_params;
@@ -36,5 +37,5 @@ TEST_CASE("HGWR(BFML)")
     INFO("Results:");
     CAPTURE(alg_params.bw, alg_params.sigma, alg_params.gamma, alg_params.beta, alg_params.mu, alg_params.D);
     CHECK_THAT(alg_params.bw, Catch::Matchers::WithinAbs(10.0, 1e-6));
-    CHECK_THAT(alg_params.sigma, Catch::Matchers::WithinAbs(1.9212546213601509, 1e-6));
+    CHECK_THAT(alg_params.sigma, Catch::Matchers::WithinAbs(1.9472450709, 1e-6));
 }
