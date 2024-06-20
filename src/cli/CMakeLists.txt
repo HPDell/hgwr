@@ -10,13 +10,19 @@ else()
     message(FATAL_ERROR "Boost Library Cannot Found!")
 endif()
 
-set(ADDON_DEBUG_LIBRARIES
-    ${Boost_PROGRAM_OPTIONS_LIBRARY_DEBUG} 
-)
-
+if(DEFINED Boost_PROGRAM_OPTIONS_LIBRARY_DEBUG)
+    set(ADDON_DEBUG_LIBRARIES
+        ${Boost_PROGRAM_OPTIONS_LIBRARY_DEBUG} 
+    )
+else()
+    set(ADDON_DEBUG_LIBRARIES
+        ${Boost_PROGRAM_OPTIONS_LIBRARY_RELEASE} 
+    )
+endif()
 set(ADDON_OPTIMIZED_LIBRARIES
     ${Boost_PROGRAM_OPTIONS_LIBRARY_RELEASE}
 )
+
 
 if(NOT MSVC)
     add_definitions(-DDBL_MAX=__DBL_MAX__)

@@ -13,45 +13,15 @@
 
 using namespace std;
 using namespace arma;
+using namespace hgwr;
 
 const double log2pi = log(2.0 * M_PI);
 
-struct ML_Params
+double HGWR::criterion_bw(double bw, BwSelectionArgs args)
 {
-    const mat* Xf;
-    const vec* Yf;
-    const mat* Zf;
-    const vec* beta;
-    size_t ngroup;
-    uword n;
-    uword p;
-    uword q;
-};
-
-inline vec gwr_kernel_gaussian2(vec dist2, double bw2)
-{
-    return exp(- dist2 / (2.0 * bw2));
-}
-
-inline vec gwr_kernel_bisquare2(vec dist2, double bw2)
-{
-    return ((1 - dist2 / bw2) % (1 - dist2 / bw2)) % (dist2 < bw2);
-}
-
-const GWRKernelFunctionSquared gwr_kernel_functions[] = {
-    gwr_kernel_gaussian2,
-    gwr_kernel_bisquare2
-};
-
-double criterion_bw(const double bw, const HLMGWRBWArgs* args, const bool verbose, const PrintFunction pcout)
-{
-    const mat G = args->G;
-    const mat Vig = args->Vig;
-    const vec Viy = args->Viy;
-    const mat u = args->u;
+    mat Vig = args.first, Viy = args.second;
     const size_t ngroup = Viy.n_rows;
     /// Calibrate for each gorup.
-    GWRKernelFunctionSquared gwr_kernel = args->gwr_kernel;
     double cv = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
@@ -74,7 +44,7 @@ double criterion_bw(const double bw, const HLMGWRBWArgs* args, const bool verbos
             return DBL_MAX;
         }
     }
-    if (verbose)
+    if (verbose > 1)
     {
         ostringstream sout;
         sout << "bw: " << bw << "; " << "cv: " << cv << "\r";
@@ -83,7 +53,7 @@ double criterion_bw(const double bw, const HLMGWRBWArgs* args, const bool verbos
     return cv;
 }
 
-double golden_selection(const double lower, const double upper, const bool adaptive, const HLMGWRBWArgs* args, const bool verbose, const PrintFunction pcout)
+double HGWR::golden_selection(const double lower, const double upper, const bool adaptive, BwSelectionArgs args)
 {
     double xU = upper, xL = lower;
     bool adaptBw = adaptive;
@@ -93,8 +63,8 @@ double golden_selection(const double lower, const double upper, const bool adapt
     double d = R * (xU - xL);
     double x1 = adaptBw ? floor(xL + d) : (xL + d);
     double x2 = adaptBw ? round(xU - d) : (xU - d);
-    double f1 = criterion_bw(x1, args, verbose, pcout);
-    double f2 = criterion_bw(x2, args, verbose, pcout);
+    double f1 = criterion_bw(x1, args);
+    double f2 = criterion_bw(x2, args);
     double d1 = f2 - f1;
     double xopt = f1 < f2 ? x1 : x2;
     double ea = 100;
@@ -107,7 +77,7 @@ double golden_selection(const double lower, const double upper, const bool adapt
             x2 = x1;
             x1 = adaptBw ? round(xL + d) : (xL + d);
             f2 = f1;
-            f1 = criterion_bw(x1, args, verbose, pcout);
+            f1 = criterion_bw(x1, args);
         }
         else
         {
@@ -115,13 +85,13 @@ double golden_selection(const double lower, const double upper, const bool adapt
             x1 = x2;
             x2 = adaptBw ? floor(xU - d) : (xU - d);
             f1 = f2;
-            f2 = criterion_bw(x2, args, verbose, pcout);
+            f2 = criterion_bw(x2, args);
         }
         iter = iter + 1;
         xopt = (f1 < f2) ? x1 : x2;
         d1 = f2 - f1;
     }
-    if (verbose)
+    if (verbose > 1)
     {
         pcout("\n");
     }
@@ -140,14 +110,11 @@ double golden_selection(const double lower, const double upper, const bool adapt
  * @param wD Equals to $D$
  * @return mat 
  */
-tuple<mat, double> fit_gwr(
-    const mat& G, const vec* Yf, const mat* Zf, const size_t ngroup,
-    const mat& D, const mat& u, const double bw, const GWRKernelType kernel,
-    const size_t verbose, const PrintFunction pcout
-)
+void HGWR::fit_gwr()
 {
     uword k = G.n_cols;//, q = Zf[0].n_cols;
-    mat beta(ngroup, k, arma::fill::zeros), D_inv = D.i();
+    mat D_inv = D.i();
+    gamma.fill(arma::fill::zeros);
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
     for (size_t i = 0; i < ngroup; i++)
@@ -160,30 +127,28 @@ tuple<mat, double> fit_gwr(
         Vig.row(i) = Visigma * ones(ndata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
     }
-    GWRKernelFunctionSquared gwr_kernel = gwr_kernel_functions[kernel];
     /// Check whether need to optimize bw
-    double b = bw;
+    bw_optim = bw;
     if (bw == 0.0)
     {
-        HLMGWRBWArgs bw_args { G, Vig, Viy, u, gwr_kernel };
+        BwSelectionArgs args = make_pair<const mat&, const vec&>(Vig, Viy);
         double upper = ngroup, lower = k + 1;
-        b = golden_selection(lower, upper, true, &bw_args, verbose > 1, pcout);
+        bw_optim = golden_selection(lower, upper, true, args);
     }
     /// Calibrate for each gorup.
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
         vec d2 = sum(d_u % d_u, 1);
-        double b2 = vec(sort(d2))[(int)b - 1];
+        double b2 = vec(sort(d2))[(int)bw_optim - 1];
         vec wW = (*gwr_kernel)(d2, b2);
         mat GtWVG = (G.each_col() % wW).t() * Vig;
         mat GtWVy = (G.each_col() % wW).t() * Viy;
-        beta.row(i) = solve(GtWVG, GtWVy).t();
+        gamma.row(i) = solve(GtWVG, GtWVy).t();
     }
-    return make_tuple(beta, b);
 }
 
-vec fit_gls(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D)
+vec HGWR::fit_gls()
 {
     uword p = Xf[0].n_cols;
     mat XtWX(p, p, arma::fill::zeros);
@@ -409,9 +374,9 @@ void ml_gsl_fdf_D_beta(const gsl_vector* v, void* p, double *f, gsl_vector *df)
     ml_gsl_df_D_beta(v, p, df);
 }
 
-double fit_D(mat& D, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose, const PrintFunction pcout)
+double HGWR::fit_D(ML_Params* params)
 {
-    int precision = int(log10(1.0 / eps));
+    int precision = int(log10(1.0 / eps_gradient));
     uword q = D.n_cols, ntarget = q * (q + 1) / 2;
     gsl_multimin_function_fdf minex_fun;
     minex_fun.n = ntarget;
@@ -430,8 +395,8 @@ double fit_D(mat& D, const ML_Params* params, const double alpha, const double e
     gsl_vector *x0 = gsl_vector_alloc(ntarget);
     gsl_vector_memcpy(x0, target);
     gsl_multimin_fdfminimizer *minimizer = gsl_multimin_fdfminimizer_alloc(gsl_multimin_fdfminimizer_conjugate_fr, ntarget);
-    gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, alpha, eps);
-    if (verbose)
+    gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, alpha, eps_gradient);
+    if (verbose > 1)
     {
         ostringstream sout;
         sout << setprecision(precision) << fixed << minimizer->x->data[0];
@@ -455,7 +420,7 @@ double fit_D(mat& D, const ML_Params* params, const double alpha, const double e
     {
         gsl_vector_memcpy(x0, minimizer->x);
         status = gsl_multimin_fdfminimizer_iterate(minimizer);
-        if (verbose)
+        if (verbose > 1)
         {
             ostringstream sout;
             sout << setprecision(precision) << fixed << minimizer->x->data[0];
@@ -474,9 +439,9 @@ double fit_D(mat& D, const ML_Params* params, const double alpha, const double e
             pcout(sout.str());
         }
         if (status || gsl_isnan(minimizer->f)) break;
-        status = gsl_multimin_test_gradient(minimizer->gradient, eps);
+        status = gsl_multimin_test_gradient(minimizer->gradient, eps_gradient);
     } while (status == GSL_CONTINUE && (++iter) < max_iters);
-    if (verbose) 
+    if (verbose > 1)
     {
         pcout("\n");
     }
@@ -496,9 +461,9 @@ double fit_D(mat& D, const ML_Params* params, const double alpha, const double e
     return minimizer->f;
 }
 
-void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, const double eps, const size_t max_iters, const bool verbose, const PrintFunction pcout)
+void HGWR::fit_D_beta(ML_Params* params)
 {
-    int precision = int(log10(1.0 / eps));
+    int precision = int(log10(1.0 / eps_gradient));
     uword p = beta.n_rows, q = D.n_cols, ntarget = p + q * (q + 1) / 2;
     gsl_multimin_function_fdf minex_fun;
     minex_fun.n = ntarget;
@@ -521,8 +486,8 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
     gsl_vector *x0 = gsl_vector_alloc(ntarget);
     gsl_vector_memcpy(x0, target);
     gsl_multimin_fdfminimizer *minimizer = gsl_multimin_fdfminimizer_alloc(gsl_multimin_fdfminimizer_conjugate_fr, ntarget);
-    gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, alpha, eps);
-    if (verbose)
+    gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, alpha, eps_gradient);
+    if (verbose > 1)
     {
         ostringstream sout;
         sout << setprecision(precision) << fixed;
@@ -556,7 +521,7 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
     {
         gsl_vector_memcpy(x0, minimizer->x);
         status = gsl_multimin_fdfminimizer_iterate(minimizer);
-        if (verbose)
+        if (verbose > 1)
         {
             ostringstream sout;
             sout << setprecision(precision) << fixed;
@@ -585,9 +550,9 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
             pcout(sout.str());
         }
         if (status || gsl_isnan(minimizer->f)) break;
-        status = gsl_multimin_test_gradient(minimizer->gradient, eps);
+        status = gsl_multimin_test_gradient(minimizer->gradient, eps_gradient);
     } while (status == GSL_CONTINUE && (++iter) < max_iters);
-    if (verbose) 
+    if (verbose > 1)
     {
         pcout("\n");
     }
@@ -612,7 +577,7 @@ void fit_D_beta(mat& D, vec& beta, const ML_Params* params, const double alpha, 
     beta = beta1;
 }
 
-mat fit_mu(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const vec& beta, const mat& D)
+mat HGWR::fit_mu()
 {
     uword q = Zf[0].n_cols;
     mat D_inv = D.i(), mu(ngroup, q, arma::fill::zeros);
@@ -630,7 +595,7 @@ mat fit_mu(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, con
     return mu;
 }
 
-double fit_sigma(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const size_t ndata, const vec& beta, const mat& D)
+double HGWR::fit_sigma()
 {
     mat D_inv = D.i();
     double sigma2 = 0.0;
@@ -648,32 +613,13 @@ double fit_sigma(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngrou
     return sqrt(sigma2 / (double)ndata);
 }
 
-HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWROptions& options, const PrintFunction pcout)
+HGWR::Parameters HGWR::fit()
 {
-    //================
-    // Extract Options
-    //================
-    double alpha = options.alpha;
-    double eps_iter = options.eps_iter;
-    double eps_gradient = options.eps_gradient;
-    size_t max_iters = options.max_iters;
-    size_t max_retries = options.max_retries;
-    size_t verbose = options.verbose;
-    size_t ml_type = options.ml_type;
-    int prescition = (int)log10(1 / eps_iter);
     //===============
     // Prepare Matrix
     //===============
-    const mat& G = args.G;
-    const mat& Z = args.Z;
-    const mat& X = args.X;
-    const vec& y = args.y;
-    const mat& u = args.u;
-    const uvec& group = args.group;
-    double bw = args.bw, bw_optim = bw;
-    GWRKernelType kernel = args.kernel;
-    uword ngroup = G.n_rows, ndata = X.n_rows;
-    uword nvg = G.n_cols, nvx = X.n_cols, nvz = Z.n_cols;
+    int prescition = (int)log10(1 / eps_iter);
+    bw_optim = bw;
     double tss = sum((y - mean(y)) % (y - mean(y)));
     mat gamma(ngroup, nvg, arma::fill::zeros);
     vec beta(nvx, arma::fill::zeros);
@@ -684,11 +630,11 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     {
         gmap.col(i) = conv_to<vec>::from(group == i);
     }
-    mat* Zf = new mat[ngroup];
-    mat* Xf = new mat[ngroup];
-    vec* Yf = new vec[ngroup];
-    vec* Ygf = new vec[ngroup];
-    vec* Yhf = new vec[ngroup];
+    Zf = make_unique<arma::mat[]>(ngroup);
+    Xf = make_unique<arma::mat[]>(ngroup);
+    Yf = make_unique<arma::vec[]>(ngroup);
+    Ygf = make_unique<arma::vec[]>(ngroup);
+    Yhf = make_unique<arma::vec[]>(ngroup);
     for (uword i = 0; i < ngroup; i++)
     {
         uvec ind = find(group == i);
@@ -699,7 +645,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
     //----------------------------------------------
     // Generalized Least Squared Estimation for beta
     //----------------------------------------------
-    beta = fit_gls(Xf, Yf, Zf, ngroup, D);
+    beta = fit_gls();
     //============
     // Backfitting
     //============
@@ -715,9 +661,7 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         {
             Ygf[i] = Yf[i] - Xf[i] * beta;
         }
-        auto gwr_result = fit_gwr(G, Ygf, Zf, ngroup, D, u, bw, kernel, verbose, pcout);
-        gamma = get<0>(gwr_result);
-        bw_optim = get<1>(gwr_result);
+        fit_gwr();
         vec hatMg = sum(G % gamma, 1);
         vec hatM = hatMg.rows(group);
         vec yh = y - hatM;
@@ -728,24 +672,20 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
         //------------------------------------
         // Maximum Likelihood Estimation for D
         //------------------------------------
-        ML_Params ml_params = { Xf, Yhf, Zf, &beta, ngroup, ndata, nvx, nvz };
+        ML_Params ml_params = { Xf.get(), Yf.get(), Zf.get(), &beta, ngroup, ndata, nvx, nvz };
         switch (ml_type)
         {
-        case 0:
-            mlf = fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
-            beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
-            break;
         case 1:
             ml_params.beta = nullptr;
-            beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
-            fit_D_beta(D, beta, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
+            beta = fit_gls();
+            fit_D_beta(&ml_params);
             break;
         default:
-            fit_D(D, &ml_params, alpha, eps_gradient, max_iters, verbose > 1, pcout);
-            beta = fit_gls(Xf, Yhf, Zf, ngroup, D);
+            mlf = fit_D(&ml_params);
+            beta = fit_gls();
             break;
         }
-        mu = fit_mu(Xf, Yhf, Zf, ngroup, beta, D);
+        mu = fit_mu();
         //------------------------------
         // Calculate Termination Measure
         //------------------------------
@@ -772,11 +712,6 @@ HLMGWRParams backfitting_maximum_likelihood(const HLMGWRArgs& args, const HLMGWR
             pcout(sout.str());
         }
     }
-    double sigma = fit_sigma(Xf, Yhf, Zf, ngroup, ndata, beta, D);
-    delete[] Zf;
-    delete[] Xf;
-    delete[] Yf;
-    delete[] Ygf;
-    delete[] Yhf ;
+    sigma = fit_sigma();
     return { gamma, beta, mu, D, sigma, bw_optim };
 }

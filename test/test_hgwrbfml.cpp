@@ -6,8 +6,9 @@
 
 using namespace std;
 using namespace arma;
+using namespace hgwr;
 
-void pcout(string message)
+void pcout(const string& message)
 {
     cout << message;
 }
@@ -25,17 +26,12 @@ TEST_CASE("HGWR(BFML)")
     group.load(arma::csv_name(string(TEST_DATA_DIR) + "/hlmgwr_group.csv"));
 
     double bw = 10.0;
-    GWRKernelType kernel = GWRKernelType::GAUSSIAN;
-    HLMGWROptions options { 0.1, 1e-6, 1e-6, 100000, 10, 1, 0 };
-
-    HLMGWRArgs alg_args { G, X, Z, y, u, group, bw, kernel };
-    HLMGWRParams alg_params;
-    REQUIRE_NOTHROW([&](){
-        alg_params = backfitting_maximum_likelihood(alg_args, options, pcout);
-        return 0;
-    }());
+    auto kernel = HGWR::KernelType::GAUSSIAN;
+    HGWR::Options options { 0.01, 1e-6, 1e-6, 100000, 10, 0, 0 };
+    HGWR algorithm { G, X, Z, y, u, group, kernel, bw, options, pcout };
+    REQUIRE_NOTHROW(algorithm.fit());
     INFO("Results:");
-    CAPTURE(alg_params.bw, alg_params.sigma, alg_params.gamma, alg_params.beta, alg_params.mu, alg_params.D);
-    CHECK_THAT(alg_params.bw, Catch::Matchers::WithinAbs(10.0, 1e-6));
+    CAPTURE(algorithm.get_bw(), algorithm.get_sigma(), algorithm.get_gamma(), algorithm.get_beta(), algorithm.get_mu(), algorithm.get_D());
+    CHECK_THAT(algorithm.get_bw(), Catch::Matchers::WithinAbs(10.0, 1e-6));
     CHECK_THAT(alg_params.sigma, Catch::Matchers::WithinAbs(1.9472450709, 1e-2));
 }
