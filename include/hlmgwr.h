@@ -230,6 +230,7 @@ private:
     arma::mat mu;
     arma::mat D;
     double sigma;
+    arma::vec trS;
 
     /* options */
     double alpha = 0.01;

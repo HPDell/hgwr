@@ -136,15 +136,21 @@ void HGWR::fit_gwr()
         bw_optim = golden_selection(lower, upper, true, args);
     }
     /// Calibrate for each gorup.
+    trS = { 0.0, 0.0};
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
         vec d2 = sum(d_u % d_u, 1);
         double b2 = vec(sort(d2))[(int)bw_optim - 1];
         vec wW = (*gwr_kernel)(d2, b2);
-        mat GtWVG = (G.each_col() % wW).t() * Vig;
-        mat GtWVy = (G.each_col() % wW).t() * Viy;
-        gamma.row(i) = solve(GtWVG, GtWVy).t();
+        mat GtW = (G.each_col() % wW).t();
+        mat GtWVG = GtW * Vig;
+        mat GtWVy = GtW * Viy;
+        mat GtWVGi = inv(GtWVG);
+        gamma.row(i) = trans(GtWVGi * GtWVy);
+        mat si = G.row(i) * GtWVGi;
+        trS(0) += si(0, i);
+        trS(1) += as_scalar(si * si.t());
     }
 }
 
