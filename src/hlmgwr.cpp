@@ -461,7 +461,7 @@ double HGWR::fit_D(ML_Params* params)
     return minimizer->f;
 }
 
-void HGWR::fit_D_beta(ML_Params* params)
+double HGWR::fit_D_beta(ML_Params* params)
 {
     int precision = int(log10(1.0 / eps_gradient));
     uword p = beta.n_rows, q = D.n_cols, ntarget = p + q * (q + 1) / 2;
@@ -575,6 +575,7 @@ void HGWR::fit_D_beta(ML_Params* params)
     }
     D = D1;
     beta = beta1;
+    return minimizer->f;
 }
 
 void HGWR::fit_mu()
@@ -674,7 +675,7 @@ HGWR::Parameters HGWR::fit()
         case 1:
             ml_params.beta = nullptr;
             beta = fit_gls();
-            fit_D_beta(&ml_params);
+            mlf = fit_D_beta(&ml_params);
             break;
         default:
             mlf = fit_D(&ml_params);
@@ -709,5 +710,6 @@ HGWR::Parameters HGWR::fit()
         }
     }
     sigma = fit_sigma();
+    loglik = - mlf * double(ndata);
     return { gamma, beta, mu, D, sigma, bw_optim };
 }

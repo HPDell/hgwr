@@ -197,6 +197,8 @@ public:
     
     double get_sigma() { return sigma; }
 
+    double get_loglik() { return loglik; }
+
     void set_printer(PrintFunction printer) { pcout = printer; }
 
 public:
@@ -205,7 +207,7 @@ public:
     void fit_gwr();
     arma::vec fit_gls();
     double fit_D(ML_Params* params);
-    void fit_D_beta(ML_Params* params);
+    double fit_D_beta(ML_Params* params);
     void fit_mu();
     double fit_sigma();
     Parameters fit();
@@ -252,6 +254,7 @@ private:
     arma::uword nvx;
     arma::uword nvz;
     double bw_optim;
+    double loglik;
 };
     
 }
