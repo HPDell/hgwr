@@ -148,7 +148,7 @@ void HGWR::fit_gwr()
         mat GtWVy = GtW * Viy;
         mat GtWVGi = inv(GtWVG);
         gamma.row(i) = trans(GtWVGi * GtWVy);
-        mat si = G.row(i) * GtWVGi;
+        mat si = G.row(i) * GtWVGi * GtW;
         trS(0) += si(0, i);
         trS(1) += as_scalar(si * si.t());
     }
