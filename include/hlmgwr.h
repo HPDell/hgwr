@@ -42,6 +42,19 @@ public:  // Type defs
         return ((1 - dist2 / bw2) % (1 - dist2 / bw2)) % (dist2 < bw2);
     }
 
+
+    /**
+     * @brief Calculate $(I+LML^T)^{-1}$
+     * 
+     * @param M_inv The inverse matrix of $M$
+     * @param L The matrix $L$
+     * @return arma::mat The inverse $I - L(M^{-1}+L^TL)^-1 L^T$
+     */
+    static arma::mat woodbury_eye(const arma::mat& M_inv, const arma::mat& L)
+    {
+        return arma::eye<arma::mat>(L.n_rows, L.n_rows) - L * (M_inv + L.t() * L).i() * L.t();
+    }
+
     typedef void (*PrintFunction)(const std::string&);
     
     static void Printer(const std::string& msg)

@@ -121,10 +121,10 @@ void HGWR::fit_gwr()
     {
         const mat& Yi = Ygf[i];
         const mat& Zi = Zf[i];
-        uword ndata = Zi.n_rows;
-        mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
-        mat Visigma = ones(1, ndata) * Vi_inv;
-        Vig.row(i) = Visigma * ones(ndata, 1) * G.row(i);
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        uword nidata = Zi.n_rows;
+        mat Visigma = ones(1, nidata) * Vi_inv;
+        Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
     }
     /// Check whether need to optimize bw
@@ -165,8 +165,7 @@ vec HGWR::fit_gls()
         const mat& Xi = Xf[i];
         const mat& Yi = Yhf[i];
         const mat& Zi = Zf[i];
-        uword ndata = Zi.n_rows;
-        mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
         XtWX += Xi.t() * Vi_inv * Xi;
         XtWY += Xi.t() * Vi_inv * Yi;
     }
@@ -182,12 +181,10 @@ double loglikelihood(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
         const mat& Xi = Xf[i];
         const vec& Yi = Yf[i];
         const mat& Zi = Zf[i];
-        uword nidata = Zi.n_rows;
-        mat Ii = eye<mat>(nidata, nidata);
-        mat Vi = ((Zi * D) * Zi.t()) + Ii;
+        mat Vi = ((Zi * D) * Zi.t()) + eye<mat>(Zi.n_rows, Zi.n_rows);
         double detVi, sign_detVi;
         log_det(detVi, sign_detVi, Vi);
-        mat Vi_inv = Ii - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
+        mat Vi_inv = HGWR::woodbury_eye(D_inv, Zi);
         vec Ri = Yi - Xi * beta;
         L1 += as_scalar(Ri.t() * Vi_inv * Ri);
         L2 += detVi;
@@ -208,7 +205,7 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
         const mat& Yi = Yf[i];
         const mat& Zi = Zf[i];
         uword nidata = Zi.n_rows;
-        mat Vi_inv = eye(nidata, nidata) - Zi * inv(D_inv + Zi.t() * Zi) * Zi.t();
+        mat Vi_inv = HGWR::woodbury_eye(D_inv, Zi);
         vec Ri = Yi - Xi * beta;
         mat Ki = Zi.t() * Vi_inv * Ri;
         KKt += Ki * Ki.t();
@@ -232,7 +229,7 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
         const mat& Yi = Yf[i];
         const mat& Zi = Zf[i];
         uword nidata = Zi.n_rows;
-        mat Vi_inv = eye(nidata, nidata) - Zi * inv(D_inv + Zi.t() * Zi) * Zi.t();
+        mat Vi_inv = HGWR::woodbury_eye(D_inv, Zi);
         vec Ri = Yi - Xi * beta;
         mat Ki = Zi.t() * Vi_inv * Ri;
         KKt += Ki * Ki.t();
@@ -596,7 +593,7 @@ void HGWR::fit_mu()
         const mat& Zi = Zf[i];
         uword ndata = Zi.n_rows;
         mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
-        mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
         vec Ri = Yi - Xi * beta;
         mu.row(i) = (D * Zi.t() * Vi_inv * Ri).t();
     }
@@ -613,7 +610,7 @@ double HGWR::fit_sigma()
         const mat& Zi = Zf[i];
         uword ndata = Zi.n_rows;
         mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
-        mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
         mat Ri = Yi - Xi * beta;
         sigma2 += as_scalar(Ri.t() * Vi_inv * Ri);
     }
