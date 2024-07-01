@@ -212,6 +212,8 @@ public:
 
     double get_loglik() { return loglik; }
 
+    arma::vec get_var_beta() { return var_beta; }
+
     void set_printer(PrintFunction printer) { pcout = printer; }
 
 public:
@@ -224,6 +226,7 @@ public:
     void fit_mu();
     double fit_sigma();
     Parameters fit();
+    void calc_var_beta();
 
 private:
     /* data */
@@ -267,8 +270,11 @@ private:
     arma::uword nvg;
     arma::uword nvx;
     arma::uword nvz;
-    double bw_optim;
-    double loglik;
+
+    /* diagnostic information */
+    double bw_optim = DBL_MAX;
+    double loglik = DBL_MAX;
+    arma::vec var_beta;
 };
     
 }

@@ -713,6 +713,26 @@ HGWR::Parameters HGWR::fit()
         }
     }
     sigma = fit_sigma();
+    //============
+    // Diagnostic
+    //============
     loglik = - mlf * double(ndata);
+    calc_var_beta();
     return { gamma, beta, mu, D, sigma, bw_optim };
+}
+
+void HGWR::calc_var_beta()
+{
+    mat D_inv = D.i(), XtViX(X.n_cols, X.n_cols, arma::fill::zeros);
+    for (uword i = 0; i < ngroup; i++)
+    {
+        const mat& Xi = Xf[i];
+        const mat& Yi = Yhf[i];
+        const mat& Zi = Zf[i];
+        uword ndata = Zi.n_rows;
+        mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        XtViX += Xi.t() * Vi_inv * Xi;
+    }
+    var_beta = diagvec(XtViX.i());
 }
