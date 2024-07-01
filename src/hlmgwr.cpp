@@ -718,6 +718,8 @@ HGWR::Parameters HGWR::fit()
     //============
     loglik = - mlf * double(ndata);
     calc_var_beta();
+    enp = 2 * trS(0) - trS(1);
+    edf = ndata - enp;
     return { gamma, beta, mu, D, sigma, bw_optim };
 }
 

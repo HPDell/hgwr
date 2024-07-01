@@ -272,9 +272,11 @@ private:
     arma::uword nvz;
 
     /* diagnostic information */
-    double bw_optim = DBL_MAX;
-    double loglik = DBL_MAX;
+    double bw_optim = 0;
+    double loglik = 0;
     arma::vec var_beta;
+    double enp = 0;
+    double edf = 0;
 };
     
 }
