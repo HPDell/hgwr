@@ -121,10 +121,10 @@ void HGWR::fit_gwr()
     {
         const mat& Yi = Ygf[i];
         const mat& Zi = Zf[i];
-        uword ndata = Zi.n_rows;
-        mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
-        mat Visigma = ones(1, ndata) * Vi_inv;
-        Vig.row(i) = Visigma * ones(ndata, 1) * G.row(i);
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        uword nidata = Zi.n_rows;
+        mat Visigma = ones(1, nidata) * Vi_inv;
+        Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
     }
     /// Check whether need to optimize bw
@@ -136,15 +136,21 @@ void HGWR::fit_gwr()
         bw_optim = golden_selection(lower, upper, true, args);
     }
     /// Calibrate for each gorup.
+    trS = { 0.0, 0.0};
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
         vec d2 = sum(d_u % d_u, 1);
         double b2 = vec(sort(d2))[(int)bw_optim - 1];
         vec wW = (*gwr_kernel)(d2, b2);
-        mat GtWVG = (G.each_col() % wW).t() * Vig;
-        mat GtWVy = (G.each_col() % wW).t() * Viy;
-        gamma.row(i) = solve(GtWVG, GtWVy).t();
+        mat GtW = (G.each_col() % wW).t();
+        mat GtWVG = GtW * Vig;
+        mat GtWVy = GtW * Viy;
+        mat GtWVGi = inv(GtWVG);
+        gamma.row(i) = trans(GtWVGi * GtWVy);
+        mat si = G.row(i) * GtWVGi * GtW;
+        trS(0) += si(0, i);
+        trS(1) += as_scalar(si * si.t());
     }
 }
 
@@ -159,8 +165,7 @@ vec HGWR::fit_gls()
         const mat& Xi = Xf[i];
         const mat& Yi = Yhf[i];
         const mat& Zi = Zf[i];
-        uword ndata = Zi.n_rows;
-        mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
         XtWX += Xi.t() * Vi_inv * Xi;
         XtWY += Xi.t() * Vi_inv * Yi;
     }
@@ -176,12 +181,10 @@ double loglikelihood(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
         const mat& Xi = Xf[i];
         const vec& Yi = Yf[i];
         const mat& Zi = Zf[i];
-        uword nidata = Zi.n_rows;
-        mat Ii = eye<mat>(nidata, nidata);
-        mat Vi = ((Zi * D) * Zi.t()) + Ii;
+        mat Vi = ((Zi * D) * Zi.t()) + eye<mat>(Zi.n_rows, Zi.n_rows);
         double detVi, sign_detVi;
         log_det(detVi, sign_detVi, Vi);
-        mat Vi_inv = Ii - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
+        mat Vi_inv = HGWR::woodbury_eye(D_inv, Zi);
         vec Ri = Yi - Xi * beta;
         L1 += as_scalar(Ri.t() * Vi_inv * Ri);
         L2 += detVi;
@@ -201,8 +204,7 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
         const mat& Xi = Xf[i];
         const mat& Yi = Yf[i];
         const mat& Zi = Zf[i];
-        uword nidata = Zi.n_rows;
-        mat Vi_inv = eye(nidata, nidata) - Zi * inv(D_inv + Zi.t() * Zi) * Zi.t();
+        mat Vi_inv = HGWR::woodbury_eye(D_inv, Zi);
         vec Ri = Yi - Xi * beta;
         mat Ki = Zi.t() * Vi_inv * Ri;
         KKt += Ki * Ki.t();
@@ -225,8 +227,7 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
         const mat& Xi = Xf[i];
         const mat& Yi = Yf[i];
         const mat& Zi = Zf[i];
-        uword nidata = Zi.n_rows;
-        mat Vi_inv = eye(nidata, nidata) - Zi * inv(D_inv + Zi.t() * Zi) * Zi.t();
+        mat Vi_inv = HGWR::woodbury_eye(D_inv, Zi);
         vec Ri = Yi - Xi * beta;
         mat Ki = Zi.t() * Vi_inv * Ri;
         KKt += Ki * Ki.t();
@@ -461,7 +462,7 @@ double HGWR::fit_D(ML_Params* params)
     return minimizer->f;
 }
 
-void HGWR::fit_D_beta(ML_Params* params)
+double HGWR::fit_D_beta(ML_Params* params)
 {
     int precision = int(log10(1.0 / eps_gradient));
     uword p = beta.n_rows, q = D.n_cols, ntarget = p + q * (q + 1) / 2;
@@ -575,11 +576,11 @@ void HGWR::fit_D_beta(ML_Params* params)
     }
     D = D1;
     beta = beta1;
+    return minimizer->f;
 }
 
 void HGWR::fit_mu()
 {
-    uword q = Zf[0].n_cols;
     mat D_inv = D.i();
     mu.fill(arma::fill::zeros);
     for (uword i = 0; i < ngroup; i++)
@@ -589,7 +590,7 @@ void HGWR::fit_mu()
         const mat& Zi = Zf[i];
         uword ndata = Zi.n_rows;
         mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
-        mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
         vec Ri = Yi - Xi * beta;
         mu.row(i) = (D * Zi.t() * Vi_inv * Ri).t();
     }
@@ -606,7 +607,7 @@ double HGWR::fit_sigma()
         const mat& Zi = Zf[i];
         uword ndata = Zi.n_rows;
         mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
-        mat Vi_inv = eye(ndata, ndata) - Zi * (D_inv + Zi.t() * Zi).i() * Zi.t();
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
         mat Ri = Yi - Xi * beta;
         sigma2 += as_scalar(Ri.t() * Vi_inv * Ri);
     }
@@ -674,7 +675,7 @@ HGWR::Parameters HGWR::fit()
         case 1:
             ml_params.beta = nullptr;
             beta = fit_gls();
-            fit_D_beta(&ml_params);
+            mlf = fit_D_beta(&ml_params);
             break;
         default:
             mlf = fit_D(&ml_params);
@@ -709,5 +710,27 @@ HGWR::Parameters HGWR::fit()
         }
     }
     sigma = fit_sigma();
+    //============
+    // Diagnostic
+    //============
+    loglik = - mlf * double(ndata);
+    calc_var_beta();
+    enp = 2 * trS(0) - trS(1);
+    edf = ndata - enp;
     return { gamma, beta, mu, D, sigma, bw_optim };
+}
+
+void HGWR::calc_var_beta()
+{
+    mat D_inv = D.i(), XtViX(X.n_cols, X.n_cols, arma::fill::zeros);
+    for (uword i = 0; i < ngroup; i++)
+    {
+        const mat& Xi = Xf[i];
+        const mat& Zi = Zf[i];
+        uword ndata = Zi.n_rows;
+        mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        XtViX += Xi.t() * Vi_inv * Xi;
+    }
+    var_beta = diagvec(XtViX.i());
 }
