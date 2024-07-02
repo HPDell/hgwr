@@ -204,7 +204,6 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
         const mat& Xi = Xf[i];
         const mat& Yi = Yf[i];
         const mat& Zi = Zf[i];
-        uword nidata = Zi.n_rows;
         mat Vi_inv = HGWR::woodbury_eye(D_inv, Zi);
         vec Ri = Yi - Xi * beta;
         mat Ki = Zi.t() * Vi_inv * Ri;
@@ -228,7 +227,6 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
         const mat& Xi = Xf[i];
         const mat& Yi = Yf[i];
         const mat& Zi = Zf[i];
-        uword nidata = Zi.n_rows;
         mat Vi_inv = HGWR::woodbury_eye(D_inv, Zi);
         vec Ri = Yi - Xi * beta;
         mat Ki = Zi.t() * Vi_inv * Ri;
@@ -583,7 +581,6 @@ double HGWR::fit_D_beta(ML_Params* params)
 
 void HGWR::fit_mu()
 {
-    uword q = Zf[0].n_cols;
     mat D_inv = D.i();
     mu.fill(arma::fill::zeros);
     for (uword i = 0; i < ngroup; i++)
@@ -729,7 +726,6 @@ void HGWR::calc_var_beta()
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Xi = Xf[i];
-        const mat& Yi = Yhf[i];
         const mat& Zi = Zf[i];
         uword ndata = Zi.n_rows;
         mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
