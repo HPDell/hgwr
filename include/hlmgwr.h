@@ -212,6 +212,8 @@ public:
 
     double get_loglik() { return loglik; }
 
+    arma::vec get_trS() { return trS; }
+
     arma::vec get_var_beta() { return var_beta; }
 
     void set_printer(PrintFunction printer) { pcout = printer; }
@@ -246,7 +248,6 @@ private:
     arma::mat mu;
     arma::mat D;
     double sigma;
-    arma::vec trS;
 
     /* options */
     double alpha = 0.01;
@@ -274,6 +275,7 @@ private:
     /* diagnostic information */
     double bw_optim = 0;
     double loglik = 0;
+    arma::vec trS;
     arma::vec var_beta;
     double enp = 0;
     double edf = 0;
