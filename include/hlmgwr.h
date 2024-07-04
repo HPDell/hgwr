@@ -42,6 +42,19 @@ public:  // Type defs
         return ((1 - dist2 / bw2) % (1 - dist2 / bw2)) % (dist2 < bw2);
     }
 
+
+    /**
+     * @brief Calculate $(I+LML^T)^{-1}$
+     * 
+     * @param M_inv The inverse matrix of $M$
+     * @param L The matrix $L$
+     * @return arma::mat The inverse $I - L(M^{-1}+L^TL)^-1 L^T$
+     */
+    static arma::mat woodbury_eye(const arma::mat& M_inv, const arma::mat& L)
+    {
+        return arma::eye<arma::mat>(L.n_rows, L.n_rows) - L * (M_inv + L.t() * L).i() * L.t();
+    }
+
     typedef void (*PrintFunction)(const std::string&);
     
     static void Printer(const std::string& msg)
@@ -197,6 +210,12 @@ public:
     
     double get_sigma() { return sigma; }
 
+    double get_loglik() { return loglik; }
+
+    arma::vec get_trS() { return trS; }
+
+    arma::vec get_var_beta() { return var_beta; }
+
     void set_printer(PrintFunction printer) { pcout = printer; }
 
 public:
@@ -205,10 +224,11 @@ public:
     void fit_gwr();
     arma::vec fit_gls();
     double fit_D(ML_Params* params);
-    void fit_D_beta(ML_Params* params);
+    double fit_D_beta(ML_Params* params);
     void fit_mu();
     double fit_sigma();
     Parameters fit();
+    void calc_var_beta();
 
 private:
     /* data */
@@ -251,7 +271,14 @@ private:
     arma::uword nvg;
     arma::uword nvx;
     arma::uword nvz;
-    double bw_optim;
+
+    /* diagnostic information */
+    double bw_optim = 0;
+    double loglik = 0;
+    arma::vec trS;
+    arma::vec var_beta;
+    double enp = 0;
+    double edf = 0;
 };
     
 }
