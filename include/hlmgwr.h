@@ -3,7 +3,8 @@
 
 #include <string>
 #include <memory>
-#include <armadillo>
+#include <functional>
+#include "armadillo_config.h"
 
 namespace hgwr
 {
@@ -14,7 +15,7 @@ struct ML_Params
     arma::vec* Yf;
     arma::mat* Zf;
     arma::vec* beta;
-    size_t ngroup;
+    arma::uword ngroup;
     arma::uword n;
     arma::uword p;
     arma::uword q;
@@ -83,7 +84,7 @@ public:  // Type defs
         double bw;
     };
 
-    using BwSelectionArgs = std::pair<const arma::mat&, const arma::vec&>;
+    using BwSelectionArgs = std::pair<std::reference_wrapper<arma::mat>, std::reference_wrapper<arma::vec>>;
 
 public:
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group)
@@ -99,7 +100,7 @@ public:
         nvg = G.n_cols;
         nvx = X.n_cols;
         nvz = Z.n_cols;
-        bw_optim = bw;
+        bw_optim = true;
     }
 
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, const Options& options)
@@ -112,19 +113,28 @@ public:
         this->max_retries = options.max_retries;
         this->verbose = options.verbose;
         this->ml_type = options.ml_type;
+        bw_optim = true;
     }
 
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel)
         : HGWR(G, X, Z, y, u, group)
     {
         this->kernel = kernel;
+        bw_optim = true;
+    }
+
+    explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, const Options& options)
+        : HGWR(G, X, Z, y, u, group, options)
+    {
+        this->kernel = kernel;
+        bw_optim = true;
     }
 
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, double bw)
         : HGWR(G, X, Z, y, u, group, kernel)
     {
         this->bw = bw;
-        bw_optim = bw;
+        bw_optim = false;
     }
 
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, double bw, const Options& options)
@@ -132,7 +142,7 @@ public:
     {
         this->kernel = kernel;
         this->bw = bw;
-        bw_optim = bw;
+        bw_optim = false;
     }
 
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, double bw, const Options& options, const PrintFunction printer)
@@ -162,7 +172,14 @@ public:
     void set_group(const arma::uvec& value) { group = value; }
     
     double get_bw() { return bw; }
-    void set_bw(double value) { bw = value; }
+    void set_bw(double value)
+    {
+        bw = value;
+        bw_optim = false;
+    }
+
+    bool get_bw_optim() { return bw_optim; }
+    void set_bw_optim(bool value) { bw_optim = value; }
     
     KernelType get_kernel() { return kernel; }
     void set_kernel(KernelType value)
@@ -219,8 +236,8 @@ public:
     void set_printer(PrintFunction printer) { pcout = printer; }
 
 public:
-    double criterion_bw(double bw, BwSelectionArgs args);
-    double golden_selection(const double lower, const double upper, const bool adaptive, BwSelectionArgs args);
+    double criterion_bw(double bw, const BwSelectionArgs& args);
+    double golden_selection(const double lower, const double upper, const bool adaptive, const BwSelectionArgs& args);
     void fit_gwr();
     arma::vec fit_gls();
     double fit_D(ML_Params* params);
@@ -239,6 +256,7 @@ private:
     arma::mat u;
     arma::uvec group;
     double bw = 0.0;
+    bool bw_optim = false;
     KernelType kernel = KernelType::GAUSSIAN;
     GWRKernelFunctionSquared gwr_kernel = &gwr_kernel_gaussian2;
 
@@ -266,14 +284,13 @@ private:
     std::unique_ptr<arma::vec[]> Yf;
     std::unique_ptr<arma::vec[]> Ygf;
     std::unique_ptr<arma::vec[]> Yhf;
-    size_t ngroup;
-    size_t ndata;
+    arma::uword ngroup;
+    arma::uword ndata;
     arma::uword nvg;
     arma::uword nvx;
     arma::uword nvz;
 
     /* diagnostic information */
-    double bw_optim = 0;
     double loglik = 0;
     arma::vec trS;
     arma::vec var_beta;

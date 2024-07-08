@@ -1,13 +1,8 @@
-#ifdef HGWRR_RCPP
-// [[Rcpp::depends(RcppArmadillo)]]
-#endif
-
 #include "hlmgwr.h"
 #include <sstream>
 #include <iomanip>
 #include <string>
 #include <utility>
-#include <armadillo>
 #include <gsl/gsl_multimin.h>
 #include <gsl/gsl_errno.h>
 
@@ -17,7 +12,7 @@ using namespace hgwr;
 
 const double log2pi = log(2.0 * M_PI);
 
-double HGWR::criterion_bw(double bw, BwSelectionArgs args)
+double HGWR::criterion_bw(double bw, const BwSelectionArgs& args)
 {
     mat Vig = args.first, Viy = args.second;
     const size_t ngroup = Viy.n_rows;
@@ -53,7 +48,7 @@ double HGWR::criterion_bw(double bw, BwSelectionArgs args)
     return cv;
 }
 
-double HGWR::golden_selection(const double lower, const double upper, const bool adaptive, BwSelectionArgs args)
+double HGWR::golden_selection(const double lower, const double upper, const bool adaptive, const BwSelectionArgs& args)
 {
     double xU = upper, xL = lower;
     bool adaptBw = adaptive;
@@ -61,8 +56,8 @@ double HGWR::golden_selection(const double lower, const double upper, const bool
     const double R = (sqrt(5)-1)/2;
     int iter = 0;
     double d = R * (xU - xL);
-    double x1 = adaptBw ? floor(xL + d) : (xL + d);
-    double x2 = adaptBw ? round(xU - d) : (xU - d);
+    double x1 = min(adaptBw ? round(xL + d) : (xL + d), xU);
+    double x2 = max(adaptBw ? floor(xU - d) : (xU - d), xL);
     double f1 = criterion_bw(x1, args);
     double f2 = criterion_bw(x2, args);
     double d1 = f2 - f1;
@@ -75,7 +70,7 @@ double HGWR::golden_selection(const double lower, const double upper, const bool
         {
             xL = x2;
             x2 = x1;
-            x1 = adaptBw ? round(xL + d) : (xL + d);
+            x1 = min(adaptBw ? round(xL + d) : (xL + d), xU);
             f2 = f1;
             f1 = criterion_bw(x1, args);
         }
@@ -83,7 +78,7 @@ double HGWR::golden_selection(const double lower, const double upper, const bool
         {
             xU = x1;
             x1 = x2;
-            x2 = adaptBw ? floor(xU - d) : (xU - d);
+            x2 = max(adaptBw ? floor(xU - d) : (xU - d), xL);
             f1 = f2;
             f2 = criterion_bw(x2, args);
         }
@@ -128,12 +123,11 @@ void HGWR::fit_gwr()
         Viy(i) = as_scalar(Visigma * Yi);
     }
     /// Check whether need to optimize bw
-    bw_optim = bw;
-    if (bw == 0.0)
+    if (bw_optim)
     {
-        BwSelectionArgs args = make_pair<const mat&, const vec&>(Vig, Viy);
+        BwSelectionArgs args = make_pair<std::reference_wrapper<arma::mat>, std::reference_wrapper<arma::vec>>(Vig, Viy);
         double upper = ngroup, lower = k + 1;
-        bw_optim = golden_selection(lower, upper, true, args);
+        bw = golden_selection(lower, upper, true, args);
     }
     /// Calibrate for each gorup.
     trS = { 0.0, 0.0};
@@ -141,7 +135,7 @@ void HGWR::fit_gwr()
     {
         mat d_u = u.each_row() - u.row(i);
         vec d2 = sum(d_u % d_u, 1);
-        double b2 = vec(sort(d2))[(int)bw_optim - 1];
+        double b2 = vec(sort(d2))[(int)bw - 1];
         vec wW = (*gwr_kernel)(d2, b2);
         mat GtW = (G.each_col() % wW).t();
         mat GtWVG = GtW * Vig;
@@ -620,7 +614,6 @@ HGWR::Parameters HGWR::fit()
     // Prepare Matrix
     //===============
     int prescition = (int)log10(1 / eps_iter);
-    bw_optim = bw;
     double tss = sum((y - mean(y)) % (y - mean(y)));
     gamma = mat(ngroup, nvg, arma::fill::zeros);
     beta = vec(nvx, arma::fill::zeros);
@@ -699,7 +692,7 @@ HGWR::Parameters HGWR::fit()
         {
             ostringstream sout;
             sout << fixed << setprecision(prescition) << "Iter: " << iter;
-            if (bw == 0.0) sout << ", " << "Bw: " << bw_optim;
+            if (bw_optim) sout << ", " << "Bw: " << bw;
             sout << ", " << "RSS: " << rss;
             if (abs(diff) < DBL_MAX) sout << ", " << "dRSS: " << diff;
             sout << ", " << "R2: " << (1 - rss / tss);
@@ -717,7 +710,7 @@ HGWR::Parameters HGWR::fit()
     calc_var_beta();
     enp = 2 * trS(0) - trS(1);
     edf = ndata - enp;
-    return { gamma, beta, mu, D, sigma, bw_optim };
+    return { gamma, beta, mu, D, sigma, bw };
 }
 
 void HGWR::calc_var_beta()
