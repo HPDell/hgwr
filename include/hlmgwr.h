@@ -3,7 +3,7 @@
 
 #include <string>
 #include <memory>
-#include <armadillo>
+#include "armadillo_config.h"
 
 namespace hgwr
 {
