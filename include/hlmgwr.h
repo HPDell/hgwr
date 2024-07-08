@@ -171,7 +171,14 @@ public:
     void set_group(const arma::uvec& value) { group = value; }
     
     double get_bw() { return bw; }
-    void set_bw(double value) { bw = value; }
+    void set_bw(double value)
+    {
+        bw = value;
+        bw_optim = false;
+    }
+
+    bool get_bw_optim() { return bw_optim; }
+    void set_bw_optim(bool value) { bw_optim = value; }
     
     KernelType get_kernel() { return kernel; }
     void set_kernel(KernelType value)
