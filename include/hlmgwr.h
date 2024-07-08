@@ -14,7 +14,7 @@ struct ML_Params
     arma::vec* Yf;
     arma::mat* Zf;
     arma::vec* beta;
-    size_t ngroup;
+    arma::uword ngroup;
     arma::uword n;
     arma::uword p;
     arma::uword q;
@@ -266,8 +266,8 @@ private:
     std::unique_ptr<arma::vec[]> Yf;
     std::unique_ptr<arma::vec[]> Ygf;
     std::unique_ptr<arma::vec[]> Yhf;
-    size_t ngroup;
-    size_t ndata;
+    arma::uword ngroup;
+    arma::uword ndata;
     arma::uword nvg;
     arma::uword nvx;
     arma::uword nvz;
