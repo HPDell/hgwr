@@ -3,6 +3,7 @@
 
 #include <string>
 #include <memory>
+#include <functional>
 #include "armadillo_config.h"
 
 namespace hgwr
@@ -83,7 +84,7 @@ public:  // Type defs
         double bw;
     };
 
-    using BwSelectionArgs = std::pair<const arma::mat&, const arma::vec&>;
+    using BwSelectionArgs = std::pair<std::reference_wrapper<arma::mat>, std::reference_wrapper<arma::vec>>;
 
 public:
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group)
@@ -235,8 +236,8 @@ public:
     void set_printer(PrintFunction printer) { pcout = printer; }
 
 public:
-    double criterion_bw(double bw, BwSelectionArgs args);
-    double golden_selection(const double lower, const double upper, const bool adaptive, BwSelectionArgs args);
+    double criterion_bw(double bw, const BwSelectionArgs& args);
+    double golden_selection(const double lower, const double upper, const bool adaptive, const BwSelectionArgs& args);
     void fit_gwr();
     arma::vec fit_gls();
     double fit_D(ML_Params* params);

@@ -12,7 +12,7 @@ using namespace hgwr;
 
 const double log2pi = log(2.0 * M_PI);
 
-double HGWR::criterion_bw(double bw, BwSelectionArgs args)
+double HGWR::criterion_bw(double bw, const BwSelectionArgs& args)
 {
     mat Vig = args.first, Viy = args.second;
     const size_t ngroup = Viy.n_rows;
@@ -48,7 +48,7 @@ double HGWR::criterion_bw(double bw, BwSelectionArgs args)
     return cv;
 }
 
-double HGWR::golden_selection(const double lower, const double upper, const bool adaptive, BwSelectionArgs args)
+double HGWR::golden_selection(const double lower, const double upper, const bool adaptive, const BwSelectionArgs& args)
 {
     double xU = upper, xL = lower;
     bool adaptBw = adaptive;
@@ -125,7 +125,7 @@ void HGWR::fit_gwr()
     /// Check whether need to optimize bw
     if (bw_optim)
     {
-        BwSelectionArgs args = make_pair<const mat&, const vec&>(Vig, Viy);
+        BwSelectionArgs args = make_pair<std::reference_wrapper<arma::mat>, std::reference_wrapper<arma::vec>>(Vig, Viy);
         double upper = ngroup, lower = k + 1;
         bw = golden_selection(lower, upper, true, args);
     }
