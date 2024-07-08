@@ -56,8 +56,8 @@ double HGWR::golden_selection(const double lower, const double upper, const bool
     const double R = (sqrt(5)-1)/2;
     int iter = 0;
     double d = R * (xU - xL);
-    double x1 = adaptBw ? floor(xL + d) : (xL + d);
-    double x2 = adaptBw ? round(xU - d) : (xU - d);
+    double x1 = min(adaptBw ? round(xL + d) : (xL + d), xU);
+    double x2 = max(adaptBw ? floor(xU - d) : (xU - d), xL);
     double f1 = criterion_bw(x1, args);
     double f2 = criterion_bw(x2, args);
     double d1 = f2 - f1;
@@ -70,7 +70,7 @@ double HGWR::golden_selection(const double lower, const double upper, const bool
         {
             xL = x2;
             x2 = x1;
-            x1 = adaptBw ? round(xL + d) : (xL + d);
+            x1 = min(adaptBw ? round(xL + d) : (xL + d), xU);
             f2 = f1;
             f1 = criterion_bw(x1, args);
         }
@@ -78,7 +78,7 @@ double HGWR::golden_selection(const double lower, const double upper, const bool
         {
             xU = x1;
             x1 = x2;
-            x2 = adaptBw ? floor(xU - d) : (xU - d);
+            x2 = max(adaptBw ? floor(xU - d) : (xU - d), xL);
             f1 = f2;
             f2 = criterion_bw(x2, args);
         }
