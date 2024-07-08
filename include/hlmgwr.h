@@ -99,7 +99,7 @@ public:
         nvg = G.n_cols;
         nvx = X.n_cols;
         nvz = Z.n_cols;
-        bw_optim = bw;
+        bw_optim = true;
     }
 
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, const Options& options)
@@ -112,19 +112,21 @@ public:
         this->max_retries = options.max_retries;
         this->verbose = options.verbose;
         this->ml_type = options.ml_type;
+        bw_optim = true;
     }
 
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel)
         : HGWR(G, X, Z, y, u, group)
     {
         this->kernel = kernel;
+        bw_optim = true;
     }
 
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, double bw)
         : HGWR(G, X, Z, y, u, group, kernel)
     {
         this->bw = bw;
-        bw_optim = bw;
+        bw_optim = false;
     }
 
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, double bw, const Options& options)
@@ -132,7 +134,7 @@ public:
     {
         this->kernel = kernel;
         this->bw = bw;
-        bw_optim = bw;
+        bw_optim = false;
     }
 
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, double bw, const Options& options, const PrintFunction printer)
@@ -239,6 +241,7 @@ private:
     arma::mat u;
     arma::uvec group;
     double bw = 0.0;
+    bool bw_optim = false;
     KernelType kernel = KernelType::GAUSSIAN;
     GWRKernelFunctionSquared gwr_kernel = &gwr_kernel_gaussian2;
 
@@ -273,7 +276,6 @@ private:
     arma::uword nvz;
 
     /* diagnostic information */
-    double bw_optim = 0;
     double loglik = 0;
     arma::vec trS;
     arma::vec var_beta;

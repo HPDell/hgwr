@@ -123,12 +123,11 @@ void HGWR::fit_gwr()
         Viy(i) = as_scalar(Visigma * Yi);
     }
     /// Check whether need to optimize bw
-    bw_optim = bw;
-    if (bw == 0.0)
+    if (bw_optim)
     {
         BwSelectionArgs args = make_pair<const mat&, const vec&>(Vig, Viy);
         double upper = ngroup, lower = k + 1;
-        bw_optim = golden_selection(lower, upper, true, args);
+        bw = golden_selection(lower, upper, true, args);
     }
     /// Calibrate for each gorup.
     trS = { 0.0, 0.0};
@@ -136,7 +135,7 @@ void HGWR::fit_gwr()
     {
         mat d_u = u.each_row() - u.row(i);
         vec d2 = sum(d_u % d_u, 1);
-        double b2 = vec(sort(d2))[(int)bw_optim - 1];
+        double b2 = vec(sort(d2))[(int)bw - 1];
         vec wW = (*gwr_kernel)(d2, b2);
         mat GtW = (G.each_col() % wW).t();
         mat GtWVG = GtW * Vig;
@@ -615,7 +614,6 @@ HGWR::Parameters HGWR::fit()
     // Prepare Matrix
     //===============
     int prescition = (int)log10(1 / eps_iter);
-    bw_optim = bw;
     double tss = sum((y - mean(y)) % (y - mean(y)));
     gamma = mat(ngroup, nvg, arma::fill::zeros);
     beta = vec(nvx, arma::fill::zeros);
@@ -694,7 +692,7 @@ HGWR::Parameters HGWR::fit()
         {
             ostringstream sout;
             sout << fixed << setprecision(prescition) << "Iter: " << iter;
-            if (bw == 0.0) sout << ", " << "Bw: " << bw_optim;
+            if (bw_optim) sout << ", " << "Bw: " << bw;
             sout << ", " << "RSS: " << rss;
             if (abs(diff) < DBL_MAX) sout << ", " << "dRSS: " << diff;
             sout << ", " << "R2: " << (1 - rss / tss);
@@ -712,7 +710,7 @@ HGWR::Parameters HGWR::fit()
     calc_var_beta();
     enp = 2 * trS(0) - trS(1);
     edf = ndata - enp;
-    return { gamma, beta, mu, D, sigma, bw_optim };
+    return { gamma, beta, mu, D, sigma, bw };
 }
 
 void HGWR::calc_var_beta()
