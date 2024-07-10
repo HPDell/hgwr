@@ -261,9 +261,7 @@ public:
     void set_printer(PrintFunction printer) { pcout = printer; }
 
 public:
-    double criterion_bw(double bw, const BwSelectionArgs& args) { return 0.0; }
     int bw_optimisation(double lower, double upper, const BwSelectionArgs* args);
-    double golden_selection(const double lower, const double upper, const bool adaptive, const BwSelectionArgs& args);
     void fit_gwr();
     arma::vec fit_gls();
     double fit_D(ML_Params* params);

@@ -142,55 +142,6 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
     return status;
 }
 
-double HGWR::golden_selection(const double lower, const double upper, const bool adaptive, const BwSelectionArgs& args)
-{
-    double xU = upper, xL = lower;
-    bool adaptBw = adaptive;
-    const double eps = 1e-4;
-    const double R = (sqrt(5)-1)/2;
-    int iter = 0;
-    double dx = R * (xU - xL);
-    double x1 = min(adaptBw ? round(xL + dx) : (xL + dx), xU);
-    double x2 = max(adaptBw ? floor(xU - dx) : (xU - dx), xL);
-    double f1 = criterion_bw(x1, args);
-    double f2 = criterion_bw(x2, args);
-    double df = f2 - f1;
-    if (verbose > 1) pcout(string("xL: ") + to_string(xL) + "; x1: " + to_string(x1) + "; x2: " + to_string(x2) + "; xU: " + to_string(xU) + "; f1: " + to_string(f1) + "; f2: " + to_string(f2) + ";\n");
-    double xopt = f1 < f2 ? x1 : x2, fopt = min(f1, f2);
-    double ea = 100;
-    while ((fabs(dx) > eps) && (fabs(df) > eps) && iter < ea)
-    {
-        dx = R * dx;
-        if (f1 < f2)
-        {
-            xL = x2;
-            x2 = x1;
-            x1 = min(adaptBw ? round(xL + dx) : (xL + dx), xU);
-            f2 = f1;
-            f1 = criterion_bw(x1, args);
-        }
-        else
-        {
-            xU = x1;
-            x1 = x2;
-            x2 = max(adaptBw ? floor(xU - dx) : (xU - dx), xL);
-            f1 = f2;
-            f2 = criterion_bw(x2, args);
-        }
-        if (verbose > 1) pcout(string("dx: ") + to_string(dx) + "; xL: " + to_string(xL) + "; x1: " + to_string(x1) + "; x2: " + to_string(x2) + "; xU: " + to_string(xU) + "; f1: " + to_string(f1) + "; f2: " + to_string(f2) + "\r");
-        iter = iter + 1;
-        xopt = (f1 < f2) ? x1 : x2;
-        fopt = min(f1, f2);
-        df = f2 - f1;
-    }
-    if (verbose > 0)
-    {
-        if (verbose > 1) pcout("\n");
-        pcout(string("bw: ") + to_string(xopt) + "; f: " + to_string(fopt) +  "\n");
-    }
-    return xopt;
-}
-
 /**
  * @brief Estimate $\gamma$.
  * 
