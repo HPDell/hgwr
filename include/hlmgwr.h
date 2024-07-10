@@ -99,7 +99,11 @@ public:  // Type defs
         std::reference_wrapper<arma::vec> Viy;
         std::reference_wrapper<arma::mat> G;
         std::reference_wrapper<arma::mat> u;
-        std::reference_wrapper<arma::rowvec> rVisigma;
+        arma::mat* Ygf;
+        arma::mat* Zf;
+        std::reference_wrapper<arma::mat> mu;
+        std::reference_wrapper<arma::rowvec> rVsigma;
+        std::reference_wrapper<arma::uvec> group;
         GWRKernelFunctionSquared kernel;
     };
 

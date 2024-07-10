@@ -20,6 +20,9 @@ double HGWR::bw_criterion_cv(double bw, void* params)
     const vec& Viy = args->Viy.get();
     const mat& G = args->G.get();
     const mat& u = args->u.get();
+    const mat* Ygf = args->Ygf;
+    const mat* Zf = args->Zf;
+    const mat& mu = args->mu.get();
     const size_t ngroup = Viy.n_rows;
     /// Calibrate for each gorup.
     double cv = 0.0;
@@ -35,9 +38,9 @@ double HGWR::bw_criterion_cv(double bw, void* params)
         try
         {
             vec bi = solve(GtWVG, GtWVy);
-            double yhi = as_scalar(Vig.row(i) * bi);
-            double residual = Viy(i) - yhi;
-            cv += residual * residual;
+            vec hat_ygi = as_scalar(G.row(i) * bi) + Zf[i] * mu.row(i).t();
+            vec residual = Ygf[i] - hat_ygi;
+            cv += sum(residual % residual);
         }
         catch(const std::exception& e)
         {
@@ -54,9 +57,12 @@ double HGWR::bw_criterion_aic(double bw, void* params)
     const vec& Viy = args->Viy.get();
     const mat& G = args->G.get();
     const mat& u = args->u.get();
-    const mat& rVsigma = args->rVisigma.get();
+    const mat* Ygf = args->Ygf;
+    const mat* Zf = args->Zf;
+    const mat& mu = args->mu.get();
+    const mat& rVsigma = args->rVsigma.get();
+    const uvec& group = args->group.get();
     const size_t ngroup = Viy.n_rows;
-    const mat mVsigma = ones(ngroup, 1) * rVsigma;
     /// Calibrate for each gorup.
     double rss = 0.0;
     vec shat(2, fill::zeros);
@@ -73,13 +79,13 @@ double HGWR::bw_criterion_aic(double bw, void* params)
         {
             mat GtWVG_inv = inv(GtWVG);
             vec bi = GtWVG_inv * GtWVy;
-            mat GtWVsigma = GtW * mVsigma;
+            mat GtWVsigma = GtW.cols(group) % rVsigma;
             mat si = G.row(i) * GtWVG_inv * GtWVsigma;
             shat(0) += si(i);
             shat(1) += as_scalar(si * si.t());
-            double yhi = as_scalar(Vig.row(i) * bi);
-            double residual = Viy(i) - yhi;
-            rss += residual * residual;
+            vec hat_ygi = as_scalar(G.row(i) * bi) + Zf[i] * mu.row(i).t();
+            vec residual = Ygf[i] - hat_ygi;
+            rss += sum(residual % residual);
         }
         catch(const std::exception& e)
         {
@@ -123,14 +129,14 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
         if (verbose > 1)
         {
             double fm = gsl_min_fminimizer_f_minimum(minimizer);
-            pcout(string("xL: ") + to_string(lower) + "; xU: " + to_string(upper) + "; x: " + to_string(m) + "; f: " + to_string(fm) + ";\n");
+            pcout(string("xL: ") + to_string(lower) + "; xU: " + to_string(upper) + "; x: " + to_string(m) + "; f: " + to_string(fm) + "\r");
         }
     } while (status == GSL_CONTINUE && iter < max_bw_iters);
     if (status == GSL_SUCCESS && verbose > 0)
     {
         bw = m;
         double fm = gsl_min_fminimizer_f_minimum(minimizer);
-        pcout(string("bw: ") + to_string(bw) + "; f: " + to_string(fm));
+        pcout(string("bw: ") + to_string(bw) + "; f: " + to_string(fm) + "\n");
     }
     gsl_min_fminimizer_free(minimizer);
     gsl_set_error_handler_off();
@@ -172,7 +178,7 @@ double HGWR::golden_selection(const double lower, const double upper, const bool
             f1 = f2;
             f2 = criterion_bw(x2, args);
         }
-        if (verbose > 1) pcout(string("dx: ") + to_string(dx) + "; xL: " + to_string(xL) + "; x1: " + to_string(x1) + "; x2: " + to_string(x2) + "; xU: " + to_string(xU) + "; f1: " + to_string(f1) + "; f2: " + to_string(f2) + ";\n");
+        if (verbose > 1) pcout(string("dx: ") + to_string(dx) + "; xL: " + to_string(xL) + "; x1: " + to_string(x1) + "; x2: " + to_string(x2) + "; xU: " + to_string(xU) + "; f1: " + to_string(f1) + "; f2: " + to_string(f2) + "\r");
         iter = iter + 1;
         xopt = (f1 < f2) ? x1 : x2;
         fopt = min(f1, f2);
@@ -180,6 +186,7 @@ double HGWR::golden_selection(const double lower, const double upper, const bool
     }
     if (verbose > 0)
     {
+        if (verbose > 1) pcout("\n");
         pcout(string("bw: ") + to_string(xopt) + "; f: " + to_string(fopt) +  "\n");
     }
     return xopt;
@@ -205,7 +212,7 @@ void HGWR::fit_gwr()
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
     vec Yg(ngroup, arma::fill::zeros);
-    rowvec rVisigma = rowvec(ndata, arma::fill::zeros);
+    rowvec rVsigma = rowvec(ndata, arma::fill::zeros);
     for (size_t i = 0; i < ngroup; i++)
     {
         const mat& Yi = Ygf[i];
@@ -215,12 +222,13 @@ void HGWR::fit_gwr()
         rowvec Visigma = ones(1, nidata) * Vi_inv;
         Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
-        rVisigma(find(group == i)) = Visigma;
+        rVsigma(find(group == i)) = Visigma;
     }
+    // mat mVsigma = ones(ngroup, 1) * rVsigma;
     /// Check whether need to optimize bw
     if (bw_optim)
     {
-        BwSelectionArgs args { Vig, Viy, G, u, rVisigma, gwr_kernel };
+        BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel };
         double upper = ngroup - 1, lower = k + 1;
         // bw = golden_selection(lower, upper, true, args);
         if (bw_optimisation(lower, upper, &args) != GSL_SUCCESS && verbose > 0)
@@ -239,9 +247,10 @@ void HGWR::fit_gwr()
         mat GtW = (G.each_col() % wW).t();
         mat GtWVG = GtW * Vig;
         mat GtWVy = GtW * Viy;
-        mat GtWVGi = inv(GtWVG);
-        gamma.row(i) = trans(GtWVGi * GtWVy);
-        mat si = G.row(i) * GtWVGi * GtW;
+        mat GtWVG_inv = inv(GtWVG);
+        gamma.row(i) = trans(GtWVG_inv * GtWVy);
+        mat GtWVsigma = GtW.cols(group) % rVsigma;
+        mat si = G.row(i) * GtWVG_inv * GtWVsigma;
         trS(0) += si(0, i);
         trS(1) += as_scalar(si * si.t());
     }
@@ -735,6 +744,7 @@ HGWR::Parameters HGWR::fit()
     // Generalized Least Squared Estimation for beta
     //----------------------------------------------
     beta = fit_gls();
+    fit_mu();
     //============
     // Backfitting
     //============
