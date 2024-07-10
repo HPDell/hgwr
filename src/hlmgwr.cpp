@@ -138,6 +138,7 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
     {
         bw = m;
         double fm = gsl_min_fminimizer_f_minimum(minimizer);
+        if (verbose > 1) pcout("\n");
         if (verbose > 0) pcout(string("bw: ") + to_string(bw) + "; f: " + to_string(fm) + "\n");
     }
     gsl_min_fminimizer_free(minimizer);
