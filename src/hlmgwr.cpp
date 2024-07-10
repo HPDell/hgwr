@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <string>
 #include <utility>
+#include <gsl/gsl_min.h>
 #include <gsl/gsl_multimin.h>
 #include <gsl/gsl_errno.h>
 
@@ -12,85 +13,137 @@ using namespace hgwr;
 
 const double log2pi = log(2.0 * M_PI);
 
-double HGWR::criterion_bw(double bw, const BwSelectionArgs& args)
+double HGWR::bw_criterion_cv(double bw, void* params)
 {
-    mat Vig = args.first, Viy = args.second;
+    BwSelectionArgs* args = (BwSelectionArgs*)params;
+    const mat& Vig = args->Vig.get();
+    const vec& Viy = args->Viy.get();
+    const mat& G = args->G.get();
+    const mat& u = args->u.get();
+    const mat* Ygf = args->Ygf;
+    const mat* Zf = args->Zf;
+    const mat& mu = args->mu.get();
     const size_t ngroup = Viy.n_rows;
     /// Calibrate for each gorup.
     double cv = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
-        vec d2 = sum(d_u % d_u, 1);
-        double b2 = vec(sort(d2))[(int)bw - 1];
-        vec wW = (*gwr_kernel)(d2, b2);
+        vec d = sqrt(sum(d_u % d_u, 1));
+        double b = actual_bw(d, bw);
+        vec wW = (*args->kernel)(d % d, b * b);
         wW(i) = 0;
         mat GtWVG = (G.each_col() % wW).t() * Vig;
         mat GtWVy = (G.each_col() % wW).t() * Viy;
         try
         {
             vec bi = solve(GtWVG, GtWVy);
-            double yhi = as_scalar(Vig.row(i) * bi);
-            double residual = Viy(i) - yhi;
-            cv += residual * residual;
+            vec hat_ygi = as_scalar(G.row(i) * bi) + Zf[i] * mu.row(i).t();
+            vec residual = Ygf[i] - hat_ygi;
+            cv += sum(residual % residual);
         }
         catch(const std::exception& e)
         {
             return DBL_MAX;
         }
     }
-    if (verbose > 1)
-    {
-        ostringstream sout;
-        sout << "bw: " << bw << "; " << "cv: " << cv << "\r";
-        pcout(sout.str());
-    }
     return cv;
 }
 
-double HGWR::golden_selection(const double lower, const double upper, const bool adaptive, const BwSelectionArgs& args)
+double HGWR::bw_criterion_aic(double bw, void* params)
 {
-    double xU = upper, xL = lower;
-    bool adaptBw = adaptive;
-    const double eps = 1e-4;
-    const double R = (sqrt(5)-1)/2;
-    int iter = 0;
-    double d = R * (xU - xL);
-    double x1 = min(adaptBw ? round(xL + d) : (xL + d), xU);
-    double x2 = max(adaptBw ? floor(xU - d) : (xU - d), xL);
-    double f1 = criterion_bw(x1, args);
-    double f2 = criterion_bw(x2, args);
-    double d1 = f2 - f1;
-    double xopt = f1 < f2 ? x1 : x2;
-    double ea = 100;
-    while ((fabs(d) > eps) && (fabs(d1) > eps) && iter < ea)
+    BwSelectionArgs* args = (BwSelectionArgs*)params;
+    const mat& Vig = args->Vig.get();
+    const vec& Viy = args->Viy.get();
+    const mat& G = args->G.get();
+    const mat& u = args->u.get();
+    const mat* Ygf = args->Ygf;
+    const mat* Zf = args->Zf;
+    const mat& mu = args->mu.get();
+    const mat& rVsigma = args->rVsigma.get();
+    const uvec& group = args->group.get();
+    const size_t ngroup = Viy.n_rows;
+    /// Calibrate for each gorup.
+    double rss = 0.0;
+    double trS = 0.0;
+    for (size_t i = 0; i < ngroup; i++)
     {
-        d = R * d;
-        if (f1 < f2)
+        mat d_u = u.each_row() - u.row(i);
+        vec d = sqrt(sum(d_u % d_u, 1));
+        double b = actual_bw(d, bw);
+        vec wW = (*args->kernel)(d % d, b * b);
+        mat GtW = trans(G.each_col() % wW);
+        mat GtWVG = GtW * Vig;
+        mat GtWVy = GtW * Viy;
+        try
         {
-            xL = x2;
-            x2 = x1;
-            x1 = min(adaptBw ? round(xL + d) : (xL + d), xU);
-            f2 = f1;
-            f1 = criterion_bw(x1, args);
+            mat GtWVG_inv = inv(GtWVG);
+            vec bi = GtWVG_inv * GtWVy;
+            uvec igroup = find(group == i);
+            // mat GtWe = GtW.cols(group);
+            // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
+            mat si_left = G.rows(group.rows(igroup)) * GtWVG_inv * GtW.col(i);
+            mat si = si_left * rVsigma.cols(igroup);
+            trS += trace(si);
+            vec hat_ygi = as_scalar(G.row(i) * bi) + Zf[i] * mu.row(i).t();
+            vec residual = Ygf[i] - hat_ygi;
+            rss += sum(residual % residual);
         }
-        else
+        catch(const std::exception& e)
         {
-            xU = x1;
-            x1 = x2;
-            x2 = max(adaptBw ? floor(xU - d) : (xU - d), xL);
-            f1 = f2;
-            f2 = criterion_bw(x2, args);
+            return DBL_MAX;
         }
-        iter = iter + 1;
-        xopt = (f1 < f2) ? x1 : x2;
-        d1 = f2 - f1;
     }
-    if (verbose > 1)
+    double n = double(ngroup);
+    double aic = n * log(rss / n) + n * log(2 * arma::datum::pi) + n + trS;
+    return aic;
+}
+
+int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* args)
+{
+    gsl_set_error_handler([](const char* reason, const char* file, int line, int gsl_errno)
     {
-        pcout("\n");
+        (void)reason;
+        (void)file;
+        (void)line;
+        (void)gsl_errno;
+    });
+    gsl_function func;
+    func.params = (void*)args;
+    func.function = bw_criterion;
+    gsl_min_fminimizer* minimizer = gsl_min_fminimizer_alloc(gsl_min_fminimizer_goldensection);
+    const double R = 1 - (sqrt(5)-1)/2;
+    double m = lower + R * (upper - lower);
+    int status = gsl_min_fminimizer_set(minimizer, &func, m, lower, upper);
+    if (status == GSL_EINVAL)
+    {
+        bw = gsl_min_fminimizer_x_minimum(minimizer);
+        return GSL_EINVAL;
     }
-    return xopt;
+    size_t iter = 0;
+    do
+    {
+        status = gsl_min_fminimizer_iterate(minimizer);
+        m = gsl_min_fminimizer_x_minimum(minimizer);
+        lower = gsl_min_fminimizer_x_lower(minimizer);
+        upper = gsl_min_fminimizer_x_upper(minimizer);
+        status = gsl_min_test_interval(lower, upper, 1e-4, 0.0);
+        if (verbose > 1)
+        {
+            double fm = gsl_min_fminimizer_f_minimum(minimizer);
+            pcout(string("xL: ") + to_string(lower) + "; xU: " + to_string(upper) + "; x: " + to_string(m) + "; f: " + to_string(fm) + "\r");
+        }
+    } while (status == GSL_CONTINUE && iter < max_bw_iters);
+    if (status == GSL_SUCCESS)
+    {
+        bw = m;
+        double fm = gsl_min_fminimizer_f_minimum(minimizer);
+        if (verbose > 1) pcout("\n");
+        if (verbose > 0) pcout(string("bw: ") + to_string(bw) + "; f: " + to_string(fm) + "\n");
+    }
+    gsl_min_fminimizer_free(minimizer);
+    gsl_set_error_handler_off();
+    return status;
 }
 
 /**
@@ -112,39 +165,51 @@ void HGWR::fit_gwr()
     gamma.fill(arma::fill::zeros);
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
+    vec Yg(ngroup, arma::fill::zeros);
+    rowvec rVsigma = rowvec(ndata, arma::fill::zeros);
     for (size_t i = 0; i < ngroup; i++)
     {
         const mat& Yi = Ygf[i];
         const mat& Zi = Zf[i];
         mat Vi_inv = woodbury_eye(D_inv, Zi);
         uword nidata = Zi.n_rows;
-        mat Visigma = ones(1, nidata) * Vi_inv;
+        rowvec Visigma = ones(1, nidata) * Vi_inv;
         Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
+        rVsigma(find(group == i)) = Visigma;
     }
+    // mat mVsigma = ones(ngroup, 1) * rVsigma;
     /// Check whether need to optimize bw
     if (bw_optim)
     {
-        BwSelectionArgs args = make_pair<std::reference_wrapper<arma::mat>, std::reference_wrapper<arma::vec>>(Vig, Viy);
-        double upper = ngroup, lower = k + 1;
-        bw = golden_selection(lower, upper, true, args);
+        BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel };
+        double upper = ngroup - 1, lower = k + 1;
+        // bw = golden_selection(lower, upper, true, args);
+        if (bw_optimisation(lower, upper, &args) != GSL_SUCCESS && verbose > 0)
+        {
+            pcout("Bandwidth optimisation failed. Use last value: " + to_string(bw) + "\n");
+        }
     }
     /// Calibrate for each gorup.
     trS = { 0.0, 0.0};
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
-        vec d2 = sum(d_u % d_u, 1);
-        double b2 = vec(sort(d2))[(int)bw - 1];
-        vec wW = (*gwr_kernel)(d2, b2);
+        vec d = sqrt(sum(d_u % d_u, 1));
+        double b = actual_bw(d, bw);
+        vec wW = (*gwr_kernel)(d % d, b * b);
         mat GtW = (G.each_col() % wW).t();
         mat GtWVG = GtW * Vig;
         mat GtWVy = GtW * Viy;
-        mat GtWVGi = inv(GtWVG);
-        gamma.row(i) = trans(GtWVGi * GtWVy);
-        mat si = G.row(i) * GtWVGi * GtW;
-        trS(0) += si(0, i);
-        trS(1) += as_scalar(si * si.t());
+        mat GtWVG_inv = inv(GtWVG);
+        gamma.row(i) = trans(GtWVG_inv * GtWVy);
+        uvec igroup = find(group == i);
+        // mat GtWe = GtW.cols(group);
+        // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
+        mat si_left = (G.rows(group.rows(igroup)) * GtWVG_inv * GtW).eval().cols(group);
+        mat si = si_left.each_row() % rVsigma;
+        trS(0) += trace(si.cols(igroup));
+        trS(1) += trace(si * si.t());
     }
 }
 
@@ -636,6 +701,7 @@ HGWR::Parameters HGWR::fit()
     // Generalized Least Squared Estimation for beta
     //----------------------------------------------
     beta = fit_gls();
+    fit_mu();
     //============
     // Backfitting
     //============
