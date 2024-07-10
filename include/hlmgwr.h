@@ -32,6 +32,14 @@ public:  // Type defs
 
     typedef arma::vec (*GWRKernelFunctionSquared)(arma::vec, double);
 
+    enum class BwOptimCriterionType
+    {
+        CV,
+        AIC
+    };
+
+    typedef double (*BwOptimCriterion)(double, void*);
+
     static double actual_bw(arma::vec d, double bw)
     {
         arma::vec ds = sort(d);
@@ -221,6 +229,21 @@ public:
         }
     }
 
+    BwOptimCriterionType get_bw_criterion_type() { return bw_criterion_type; }
+    void set_bw_criterion_type(BwOptimCriterionType value)
+    {
+        bw_criterion_type = value;
+        switch (bw_criterion_type)
+        {
+        case BwOptimCriterionType::AIC:
+            bw_criterion = &bw_criterion_aic;
+            break;
+        default:
+            bw_criterion = &bw_criterion_cv;
+            break;
+        }
+    }
+
     double get_alpha() { return alpha; }
     void set_alpha(double value) { alpha = value; }
     
@@ -282,7 +305,7 @@ private:
     double bw = 0.0;
     bool bw_optim = false;
     KernelType kernel = KernelType::GAUSSIAN;
-    GWRKernelFunctionSquared gwr_kernel = &gwr_kernel_gaussian2;
+    BwOptimCriterionType bw_criterion_type = BwOptimCriterionType::CV;
 
     /* model parameters */
     arma::mat gamma;
@@ -304,6 +327,8 @@ private:
 
 
     /* others */
+    BwOptimCriterion bw_criterion = &bw_criterion_cv;
+    GWRKernelFunctionSquared gwr_kernel = &gwr_kernel_gaussian2;
     std::unique_ptr<arma::mat[]> Zf;
     std::unique_ptr<arma::mat[]> Xf;
     std::unique_ptr<arma::vec[]> Yf;

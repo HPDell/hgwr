@@ -107,7 +107,7 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
     });
     gsl_function func;
     func.params = (void*)args;
-    func.function = &bw_criterion_aic;
+    func.function = bw_criterion;
     gsl_min_fminimizer* minimizer = gsl_min_fminimizer_alloc(gsl_min_fminimizer_goldensection);
     const double R = 1 - (sqrt(5)-1)/2;
     double m = lower + R * (upper - lower);
