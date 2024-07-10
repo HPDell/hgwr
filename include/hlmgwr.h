@@ -84,7 +84,17 @@ public:  // Type defs
         double bw;
     };
 
-    using BwSelectionArgs = std::pair<std::reference_wrapper<arma::mat>, std::reference_wrapper<arma::vec>>;
+    // using BwSelectionArgs = std::pair<std::reference_wrapper<arma::mat>, std::reference_wrapper<arma::vec>>;
+    struct BwSelectionArgs
+    {
+        std::reference_wrapper<arma::mat> Vig;
+        std::reference_wrapper<arma::vec> Viy;
+        std::reference_wrapper<arma::mat> G;
+        std::reference_wrapper<arma::mat> u;
+        GWRKernelFunctionSquared kernel;
+    };
+
+    static double bw_criterion_cv(double bw, void* params);
 
 public:
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group)
@@ -236,7 +246,8 @@ public:
     void set_printer(PrintFunction printer) { pcout = printer; }
 
 public:
-    double criterion_bw(double bw, const BwSelectionArgs& args);
+    double criterion_bw(double bw, const BwSelectionArgs& args) { return 0.0; }
+    int bw_optimisation(double lower, double upper, const BwSelectionArgs* args);
     double golden_selection(const double lower, const double upper, const bool adaptive, const BwSelectionArgs& args);
     void fit_gwr();
     arma::vec fit_gls();
@@ -271,6 +282,7 @@ private:
     double alpha = 0.01;
     double eps_iter = 1e-6;
     double eps_gradient = 1e-6;
+    size_t max_bw_iters = (size_t)100;
     size_t max_iters = (size_t)1e6;
     size_t max_retries = (size_t)10;
     size_t verbose = (size_t)0;
