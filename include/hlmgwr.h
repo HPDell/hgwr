@@ -31,6 +31,14 @@ public:  // Type defs
     };
 
     typedef arma::vec (*GWRKernelFunctionSquared)(arma::vec, double);
+
+    static double actual_bw(arma::vec d, double bw)
+    {
+        arma::vec ds = sort(d);
+        double b0 = floor(bw), bx = bw - b0;
+        double d0 = ds(int(b0) - 1), d1 = ds(int(b0));
+        return d0 + (d1 - d0) * bx;
+    }
     
     static arma::vec gwr_kernel_gaussian2(arma::vec dist2, double bw2)
     {

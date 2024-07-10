@@ -26,9 +26,9 @@ double HGWR::bw_criterion_cv(double bw, void* params)
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
-        vec d2 = sum(d_u % d_u, 1);
-        double b2 = vec(sort(d2))[(int)bw - 1];
-        vec wW = (*args->kernel)(d2, b2);
+        vec d = sqrt(sum(d_u % d_u, 1));
+        double b = actual_bw(d, bw);
+        vec wW = (*args->kernel)(d % d, b * b);
         wW(i) = 0;
         mat GtWVG = (G.each_col() % wW).t() * Vig;
         mat GtWVy = (G.each_col() % wW).t() * Viy;
@@ -49,14 +49,25 @@ double HGWR::bw_criterion_cv(double bw, void* params)
 
 int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* args)
 {
+    gsl_set_error_handler([](const char* reason, const char* file, int line, int gsl_errno)
+    {
+        (void)reason;
+        (void)file;
+        (void)line;
+        (void)gsl_errno;
+    });
     gsl_function func;
     func.params = (void*)args;
     func.function = &bw_criterion_cv;
     gsl_min_fminimizer* minimizer = gsl_min_fminimizer_alloc(gsl_min_fminimizer_goldensection);
     const double R = 1 - (sqrt(5)-1)/2;
     double m = lower + R * (upper - lower);
-    gsl_min_fminimizer_set(minimizer, &func, m, lower, upper);
-    int status;
+    int status = gsl_min_fminimizer_set(minimizer, &func, m, lower, upper);
+    if (status == GSL_EINVAL)
+    {
+        bw = m;
+        return GSL_EINVAL;
+    }
     size_t iter = 0;
     do
     {
@@ -65,6 +76,11 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
         lower = gsl_min_fminimizer_x_lower(minimizer);
         upper = gsl_min_fminimizer_x_upper(minimizer);
         status = gsl_min_test_interval(lower, upper, 1e-4, 0.0);
+        if (verbose > 1)
+        {
+            double fm = gsl_min_fminimizer_f_minimum(minimizer);
+            pcout(string("xL: ") + to_string(lower) + "; xU: " + to_string(upper) + "; x: " + to_string(m) + "; f: " + to_string(fm) + ";\n");
+        }
     } while (status == GSL_CONTINUE && iter < max_bw_iters);
     if (status == GSL_SUCCESS && verbose > 0)
     {
@@ -72,6 +88,8 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
         double fm = gsl_min_fminimizer_f_minimum(minimizer);
         pcout(string("bw: ") + to_string(bw) + "; f: " + to_string(fm));
     }
+    gsl_min_fminimizer_free(minimizer);
+    gsl_set_error_handler_off();
     return status;
 }
 
@@ -156,7 +174,7 @@ void HGWR::fit_gwr()
     if (bw_optim)
     {
         BwSelectionArgs args { Vig, Viy, G, u, gwr_kernel };
-        double upper = ngroup, lower = k + 1;
+        double upper = ngroup - 1, lower = k + 1;
         // bw = golden_selection(lower, upper, true, args);
         if (bw_optimisation(lower, upper, &args) != GSL_SUCCESS && verbose > 0)
         {
@@ -168,9 +186,9 @@ void HGWR::fit_gwr()
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
-        vec d2 = sum(d_u % d_u, 1);
-        double b2 = vec(sort(d2))[(int)bw - 1];
-        vec wW = (*gwr_kernel)(d2, b2);
+        vec d = sqrt(sum(d_u % d_u, 1));
+        double b = actual_bw(d, bw);
+        vec wW = (*gwr_kernel)(d % d, b * b);
         mat GtW = (G.each_col() % wW).t();
         mat GtWVG = GtW * Vig;
         mat GtWVy = GtW * Viy;
