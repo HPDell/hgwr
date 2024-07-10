@@ -54,7 +54,9 @@ double HGWR::bw_criterion_aic(double bw, void* params)
     const vec& Viy = args->Viy.get();
     const mat& G = args->G.get();
     const mat& u = args->u.get();
+    const mat& rVsigma = args->rVisigma.get();
     const size_t ngroup = Viy.n_rows;
+    const mat mVsigma = ones(ngroup, 1) * rVsigma;
     /// Calibrate for each gorup.
     double rss = 0.0;
     vec shat(2, fill::zeros);
@@ -64,14 +66,14 @@ double HGWR::bw_criterion_aic(double bw, void* params)
         vec d = sqrt(sum(d_u % d_u, 1));
         double b = actual_bw(d, bw);
         vec wW = (*args->kernel)(d % d, b * b);
-        mat GtW = G.each_col() % wW;
-        mat GtWVG = GtW.t() * Vig;
-        mat GtWVy = GtW.t() * Viy;
+        mat GtW = trans(G.each_col() % wW);
+        mat GtWVG = GtW * Vig;
+        mat GtWVy = GtW * Viy;
         try
         {
             mat GtWVG_inv = inv(GtWVG);
             vec bi = GtWVG_inv * GtWVy;
-            mat GtWVsigma = GtW.each_row() % args->rVisigma.get();
+            mat GtWVsigma = GtW * mVsigma;
             mat si = G.row(i) * GtWVG_inv * GtWVsigma;
             shat(0) += si(i);
             shat(1) += as_scalar(si * si.t());
@@ -203,7 +205,7 @@ void HGWR::fit_gwr()
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
     vec Yg(ngroup, arma::fill::zeros);
-    rowvec rVisigma = vec(ngroup, arma::fill::zeros);
+    rowvec rVisigma = rowvec(ndata, arma::fill::zeros);
     for (size_t i = 0; i < ngroup; i++)
     {
         const mat& Yi = Ygf[i];
