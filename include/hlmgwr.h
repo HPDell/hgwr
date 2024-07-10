@@ -99,10 +99,13 @@ public:  // Type defs
         std::reference_wrapper<arma::vec> Viy;
         std::reference_wrapper<arma::mat> G;
         std::reference_wrapper<arma::mat> u;
+        std::reference_wrapper<arma::rowvec> rVisigma;
         GWRKernelFunctionSquared kernel;
     };
 
     static double bw_criterion_cv(double bw, void* params);
+
+    static double bw_criterion_aic(double bw, void* params);
 
 public:
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group)

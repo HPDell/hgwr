@@ -47,6 +47,48 @@ double HGWR::bw_criterion_cv(double bw, void* params)
     return cv;
 }
 
+double HGWR::bw_criterion_aic(double bw, void* params)
+{
+    BwSelectionArgs* args = (BwSelectionArgs*)params;
+    const mat& Vig = args->Vig.get();
+    const vec& Viy = args->Viy.get();
+    const mat& G = args->G.get();
+    const mat& u = args->u.get();
+    const size_t ngroup = Viy.n_rows;
+    /// Calibrate for each gorup.
+    double rss = 0.0;
+    vec shat(2, fill::zeros);
+    for (size_t i = 0; i < ngroup; i++)
+    {
+        mat d_u = u.each_row() - u.row(i);
+        vec d = sqrt(sum(d_u % d_u, 1));
+        double b = actual_bw(d, bw);
+        vec wW = (*args->kernel)(d % d, b * b);
+        mat GtW = G.each_col() % wW;
+        mat GtWVG = GtW.t() * Vig;
+        mat GtWVy = GtW.t() * Viy;
+        try
+        {
+            mat GtWVG_inv = inv(GtWVG);
+            vec bi = GtWVG_inv * GtWVy;
+            mat GtWVsigma = GtW.each_row() % args->rVisigma.get();
+            mat si = G.row(i) * GtWVG_inv * GtWVsigma;
+            shat(0) += si(i);
+            shat(1) += as_scalar(si * si.t());
+            double yhi = as_scalar(Vig.row(i) * bi);
+            double residual = Viy(i) - yhi;
+            rss += residual * residual;
+        }
+        catch(const std::exception& e)
+        {
+            return DBL_MAX;
+        }
+    }
+    double n = double(ngroup);
+    double aic = n * log(rss / n) + rss * log(2 * arma::datum::pi) + n * ((n + shat(0)) / (n - 2 - shat(0)));
+    return aic;
+}
+
 int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* args)
 {
     gsl_set_error_handler([](const char* reason, const char* file, int line, int gsl_errno)
@@ -58,14 +100,14 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
     });
     gsl_function func;
     func.params = (void*)args;
-    func.function = &bw_criterion_cv;
+    func.function = &bw_criterion_aic;
     gsl_min_fminimizer* minimizer = gsl_min_fminimizer_alloc(gsl_min_fminimizer_goldensection);
     const double R = 1 - (sqrt(5)-1)/2;
     double m = lower + R * (upper - lower);
     int status = gsl_min_fminimizer_set(minimizer, &func, m, lower, upper);
     if (status == GSL_EINVAL)
     {
-        bw = m;
+        bw = gsl_min_fminimizer_x_minimum(minimizer);
         return GSL_EINVAL;
     }
     size_t iter = 0;
@@ -160,20 +202,23 @@ void HGWR::fit_gwr()
     gamma.fill(arma::fill::zeros);
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
+    vec Yg(ngroup, arma::fill::zeros);
+    rowvec rVisigma = vec(ngroup, arma::fill::zeros);
     for (size_t i = 0; i < ngroup; i++)
     {
         const mat& Yi = Ygf[i];
         const mat& Zi = Zf[i];
         mat Vi_inv = woodbury_eye(D_inv, Zi);
         uword nidata = Zi.n_rows;
-        mat Visigma = ones(1, nidata) * Vi_inv;
+        rowvec Visigma = ones(1, nidata) * Vi_inv;
         Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
+        rVisigma(find(group == i)) = Visigma;
     }
     /// Check whether need to optimize bw
     if (bw_optim)
     {
-        BwSelectionArgs args { Vig, Viy, G, u, gwr_kernel };
+        BwSelectionArgs args { Vig, Viy, G, u, rVisigma, gwr_kernel };
         double upper = ngroup - 1, lower = k + 1;
         // bw = golden_selection(lower, upper, true, args);
         if (bw_optimisation(lower, upper, &args) != GSL_SUCCESS && verbose > 0)
