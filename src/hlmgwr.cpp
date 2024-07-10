@@ -39,12 +39,6 @@ double HGWR::criterion_bw(double bw, const BwSelectionArgs& args)
             return DBL_MAX;
         }
     }
-    if (verbose > 1)
-    {
-        ostringstream sout;
-        sout << "bw: " << bw << "; " << "cv: " << cv << "\r";
-        pcout(sout.str());
-    }
     return cv;
 }
 
@@ -55,22 +49,23 @@ double HGWR::golden_selection(const double lower, const double upper, const bool
     const double eps = 1e-4;
     const double R = (sqrt(5)-1)/2;
     int iter = 0;
-    double d = R * (xU - xL);
-    double x1 = min(adaptBw ? round(xL + d) : (xL + d), xU);
-    double x2 = max(adaptBw ? floor(xU - d) : (xU - d), xL);
+    double dx = R * (xU - xL);
+    double x1 = min(adaptBw ? round(xL + dx) : (xL + dx), xU);
+    double x2 = max(adaptBw ? floor(xU - dx) : (xU - dx), xL);
     double f1 = criterion_bw(x1, args);
     double f2 = criterion_bw(x2, args);
-    double d1 = f2 - f1;
-    double xopt = f1 < f2 ? x1 : x2;
+    double df = f2 - f1;
+    if (verbose > 1) pcout(string("xL: ") + to_string(xL) + "; x1: " + to_string(x1) + "; x2: " + to_string(x2) + "; xU: " + to_string(xU) + "; f1: " + to_string(f1) + "; f2: " + to_string(f2) + ";\n");
+    double xopt = f1 < f2 ? x1 : x2, fopt = min(f1, f2);
     double ea = 100;
-    while ((fabs(d) > eps) && (fabs(d1) > eps) && iter < ea)
+    while ((fabs(dx) > eps) && (fabs(df) > eps) && iter < ea)
     {
-        d = R * d;
+        dx = R * dx;
         if (f1 < f2)
         {
             xL = x2;
             x2 = x1;
-            x1 = min(adaptBw ? round(xL + d) : (xL + d), xU);
+            x1 = min(adaptBw ? round(xL + dx) : (xL + dx), xU);
             f2 = f1;
             f1 = criterion_bw(x1, args);
         }
@@ -78,17 +73,19 @@ double HGWR::golden_selection(const double lower, const double upper, const bool
         {
             xU = x1;
             x1 = x2;
-            x2 = max(adaptBw ? floor(xU - d) : (xU - d), xL);
+            x2 = max(adaptBw ? floor(xU - dx) : (xU - dx), xL);
             f1 = f2;
             f2 = criterion_bw(x2, args);
         }
+        if (verbose > 1) pcout(string("dx: ") + to_string(dx) + "; xL: " + to_string(xL) + "; x1: " + to_string(x1) + "; x2: " + to_string(x2) + "; xU: " + to_string(xU) + "; f1: " + to_string(f1) + "; f2: " + to_string(f2) + ";\n");
         iter = iter + 1;
         xopt = (f1 < f2) ? x1 : x2;
-        d1 = f2 - f1;
+        fopt = min(f1, f2);
+        df = f2 - f1;
     }
-    if (verbose > 1)
+    if (verbose > 0)
     {
-        pcout("\n");
+        pcout(string("bw: ") + to_string(xopt) + "; f: " + to_string(fopt) +  "\n");
     }
     return xopt;
 }
