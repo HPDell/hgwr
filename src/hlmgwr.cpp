@@ -65,7 +65,7 @@ double HGWR::bw_criterion_aic(double bw, void* params)
     const size_t ngroup = Viy.n_rows;
     /// Calibrate for each gorup.
     double rss = 0.0;
-    vec shat(2, fill::zeros);
+    double trS = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
@@ -79,10 +79,9 @@ double HGWR::bw_criterion_aic(double bw, void* params)
         {
             mat GtWVG_inv = inv(GtWVG);
             vec bi = GtWVG_inv * GtWVy;
-            mat GtWVsigma = GtW.cols(group) % rVsigma;
-            mat si = G.row(i) * GtWVG_inv * GtWVsigma;
-            shat(0) += si(i);
-            shat(1) += as_scalar(si * si.t());
+            mat GtWe = GtW.cols(group);
+            mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
+            trS += trace(si.cols(find(group == i)));
             vec hat_ygi = as_scalar(G.row(i) * bi) + Zf[i] * mu.row(i).t();
             vec residual = Ygf[i] - hat_ygi;
             rss += sum(residual % residual);
@@ -93,7 +92,7 @@ double HGWR::bw_criterion_aic(double bw, void* params)
         }
     }
     double n = double(ngroup);
-    double aic = n * log(rss / n) + rss * log(2 * arma::datum::pi) + n * ((n + shat(0)) / (n - 2 - shat(0)));
+    double aic = n * log(rss / n) + n * log(2 * arma::datum::pi) + n + trS;
     return aic;
 }
 
@@ -132,11 +131,11 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
             pcout(string("xL: ") + to_string(lower) + "; xU: " + to_string(upper) + "; x: " + to_string(m) + "; f: " + to_string(fm) + "\r");
         }
     } while (status == GSL_CONTINUE && iter < max_bw_iters);
-    if (status == GSL_SUCCESS && verbose > 0)
+    if (status == GSL_SUCCESS)
     {
         bw = m;
         double fm = gsl_min_fminimizer_f_minimum(minimizer);
-        pcout(string("bw: ") + to_string(bw) + "; f: " + to_string(fm) + "\n");
+        if (verbose > 0) pcout(string("bw: ") + to_string(bw) + "; f: " + to_string(fm) + "\n");
     }
     gsl_min_fminimizer_free(minimizer);
     gsl_set_error_handler_off();
@@ -249,10 +248,11 @@ void HGWR::fit_gwr()
         mat GtWVy = GtW * Viy;
         mat GtWVG_inv = inv(GtWVG);
         gamma.row(i) = trans(GtWVG_inv * GtWVy);
-        mat GtWVsigma = GtW.cols(group) % rVsigma;
-        mat si = G.row(i) * GtWVG_inv * GtWVsigma;
-        trS(0) += si(0, i);
-        trS(1) += as_scalar(si * si.t());
+        mat GtWe = GtW.cols(group);
+        mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
+        si = si.cols(find(group == i));
+        trS(0) += trace(si);
+        trS(1) += trace(si * si.t());
     }
 }
 

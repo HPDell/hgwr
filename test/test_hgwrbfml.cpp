@@ -38,9 +38,10 @@ TEST_CASE("HGWR(BFML)")
     // }
 
     SECTION("Optimise bandwidth") {
-        HGWR::Options options { 0.1, 1e-6, 1e-6, 100000, 10, 0, 0 };
+        HGWR::Options options { 0.001, 1e-6, 1e-6, 100000, 10, 0, 0 };
         HGWR algorithm { G, X, Z, y, u, group, kernel, options };
         algorithm.set_printer(pcout);
+        algorithm.set_verbose(2);
         REQUIRE_NOTHROW(algorithm.fit());
         INFO("Results:");
         CAPTURE(algorithm.get_bw(), algorithm.get_sigma(), algorithm.get_gamma(), algorithm.get_beta(), algorithm.get_mu(), algorithm.get_D());
