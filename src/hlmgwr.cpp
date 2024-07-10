@@ -79,9 +79,12 @@ double HGWR::bw_criterion_aic(double bw, void* params)
         {
             mat GtWVG_inv = inv(GtWVG);
             vec bi = GtWVG_inv * GtWVy;
-            mat GtWe = GtW.cols(group);
-            mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
-            trS += trace(si.cols(find(group == i)));
+            uvec igroup = find(group == i);
+            // mat GtWe = GtW.cols(group);
+            // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
+            mat si_left = G.rows(group.rows(igroup)) * GtWVG_inv * GtW.col(i);
+            mat si = si_left * rVsigma.cols(igroup);
+            trS += trace(si);
             vec hat_ygi = as_scalar(G.row(i) * bi) + Zf[i] * mu.row(i).t();
             vec residual = Ygf[i] - hat_ygi;
             rss += sum(residual % residual);
@@ -199,10 +202,12 @@ void HGWR::fit_gwr()
         mat GtWVy = GtW * Viy;
         mat GtWVG_inv = inv(GtWVG);
         gamma.row(i) = trans(GtWVG_inv * GtWVy);
-        mat GtWe = GtW.cols(group);
-        mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
-        si = si.cols(find(group == i));
-        trS(0) += trace(si);
+        uvec igroup = find(group == i);
+        // mat GtWe = GtW.cols(group);
+        // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
+        mat si_left = (G.rows(group.rows(igroup)) * GtWVG_inv * GtW).eval().cols(group);
+        mat si = si_left.each_row() % rVsigma;
+        trS(0) += trace(si.cols(igroup));
         trS(1) += trace(si * si.t());
     }
 }
