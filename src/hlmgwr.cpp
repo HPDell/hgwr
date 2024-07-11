@@ -195,7 +195,7 @@ void HGWR::fit_gwr()
     if (bw_optim)
     {
         BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel };
-        double upper = ngroup - 1, lower = k + 2 + int(kernel == KernelType::BISQUARED);
+        double upper = ngroup - 1, lower = k + 2;
         // bw = golden_selection(lower, upper, true, args);
         bw_optimisation(lower, upper, &args);
     }
