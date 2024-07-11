@@ -24,9 +24,9 @@ TEST_CASE("HGWR(BFML)")
     u.load(arma::csv_name(string(TEST_DATA_DIR) + "/hlmgwr_u.csv"));
     y.load(arma::csv_name(string(TEST_DATA_DIR) + "/hlmgwr_y.csv"));
     group.load(arma::csv_name(string(TEST_DATA_DIR) + "/hlmgwr_group.csv"));
-    auto kernel = HGWR::KernelType::GAUSSIAN;
 
     // SECTION("Specified bandwidth 10") {
+    //     auto kernel = HGWR::KernelType::GAUSSIAN;
     //     double bw = 10.0;
     //     HGWR::Options options { 0.1, 1e-6, 1e-6, 100000, 10, 0, 0 };
     //     HGWR algorithm { G, X, Z, y, u, group, kernel, bw, options, pcout };
@@ -34,18 +34,18 @@ TEST_CASE("HGWR(BFML)")
     //     INFO("Results:");
     //     CAPTURE(algorithm.get_bw(), algorithm.get_sigma(), algorithm.get_gamma(), algorithm.get_beta(), algorithm.get_mu(), algorithm.get_D());
     //     CHECK_THAT(algorithm.get_bw(), Catch::Matchers::WithinAbs(10.0, 1e-6));
-    //     CHECK_THAT(algorithm.get_sigma(), Catch::Matchers::WithinAbs(1.9472450709, 1e-2));
+    //     CHECK_THAT(algorithm.get_sigma(), Catch::Matchers::WithinAbs(1.95, 1e-2));
     // }
 
     SECTION("Optimise bandwidth") {
-        HGWR::Options options { 0.001, 1e-6, 1e-6, 100000, 10, 0, 0 };
+        auto kernel = HGWR::KernelType::BISQUARED;
+        HGWR::Options options { 1e-16, 1e-6, 1e-6, 100000, 10, 0, 0 };
         HGWR algorithm { G, X, Z, y, u, group, kernel, options };
         algorithm.set_printer(pcout);
-        algorithm.set_verbose(2);
         REQUIRE_NOTHROW(algorithm.fit());
         INFO("Results:");
         CAPTURE(algorithm.get_bw(), algorithm.get_sigma(), algorithm.get_gamma(), algorithm.get_beta(), algorithm.get_mu(), algorithm.get_D());
         CHECK_THAT(algorithm.get_bw(), Catch::Matchers::WithinAbs(8, 1));
-        CHECK_THAT(algorithm.get_sigma(), Catch::Matchers::WithinAbs(1.9472450709, 1e-2));
+        CHECK_THAT(algorithm.get_sigma(), Catch::Matchers::WithinAbs(1.90, 1e-2));
     }
 }

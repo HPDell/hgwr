@@ -152,14 +152,14 @@ public:
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel)
         : HGWR(G, X, Z, y, u, group)
     {
-        this->kernel = kernel;
+        set_kernel(kernel);
         bw_optim = true;
     }
 
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, const Options& options)
         : HGWR(G, X, Z, y, u, group, options)
     {
-        this->kernel = kernel;
+        set_kernel(kernel);
         bw_optim = true;
     }
 
@@ -173,7 +173,7 @@ public:
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, double bw, const Options& options)
         : HGWR(G, X, Z, y, u, group, options)
     {
-        this->kernel = kernel;
+        set_kernel(kernel);
         this->bw = bw;
         bw_optim = false;
     }
