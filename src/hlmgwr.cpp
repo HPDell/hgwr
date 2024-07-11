@@ -117,7 +117,15 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
     int status = gsl_min_fminimizer_set(minimizer, &func, m, lower, upper);
     if (status == GSL_EINVAL)
     {
-        bw = gsl_min_fminimizer_x_minimum(minimizer);
+        if (bw > 0)
+        {
+            if (verbose > 0) pcout("Bandwidth optimisation failed. Use last value: " + to_string(bw) + "\n");
+        }
+        else
+        {
+            bw = gsl_min_fminimizer_x_minimum(minimizer);
+            if (verbose > 0) pcout("Bandwidth optimisation failed to initialise. Use default value: " + to_string(bw) + "\n");
+        }
         return GSL_EINVAL;
     }
     size_t iter = 0;
@@ -140,6 +148,10 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
         double fm = gsl_min_fminimizer_f_minimum(minimizer);
         if (verbose > 1) pcout("\n");
         if (verbose > 0) pcout(string("bw: ") + to_string(bw) + "; f: " + to_string(fm) + "\n");
+    }
+    else
+    {
+        if (verbose > 0) pcout("Bandwidth optimisation failed. Use last value: " + to_string(bw) + "\n");
     }
     gsl_min_fminimizer_free(minimizer);
     gsl_set_error_handler_off();
@@ -185,10 +197,7 @@ void HGWR::fit_gwr()
         BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel };
         double upper = ngroup - 1, lower = k + 1;
         // bw = golden_selection(lower, upper, true, args);
-        if (bw_optimisation(lower, upper, &args) != GSL_SUCCESS && verbose > 0)
-        {
-            pcout("Bandwidth optimisation failed. Use last value: " + to_string(bw) + "\n");
-        }
+        bw_optimisation(lower, upper, &args);
     }
     /// Calibrate for each gorup.
     trS = { 0.0, 0.0};
