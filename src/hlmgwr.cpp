@@ -112,7 +112,7 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
     func.params = (void*)args;
     func.function = bw_criterion;
     gsl_min_fminimizer* minimizer = gsl_min_fminimizer_alloc(gsl_min_fminimizer_goldensection);
-    const double R = 1 - (sqrt(5)-1)/2;
+    const double R = (sqrt(5)-1)/2;
     double m = lower + R * (upper - lower);
     int status = gsl_min_fminimizer_set(minimizer, &func, m, lower, upper);
     if (status == GSL_EINVAL)
@@ -195,7 +195,7 @@ void HGWR::fit_gwr()
     if (bw_optim)
     {
         BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel };
-        double upper = ngroup - 1, lower = k + 1;
+        double upper = ngroup - 1, lower = k + 2;
         // bw = golden_selection(lower, upper, true, args);
         bw_optimisation(lower, upper, &args);
     }
