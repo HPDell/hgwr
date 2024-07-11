@@ -37,8 +37,8 @@ double HGWR::bw_criterion_cv(double bw, void* params)
         mat GtWVy = (G.each_col() % wW).t() * Viy;
         try
         {
-            vec bi = solve(GtWVG, GtWVy);
-            vec hat_ygi = as_scalar(G.row(i) * bi) + Zf[i] * mu.row(i).t();
+            vec gammai = inv(GtWVG) * GtWVy;
+            vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
             vec residual = Ygf[i] - hat_ygi;
             cv += sum(residual % residual);
         }
@@ -78,14 +78,14 @@ double HGWR::bw_criterion_aic(double bw, void* params)
         try
         {
             mat GtWVG_inv = inv(GtWVG);
-            vec bi = GtWVG_inv * GtWVy;
+            vec gammai = GtWVG_inv * GtWVy;
             uvec igroup = find(group == i);
             // mat GtWe = GtW.cols(group);
             // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
             mat si_left = G.rows(group.rows(igroup)) * GtWVG_inv * GtW.col(i);
             mat si = si_left * rVsigma.cols(igroup);
             trS += trace(si);
-            vec hat_ygi = as_scalar(G.row(i) * bi) + Zf[i] * mu.row(i).t();
+            vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
             vec residual = Ygf[i] - hat_ygi;
             rss += sum(residual % residual);
         }
