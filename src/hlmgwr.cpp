@@ -202,6 +202,7 @@ void HGWR::fit_gwr()
     }
     /// Calibrate for each gorup.
     trS = { 0.0, 0.0};
+    double rss = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
@@ -212,7 +213,8 @@ void HGWR::fit_gwr()
         mat GtWVG = GtW * Vig;
         mat GtWVy = GtW * Viy;
         mat GtWVG_inv = inv(GtWVG);
-        gamma.row(i) = trans(GtWVG_inv * GtWVy);
+        vec gammai = GtWVG_inv * GtWVy;
+        gamma.row(i) = trans(gammai);
         mat Ci = GtWVG_inv * GtW;
         gamma_se.row(i) = trans(sum(Ci % Ci, 1));
         uvec igroup = find(group == i);
@@ -222,7 +224,12 @@ void HGWR::fit_gwr()
         mat si = si_left.each_row() % rVsigma;
         trS(0) += trace(si.cols(igroup));
         trS(1) += trace(si * si.t());
+        vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
+        vec residual = Ygf[i] - hat_ygi;
+        rss += sum(residual % residual);
     }
+    double sigmahat = rss / (double(ngroup) - trS[0]);
+    gamma_se = sqrt(sigmahat * gamma_se);
 }
 
 vec HGWR::fit_gls()
