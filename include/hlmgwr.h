@@ -266,6 +266,8 @@ public:
     void set_ml_type(size_t value) { ml_type = value; }
     
     arma::mat get_gamma() { return gamma; }
+
+    arma::mat get_gamma_se() { return gamma_se; }
     
     arma::mat get_beta() { return beta; }
     
@@ -309,6 +311,7 @@ private:
 
     /* model parameters */
     arma::mat gamma;
+    arma::mat gamma_se;
     arma::vec beta;
     arma::mat mu;
     arma::mat D;

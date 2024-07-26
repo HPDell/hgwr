@@ -175,6 +175,7 @@ void HGWR::fit_gwr()
     uword k = G.n_cols;//, q = Zf[0].n_cols;
     mat D_inv = D.i();
     gamma.fill(arma::fill::zeros);
+    gamma_se.fill(arma::fill::zeros);
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
     vec Yg(ngroup, arma::fill::zeros);
@@ -212,10 +213,12 @@ void HGWR::fit_gwr()
         mat GtWVy = GtW * Viy;
         mat GtWVG_inv = inv(GtWVG);
         gamma.row(i) = trans(GtWVG_inv * GtWVy);
+        mat Ci = GtWVG_inv * GtW;
+        gamma_se.row(i) = trans(sum(Ci % Ci, 1));
         uvec igroup = find(group == i);
         // mat GtWe = GtW.cols(group);
         // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
-        mat si_left = (G.rows(group.rows(igroup)) * GtWVG_inv * GtW).eval().cols(group);
+        mat si_left = (G.rows(group.rows(igroup)) * Ci).eval().cols(group);
         mat si = si_left.each_row() % rVsigma;
         trS(0) += trace(si.cols(igroup));
         trS(1) += trace(si * si.t());
@@ -690,6 +693,7 @@ HGWR::Parameters HGWR::fit()
     int prescition = (int)log10(1 / eps_iter);
     double tss = sum((y - mean(y)) % (y - mean(y)));
     gamma = mat(ngroup, nvg, arma::fill::zeros);
+    gamma_se = mat(ngroup, nvg, arma::fill::zeros);
     beta = vec(nvx, arma::fill::zeros);
     mu = mat(ngroup, nvz, arma::fill::zeros);
     D = mat(nvz, nvz, arma::fill::eye);
