@@ -228,7 +228,7 @@ void HGWR::fit_gwr()
         vec residual = Ygf[i] - hat_ygi;
         rss += sum(residual % residual);
     }
-    double sigmahat = rss / (double(ndata) - trS[0]);
+    double sigmahat = rss / (double(ndata) - enp());
     gamma_se = sqrt(sigmahat * gamma_se);
 }
 
@@ -794,8 +794,6 @@ HGWR::Parameters HGWR::fit()
     //============
     loglik = - mlf * double(ndata);
     calc_var_beta();
-    enp = 2 * trS(0) - trS(1);
-    edf = ndata - enp;
     return { gamma, beta, mu, D, sigma, bw };
 }
 
