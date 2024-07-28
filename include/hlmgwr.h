@@ -266,6 +266,8 @@ public:
     void set_ml_type(size_t value) { ml_type = value; }
     
     arma::mat get_gamma() { return gamma; }
+
+    arma::mat get_gamma_se() { return gamma_se; }
     
     arma::mat get_beta() { return beta; }
     
@@ -282,6 +284,22 @@ public:
     arma::vec get_var_beta() { return var_beta; }
 
     void set_printer(PrintFunction printer) { pcout = printer; }
+
+    double gamma_enp()
+    {
+        double n = 2.0 * trS[0] - trS[1];
+        return n > 0 ? n : trS[0];
+    }
+
+    double enp()
+    {
+        return gamma_enp() + double(nvx + (nvz * (nvz + 1) / 2) + 1);
+    }
+
+    double edf()
+    {
+        return double(ndata) - enp();
+    }
 
 public:
     int bw_optimisation(double lower, double upper, const BwSelectionArgs* args);
@@ -309,6 +327,7 @@ private:
 
     /* model parameters */
     arma::mat gamma;
+    arma::mat gamma_se;
     arma::vec beta;
     arma::mat mu;
     arma::mat D;
@@ -344,8 +363,6 @@ private:
     double loglik = 0;
     arma::vec trS;
     arma::vec var_beta;
-    double enp = 0;
-    double edf = 0;
 };
     
 }

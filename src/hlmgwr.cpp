@@ -175,6 +175,7 @@ void HGWR::fit_gwr()
     uword k = G.n_cols;//, q = Zf[0].n_cols;
     mat D_inv = D.i();
     gamma.fill(arma::fill::zeros);
+    gamma_se.fill(arma::fill::zeros);
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
     vec Yg(ngroup, arma::fill::zeros);
@@ -201,6 +202,7 @@ void HGWR::fit_gwr()
     }
     /// Calibrate for each gorup.
     trS = { 0.0, 0.0};
+    double rss = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
@@ -211,15 +213,23 @@ void HGWR::fit_gwr()
         mat GtWVG = GtW * Vig;
         mat GtWVy = GtW * Viy;
         mat GtWVG_inv = inv(GtWVG);
-        gamma.row(i) = trans(GtWVG_inv * GtWVy);
+        vec gammai = GtWVG_inv * GtWVy;
+        gamma.row(i) = trans(gammai);
+        mat Ci = GtWVG_inv * GtW;
+        gamma_se.row(i) = trans(sum(Ci % Ci, 1));
         uvec igroup = find(group == i);
         // mat GtWe = GtW.cols(group);
         // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
-        mat si_left = (G.rows(group.rows(igroup)) * GtWVG_inv * GtW).eval().cols(group);
+        mat si_left = (G.rows(group.rows(igroup)) * Ci).eval().cols(group);
         mat si = si_left.each_row() % rVsigma;
         trS(0) += trace(si.cols(igroup));
         trS(1) += trace(si * si.t());
+        vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
+        vec residual = Ygf[i] - hat_ygi;
+        rss += sum(residual % residual);
     }
+    double sigmahat = rss / (double(ndata) - enp());
+    gamma_se = sqrt(sigmahat * gamma_se);
 }
 
 vec HGWR::fit_gls()
@@ -690,6 +700,7 @@ HGWR::Parameters HGWR::fit()
     int prescition = (int)log10(1 / eps_iter);
     double tss = sum((y - mean(y)) % (y - mean(y)));
     gamma = mat(ngroup, nvg, arma::fill::zeros);
+    gamma_se = mat(ngroup, nvg, arma::fill::zeros);
     beta = vec(nvx, arma::fill::zeros);
     mu = mat(ngroup, nvz, arma::fill::zeros);
     D = mat(nvz, nvz, arma::fill::eye);
@@ -783,8 +794,6 @@ HGWR::Parameters HGWR::fit()
     //============
     loglik = - mlf * double(ndata);
     calc_var_beta();
-    enp = 2 * trS(0) - trS(1);
-    edf = ndata - enp;
     return { gamma, beta, mu, D, sigma, bw };
 }
 
