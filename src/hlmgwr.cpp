@@ -885,6 +885,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
             vec bi = Cit.col(k);
             diagB += bi % bi * ni - (c % bi * ni) / double(ndata);
         }
+        diagB = diagB / nd;
         double trB = sum(diagB), trB2 = sum(diagB % diagB);
         double fv = vk / trB / glsw_sigma;
         double df1 = trB * trB / trB2;
