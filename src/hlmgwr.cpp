@@ -6,6 +6,7 @@
 #include <gsl/gsl_min.h>
 #include <gsl/gsl_multimin.h>
 #include <gsl/gsl_errno.h>
+#include <gsl/gsl_cdf.h>
 
 using namespace std;
 using namespace arma;
@@ -202,6 +203,7 @@ void HGWR::fit_gwr()
     }
     /// Calibrate for each gorup.
     trS = { 0.0, 0.0};
+    qdiag = vec(ndata, arma::fill::zeros);
     double rss = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
@@ -218,18 +220,24 @@ void HGWR::fit_gwr()
         mat Ci = GtWVG_inv * GtW;
         gamma_se.row(i) = trans(sum(Ci % Ci, 1));
         uvec igroup = find(group == i);
+        uword nidata = igroup.n_elem;
         // mat GtWe = GtW.cols(group);
         // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
         mat si_left = (G.rows(group.rows(igroup)) * Ci).eval().cols(group);
         mat si = si_left.each_row() % rVsigma;
         trS(0) += trace(si.cols(igroup));
         trS(1) += trace(si * si.t());
+        mat ei(nidata, ndata, arma::fill::zeros);
+        ei.cols(igroup) = eye(nidata, nidata);
+        mat pi = ei - si;
+        mat qi = pi % pi;
+        qdiag.rows(igroup) = diagvec(qi);
         vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
         vec residual = Ygf[i] - hat_ygi;
         rss += sum(residual % residual);
     }
-    double sigmahat = rss / (double(ndata) - enp());
-    gamma_se = sqrt(sigmahat * gamma_se);
+    glsw_sigma = rss / (double(ndata) - enp());
+    gamma_se = sqrt(glsw_sigma * gamma_se);
 }
 
 vec HGWR::fit_gls()
@@ -810,4 +818,79 @@ void HGWR::calc_var_beta()
         XtViX += Xi.t() * Vi_inv * Xi;
     }
     var_beta = diagvec(XtViX.i());
+}
+
+std::vector<arma::vec4> HGWR::test_glsw()
+{
+    uword ng = gamma.n_cols;
+    double nd = double(ndata);
+    double trQ = sum(qdiag), trQ2 = sum(qdiag % qdiag);
+    double df2 = trQ * trQ / trQ2;
+    mat D_inv = D.i();
+    unique_ptr<mat[]> GVGf = make_unique<mat[]>(ngroup);
+    unique_ptr<mat[]> GVf = make_unique<mat[]>(ngroup);
+    for (size_t i = 0; i < ngroup; i++)
+    {
+        const mat& Yi = Ygf[i];
+        const mat& Zi = Zf[i];
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        uword nidata = Zi.n_rows;
+        GVf[i] = G.row(i).t() * ones(1, nidata) * Vi_inv;
+        GVGf[i] = (GVf[i] * ones(nidata, 1) * G.row(i));
+    }
+    vec nw(ngroup, arma::fill::zeros);
+    for (uword i = 0; i < ngroup; i++)
+    {
+        nw(i) = double(Zf[i].n_rows);
+    }
+    vector<vec4> results;
+    for (uword k = 0; k < ng; k++)
+    {
+        double sum_gk = sum(gamma.col(k) % nw);
+        double sum_gk2 = sum(gamma.col(k) % gamma.col(k) % nw);
+        double vk = (sum_gk2 - sum_gk * sum_gk / nd) / nd;
+        vec c(ndata, arma::fill::zeros);
+        for (uword i = 0; i < ngroup; i++)
+        {
+            double ni = double(GVf[i].n_cols);
+            mat d_u = u.each_row() - u.row(i);
+            vec d = sqrt(sum(d_u % d_u, 1));
+            double fb = actual_bw(d, bw);
+            vec w = (*gwr_kernel)(d % d, fb * fb);
+            mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
+            for (size_t j = 0; j < ngroup; j++)
+            {
+                GWVG += (w[j] * GVGf[j]);
+                GWV.cols(find(group == j)) = w[j] * GVf[j];
+            }
+            mat Cit = GWV.t() * GWVG.i().t();
+            vec bi = Cit.col(k);
+            c += bi * double(ni);
+        }
+        vec diagB(ndata, arma::fill::zeros);
+        for (uword i = 0; i < ngroup; i++)
+        {
+            double ni = double(GVf[i].n_cols);
+            mat d_u = u.each_row() - u.row(i);
+            vec d = sqrt(sum(d_u % d_u, 1));
+            double fb = actual_bw(d, bw);
+            vec w = (*gwr_kernel)(d % d, fb * fb);
+            mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
+            for (size_t j = 0; j < ngroup; j++)
+            {
+                GWVG += GVGf[j] * w[j];
+                GWV.cols(find(group == j)) = GVf[j] * w[j];
+            }
+            mat Cit = GWV.t() * GWVG.i().t();
+            vec bi = Cit.col(k);
+            diagB += bi % bi * ni - (c % bi * ni) / double(ndata);
+        }
+        double trB = sum(diagB), trB2 = sum(diagB % diagB);
+        double fv = vk / trB / glsw_sigma;
+        double df1 = trB * trB / trB2;
+        double pv = gsl_cdf_fdist_P(fv, df1, df2);
+        vec4 result = { fv, df1, df2, pv };
+        results.push_back(result);
+    }
+    return results;
 }

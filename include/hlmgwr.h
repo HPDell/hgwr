@@ -311,6 +311,7 @@ public:
     double fit_sigma();
     Parameters fit();
     void calc_var_beta();
+    std::vector<arma::vec4> test_glsw();
 
 private:
     /* data */
@@ -363,6 +364,8 @@ private:
     double loglik = 0;
     arma::vec trS;
     arma::vec var_beta;
+    arma::vec qdiag;
+    double glsw_sigma = 0.0;
 };
     
 }

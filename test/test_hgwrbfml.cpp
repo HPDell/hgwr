@@ -25,17 +25,17 @@ TEST_CASE("HGWR(BFML)")
     y.load(arma::csv_name(string(TEST_DATA_DIR) + "/hlmgwr_y.csv"));
     group.load(arma::csv_name(string(TEST_DATA_DIR) + "/hlmgwr_group.csv"));
 
-    // SECTION("Specified bandwidth 10") {
-    //     auto kernel = HGWR::KernelType::GAUSSIAN;
-    //     double bw = 10.0;
-    //     HGWR::Options options { 0.1, 1e-6, 1e-6, 100000, 10, 0, 0 };
-    //     HGWR algorithm { G, X, Z, y, u, group, kernel, bw, options, pcout };
-    //     REQUIRE_NOTHROW(algorithm.fit());
-    //     INFO("Results:");
-    //     CAPTURE(algorithm.get_bw(), algorithm.get_sigma(), algorithm.get_gamma(), algorithm.get_beta(), algorithm.get_mu(), algorithm.get_D());
-    //     CHECK_THAT(algorithm.get_bw(), Catch::Matchers::WithinAbs(10.0, 1e-6));
-    //     CHECK_THAT(algorithm.get_sigma(), Catch::Matchers::WithinAbs(1.95, 1e-2));
-    // }
+    SECTION("Specified bandwidth 10") {
+        auto kernel = HGWR::KernelType::GAUSSIAN;
+        double bw = 10.0;
+        HGWR::Options options { 0.1, 1e-6, 1e-6, 100000, 10, 0, 0 };
+        HGWR algorithm { G, X, Z, y, u, group, kernel, bw, options, pcout };
+        REQUIRE_NOTHROW(algorithm.fit());
+        INFO("Results:");
+        CAPTURE(algorithm.get_bw(), algorithm.get_sigma(), algorithm.get_gamma(), algorithm.get_beta(), algorithm.get_mu(), algorithm.get_D());
+        CHECK_THAT(algorithm.get_bw(), Catch::Matchers::WithinAbs(10.0, 1e-6));
+        CHECK_THAT(algorithm.get_sigma(), Catch::Matchers::WithinAbs(1.95, 1e-2));
+    }
 
     SECTION("Optimise bandwidth") {
         auto kernel = HGWR::KernelType::BISQUARED;
@@ -47,5 +47,19 @@ TEST_CASE("HGWR(BFML)")
         CAPTURE(algorithm.get_bw(), algorithm.get_sigma(), algorithm.get_gamma(), algorithm.get_beta(), algorithm.get_mu(), algorithm.get_D());
         CHECK_THAT(algorithm.get_bw(), Catch::Matchers::WithinAbs(8, 1));
         CHECK_THAT(algorithm.get_sigma(), Catch::Matchers::WithinAbs(1.90, 1e-2));
+    }
+
+    SECTION("F test") {
+        auto kernel = HGWR::KernelType::GAUSSIAN;
+        double bw = 10.0;
+        HGWR::Options options { 0.1, 1e-6, 1e-6, 100000, 10, 0, 0 };
+        HGWR algorithm { G, X, Z, y, u, group, kernel, bw, options, pcout };
+        REQUIRE_NOTHROW(algorithm.fit());
+        vector<vec4> fResults = algorithm.test_glsw();
+        INFO("Results:");
+        for (auto &&i : fResults)
+        {
+            CAPTURE(i(0), i(1), i(2), i(3));
+        }
     }
 }
