@@ -888,7 +888,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
         double trB = sum(diagB), trB2 = sum(diagB % diagB);
         double fv = vk / trB / glsw_sigma;
         double df1 = trB * trB / trB2;
-        double pv = gsl_cdf_fdist_P(fv, df1, df2);
+        double pv = gsl_cdf_fdist_Q(fv, df1, df2);
         vec4 result = { fv, df1, df2, pv };
         results.push_back(result);
     }
