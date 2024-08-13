@@ -864,7 +864,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
                 GWV.cols(find(group == j)) = w[j] * GVf[j];
             }
             mat Cit = GWV.t() * GWVG.i().t();
-            vec bi = Cit.col(k) * ni;
+            vec bi = Cit.col(k);
             c += bi * double(ni);
         }
         vec diagB(ndata, arma::fill::zeros);
