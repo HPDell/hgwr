@@ -309,7 +309,7 @@ public:
     double fit_D_beta(ML_Params* params);
     void fit_mu();
     double fit_sigma();
-    Parameters fit();
+    Parameters fit(const bool f_test);
     void calc_var_beta();
     std::vector<arma::vec4> test_glsw();
 

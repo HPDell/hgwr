@@ -722,7 +722,7 @@ double HGWR::fit_sigma()
     return sqrt(sigma2 / (double)ndata);
 }
 
-HGWR::Parameters HGWR::fit()
+HGWR::Parameters HGWR::fit(const bool f_test)
 {
     //===============
     // Prepare Matrix
@@ -830,7 +830,7 @@ HGWR::Parameters HGWR::fit()
     }
     sigma = fit_sigma();
     if (verbose > 0) pcout("Re-fit GLSW effects for f test\n");
-    fit_gwr(true);
+    fit_gwr(f_test);
     //============
     // Diagnostic
     //============
