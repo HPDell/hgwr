@@ -365,7 +365,7 @@ private:
     double loglik = 0;
     arma::vec trS;
     arma::vec var_beta;
-    arma::mat Q;
+    arma::vec trQ;
     double glsw_sigma = 0.0;
 };
     

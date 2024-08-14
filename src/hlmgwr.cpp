@@ -177,7 +177,7 @@ void HGWR::fit_gwr(const bool f_test)
     mat D_inv = D.i();
     gamma.fill(arma::fill::zeros);
     gamma_se.fill(arma::fill::zeros);
-    sp_mat V(ndata, ndata);
+    unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
     vec Yg(ngroup, arma::fill::zeros);
@@ -188,7 +188,7 @@ void HGWR::fit_gwr(const bool f_test)
         const mat& Zi = Zf[i];
         mat Vi_inv = woodbury_eye(D_inv, Zi);
         uword nidata = Zi.n_rows;
-        if (f_test) V.submat(group_span[i], group_span[i]) = (Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows)) * sigma * sigma;
+        if (f_test) Vf[i] = (Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows)) * sigma * sigma;
         rowvec Visigma = ones(1, nidata) * Vi_inv;
         Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
@@ -205,7 +205,7 @@ void HGWR::fit_gwr(const bool f_test)
     }
     /// Calibrate for each gorup.
     trS = { 0.0, 0.0};
-    Q.fill(0);
+    sp_mat Q(ndata, ndata);
     double rss = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
@@ -225,7 +225,7 @@ void HGWR::fit_gwr(const bool f_test)
         uword nidata = igroup.n_elem;
         // mat GtWe = GtW.cols(group);
         // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
-        mat si_left = (G.rows(group.rows(igroup)) * Ci).eval().cols(group);
+        mat si_left = (repelem(G.row(i), nidata, 1) * Ci).eval().cols(group);
         mat si = si_left.each_row() % rVsigma;
         trS(0) += trace(si.cols(igroup));
         trS(1) += trace(si * si.t());
@@ -234,12 +234,19 @@ void HGWR::fit_gwr(const bool f_test)
             mat ei(nidata, ndata, arma::fill::zeros);
             ei.cols(igroup) = eye(nidata, nidata);
             mat pi = ei - si;
-            Q += pi.t() * pi;
+            for (uword j = 0; j < ngroup; j++)
+            {
+                mat pij = pi.cols(group_span[j]);
+                Q.submat(group_span[j], group_span[j]) = pij.t() * pij * Vf[j];
+            }
         }
-        Q = Q * V;
         vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
         vec residual = Ygf[i] - hat_ygi;
         rss += sum(residual % residual);
+    }
+    if (f_test)
+    {
+        trQ = { trace(Q), trace(Q * Q) };
     }
     glsw_sigma = rss / (double(ndata) - enp());
     gamma_se = sqrt(glsw_sigma * gamma_se);
@@ -722,7 +729,6 @@ HGWR::Parameters HGWR::fit()
     Yf = make_unique<arma::vec[]>(ngroup);
     Ygf = make_unique<arma::vec[]>(ngroup);
     Yhf = make_unique<arma::vec[]>(ngroup);
-    Q = mat(ndata, ndata);
     uvec group_size(ngroup);
     group_span.resize(ngroup);
     for (uword i = 0; i < ngroup; i++)
@@ -843,17 +849,16 @@ std::vector<arma::vec4> HGWR::test_glsw()
     if (verbose > 0) pcout("Preparing f test\n");
     uword ng = gamma.n_cols;
     double nd = double(ndata);
-    double trQ = trace(Q), trQ2 = trace(Q * Q);
-    double df2 = trQ * trQ / trQ2;
+    double df2 = trQ(0) * trQ(0) / trQ(1);
     mat D_inv = D.i();
-    sp_mat V(ndata, ndata);
+    unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
     unique_ptr<mat[]> GVGf = make_unique<mat[]>(ngroup);
     unique_ptr<mat[]> GVf = make_unique<mat[]>(ngroup);
     for (size_t i = 0; i < ngroup; i++)
     {
         uvec ind = find(group == i);
         const mat& Zi = Zf[i];
-        V.submat(group_span[i], group_span[i]) = (Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows)) * sigma * sigma;
+        Vf[i] = (Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows)) * sigma * sigma;
         mat Vi_inv = woodbury_eye(D_inv, Zi);
         uword nidata = Zi.n_rows;
         GVf[i] = G.row(i).t() * ones(1, nidata) * Vi_inv;
@@ -889,7 +894,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
             vec bi = Cit.col(k);
             c += bi * double(ni);
         }
-        mat B(ndata, ndata, arma::fill::zeros);
+        sp_mat B(ndata, ndata);
         for (uword i = 0; i < ngroup; i++)
         {
             double ni = double(GVf[i].n_cols);
@@ -905,11 +910,13 @@ std::vector<arma::vec4> HGWR::test_glsw()
             }
             mat Cit = GWV.t() * GWVG.i().t();
             vec bi = Cit.col(k);
-            B += bi * bi.t() * ni;
-            B -= c * bi.t() * ni / nd;
-            // B += bibitV - (cibitV / nd);
+            for (uword j = 0; j < ngroup; j++)
+            {
+                vec bij = bi.rows(group_span[j]);
+                vec cij = c.rows(group_span[j]);
+                B.submat(group_span[j], group_span[j]) += bij * bij.t() * ni * Vf[j] - cij * bij.t() * ni * Vf[j] / nd;
+            }
         }
-        B = B * V / nd;
         double trB = trace(B), trB2 = trace(B * B);
         double fv = vk / trB / glsw_sigma;
         double df1 = trB * trB / trB2;
