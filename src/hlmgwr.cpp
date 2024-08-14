@@ -188,7 +188,7 @@ void HGWR::fit_gwr(const bool f_test)
         const mat& Zi = Zf[i];
         mat Vi_inv = woodbury_eye(D_inv, Zi);
         uword nidata = Zi.n_rows;
-        if (f_test) Vf[i] = (Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows)) * sigma * sigma;
+        if (f_test) Vf[i] = Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows);
         rowvec Visigma = ones(1, nidata) * Vi_inv;
         Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
@@ -868,7 +868,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
     {
         uvec ind = find(group == i);
         const mat& Zi = Zf[i];
-        Vf[i] = (Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows)) * sigma * sigma;
+        Vf[i] = Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows);
         mat Vi_inv = woodbury_eye(D_inv, Zi);
         uword nidata = Zi.n_rows;
         GVf[i] = G.row(i).t() * ones(1, nidata) * Vi_inv;
@@ -885,7 +885,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
         if (verbose > 0) pcout("Doing f test for effect " + to_string(k) + "\n");
         double sum_gk = sum(gamma.col(k) % nw);
         double sum_gk2 = sum(gamma.col(k) % gamma.col(k) % nw);
-        double vk = (sum_gk2 - sum_gk * sum_gk / nd) / nd;
+        double vk2 = (sum_gk2 - sum_gk * sum_gk / nd) / nd;
         vec c(ndata, arma::fill::zeros);
         for (uword i = 0; i < ngroup; i++)
         {
@@ -934,11 +934,11 @@ std::vector<arma::vec4> HGWR::test_glsw()
         double trB = 0.0, trB2 = 0.0;
         for (size_t j = 0; j < ngroup; j++)
         {
-            Bf[j] *= Vf[j];
+            Bf[j] *= Vf[j] / nd;
             trB += trace(Bf[j]);
             trB2 += trace(Bf[j] * Bf[j]);
         }
-        double fv = vk / trB / glsw_sigma;
+        double fv = vk2 / trB / (sigma * sigma);
         double df1 = trB * trB / trB2;
         double pv = gsl_cdf_fdist_Q(fv, df1, df2);
         vec4 result = { fv, df1, df2, pv };
