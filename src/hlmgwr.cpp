@@ -205,6 +205,7 @@ void HGWR::fit_gwr(const bool f_test)
     }
     /// Calibrate for each gorup.
     trS = { 0.0, 0.0};
+    Q.fill(0);
     double rss = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
@@ -233,7 +234,7 @@ void HGWR::fit_gwr(const bool f_test)
             mat ei(nidata, ndata, arma::fill::zeros);
             ei.cols(igroup) = eye(nidata, nidata);
             mat pi = ei - si;
-            Q += sp_mat(pi.t() * pi * V);
+            Q += pi.t() * pi * V;
         }
         vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
         vec residual = Ygf[i] - hat_ygi;
@@ -720,7 +721,7 @@ HGWR::Parameters HGWR::fit()
     Yf = make_unique<arma::vec[]>(ngroup);
     Ygf = make_unique<arma::vec[]>(ngroup);
     Yhf = make_unique<arma::vec[]>(ngroup);
-    Q = sp_mat(ndata, ndata);
+    Q = mat(ndata, ndata);
     uvec group_size(ngroup);
     group_span.resize(ngroup);
     for (uword i = 0; i < ngroup; i++)
@@ -887,7 +888,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
             vec bi = Cit.col(k);
             c += bi * double(ni);
         }
-        sp_mat B(ndata, ndata);
+        mat B(ndata, ndata, arma::fill::zeros);
         for (uword i = 0; i < ngroup; i++)
         {
             double ni = double(GVf[i].n_cols);
