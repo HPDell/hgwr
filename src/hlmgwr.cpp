@@ -233,8 +233,7 @@ void HGWR::fit_gwr(const bool f_test)
             mat ei(nidata, ndata, arma::fill::zeros);
             ei.cols(igroup) = eye(nidata, nidata);
             mat pi = ei - si;
-            sp_mat Qi = sp_mat(pi.t() * sp_mat(pi * V));
-            Q += Qi;
+            Q += sp_mat(pi.t() * pi * V);
         }
         vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
         vec residual = Ygf[i] - hat_ygi;
@@ -812,6 +811,7 @@ HGWR::Parameters HGWR::fit()
         }
     }
     sigma = fit_sigma();
+    if (verbose > 0) pcout("Re-fit GLSW effects for f test");
     fit_gwr(true);
     //============
     // Diagnostic
@@ -838,6 +838,7 @@ void HGWR::calc_var_beta()
 
 std::vector<arma::vec4> HGWR::test_glsw()
 {
+    if (verbose > 0) pcout("Preparing f test");
     uword ng = gamma.n_cols;
     double nd = double(ndata);
     double trQ = trace(Q), trQ2 = trace(Q * Q);
@@ -864,6 +865,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
     vector<vec4> results;
     for (uword k = 0; k < ng; k++)
     {
+        if (verbose > 0) pcout("Doing f test for effect " + to_string(k));
         double sum_gk = sum(gamma.col(k) % nw);
         double sum_gk2 = sum(gamma.col(k) % gamma.col(k) % nw);
         double vk = (sum_gk2 - sum_gk * sum_gk / nd) / nd;
@@ -889,7 +891,6 @@ std::vector<arma::vec4> HGWR::test_glsw()
         for (uword i = 0; i < ngroup; i++)
         {
             double ni = double(GVf[i].n_cols);
-            const mat& Zi = Zf[i];
             mat d_u = u.each_row() - u.row(i);
             vec d = sqrt(sum(d_u % d_u, 1));
             double fb = actual_bw(d, bw);
@@ -902,9 +903,9 @@ std::vector<arma::vec4> HGWR::test_glsw()
             }
             mat Cit = GWV.t() * GWVG.i().t();
             vec bi = Cit.col(k);
-            sp_mat bibitV = sp_mat(bi * sp_mat(bi.t() * V) * ni);
-            sp_mat cibitV = sp_mat(c * sp_mat(bi.t() * V) * ni);
-            B += bibitV - (cibitV / nd);
+            B += sp_mat(bi * (bi.t() * V) * ni);
+            B -= sp_mat(c * (bi.t() * V) * ni);
+            // B += bibitV - (cibitV / nd);
         }
         B = B / nd;
         double trB = trace(B), trB2 = trace(B * B);
