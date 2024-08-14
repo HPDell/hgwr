@@ -234,8 +234,9 @@ void HGWR::fit_gwr(const bool f_test)
             mat ei(nidata, ndata, arma::fill::zeros);
             ei.cols(igroup) = eye(nidata, nidata);
             mat pi = ei - si;
-            Q += pi.t() * pi * V;
+            Q += pi.t() * pi;
         }
+        Q = Q * V;
         vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
         vec residual = Ygf[i] - hat_ygi;
         rss += sum(residual % residual);
@@ -812,7 +813,7 @@ HGWR::Parameters HGWR::fit()
         }
     }
     sigma = fit_sigma();
-    if (verbose > 0) pcout("Re-fit GLSW effects for f test");
+    if (verbose > 0) pcout("Re-fit GLSW effects for f test\n");
     fit_gwr(true);
     //============
     // Diagnostic
@@ -839,7 +840,7 @@ void HGWR::calc_var_beta()
 
 std::vector<arma::vec4> HGWR::test_glsw()
 {
-    if (verbose > 0) pcout("Preparing f test");
+    if (verbose > 0) pcout("Preparing f test\n");
     uword ng = gamma.n_cols;
     double nd = double(ndata);
     double trQ = trace(Q), trQ2 = trace(Q * Q);
@@ -866,7 +867,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
     vector<vec4> results;
     for (uword k = 0; k < ng; k++)
     {
-        if (verbose > 0) pcout("Doing f test for effect " + to_string(k));
+        if (verbose > 0) pcout("Doing f test for effect " + to_string(k) + "\n");
         double sum_gk = sum(gamma.col(k) % nw);
         double sum_gk2 = sum(gamma.col(k) % gamma.col(k) % nw);
         double vk = (sum_gk2 - sum_gk * sum_gk / nd) / nd;
@@ -904,11 +905,11 @@ std::vector<arma::vec4> HGWR::test_glsw()
             }
             mat Cit = GWV.t() * GWVG.i().t();
             vec bi = Cit.col(k);
-            B += sp_mat(bi * (bi.t() * V) * ni);
-            B -= sp_mat(c * (bi.t() * V) * ni);
+            B += bi * bi.t() * ni;
+            B -= c * bi.t() * ni / nd;
             // B += bibitV - (cibitV / nd);
         }
-        B = B / nd;
+        B = B * V / nd;
         double trB = trace(B), trB2 = trace(B * B);
         double fv = vk / trB / glsw_sigma;
         double df1 = trB * trB / trB2;
