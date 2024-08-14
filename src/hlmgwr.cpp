@@ -177,7 +177,7 @@ void HGWR::fit_gwr(const bool f_test)
     mat D_inv = D.i();
     gamma.fill(arma::fill::zeros);
     gamma_se.fill(arma::fill::zeros);
-    unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
+    sp_mat V(ndata, ndata);
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
     vec Yg(ngroup, arma::fill::zeros);
@@ -188,7 +188,7 @@ void HGWR::fit_gwr(const bool f_test)
         const mat& Zi = Zf[i];
         mat Vi_inv = woodbury_eye(D_inv, Zi);
         uword nidata = Zi.n_rows;
-        if (f_test) Vf[i] = (Zi * D * Zi.t() + eye(nidata, nidata)) * sigma * sigma;
+        if (f_test) V.submat(group_span[i], group_span[i]) = (Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows)) * sigma * sigma;
         rowvec Visigma = ones(1, nidata) * Vi_inv;
         Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
@@ -205,7 +205,6 @@ void HGWR::fit_gwr(const bool f_test)
     }
     /// Calibrate for each gorup.
     trS = { 0.0, 0.0};
-    qdiag = vec(ndata, arma::fill::zeros);
     double rss = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
@@ -234,14 +233,8 @@ void HGWR::fit_gwr(const bool f_test)
             mat ei(nidata, ndata, arma::fill::zeros);
             ei.cols(igroup) = eye(nidata, nidata);
             mat pi = ei - si;
-            vec piV(ndata, arma::fill::zeros);
-            for (uword j = 0; j < ngroup; j++)
-            {
-                mat pij = pi.cols(group_span[j]);
-                mat diagPjV = pij.t() * pij * Vf[j];
-                piV.rows(group_span[j]) = diagvec(diagPjV);
-            }
-            qdiag = piV;
+            sp_mat Qi = sp_mat(pi.t() * sp_mat(pi * V));
+            Q += Qi;
         }
         vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
         vec residual = Ygf[i] - hat_ygi;
@@ -728,6 +721,7 @@ HGWR::Parameters HGWR::fit()
     Yf = make_unique<arma::vec[]>(ngroup);
     Ygf = make_unique<arma::vec[]>(ngroup);
     Yhf = make_unique<arma::vec[]>(ngroup);
+    Q = sp_mat(ndata, ndata);
     uvec group_size(ngroup);
     group_span.resize(ngroup);
     for (uword i = 0; i < ngroup; i++)
@@ -846,7 +840,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
 {
     uword ng = gamma.n_cols;
     double nd = double(ndata);
-    double trQ = sum(qdiag), trQ2 = sum(qdiag % qdiag);
+    double trQ = trace(Q), trQ2 = trace(Q * Q);
     double df2 = trQ * trQ / trQ2;
     mat D_inv = D.i();
     sp_mat V(ndata, ndata);
@@ -891,7 +885,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
             vec bi = Cit.col(k);
             c += bi * double(ni);
         }
-        vec diagB(ndata, arma::fill::zeros);
+        sp_mat B(ndata, ndata);
         for (uword i = 0; i < ngroup; i++)
         {
             double ni = double(GVf[i].n_cols);
@@ -908,12 +902,12 @@ std::vector<arma::vec4> HGWR::test_glsw()
             }
             mat Cit = GWV.t() * GWVG.i().t();
             vec bi = Cit.col(k);
-            vec bibitV = diagvec(bi * (bi.t() * V)) * ni;
-            vec cibitV = diagvec(c * (bi.t() * V)) * ni;
-            diagB += bibitV - (cibitV) / double(ndata);
+            sp_mat bibitV = sp_mat(bi * sp_mat(bi.t() * V) * ni);
+            sp_mat cibitV = sp_mat(c * sp_mat(bi.t() * V) * ni);
+            B += bibitV - (cibitV / nd);
         }
-        diagB = diagB / nd;
-        double trB = sum(diagB), trB2 = sum(diagB % diagB);
+        B = B / nd;
+        double trB = trace(B), trB2 = trace(B * B);
         double fv = vk / trB / glsw_sigma;
         double df1 = trB * trB / trB2;
         double pv = gsl_cdf_fdist_Q(fv, df1, df2);
