@@ -171,12 +171,13 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
  * @param wD Equals to $D$
  * @return mat 
  */
-void HGWR::fit_gwr()
+void HGWR::fit_gwr(const bool f_test)
 {
     uword k = G.n_cols;//, q = Zf[0].n_cols;
     mat D_inv = D.i();
     gamma.fill(arma::fill::zeros);
     gamma_se.fill(arma::fill::zeros);
+    unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
     vec Yg(ngroup, arma::fill::zeros);
@@ -187,6 +188,7 @@ void HGWR::fit_gwr()
         const mat& Zi = Zf[i];
         mat Vi_inv = woodbury_eye(D_inv, Zi);
         uword nidata = Zi.n_rows;
+        if (f_test) Vf[i] = (Zi * D * Zi.t() + eye(nidata, nidata)) * sigma * sigma;
         rowvec Visigma = ones(1, nidata) * Vi_inv;
         Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
@@ -227,11 +229,20 @@ void HGWR::fit_gwr()
         mat si = si_left.each_row() % rVsigma;
         trS(0) += trace(si.cols(igroup));
         trS(1) += trace(si * si.t());
-        mat ei(nidata, ndata, arma::fill::zeros);
-        ei.cols(igroup) = eye(nidata, nidata);
-        mat pi = ei - si;
-        mat qi = pi % pi;
-        qdiag.rows(igroup) = diagvec(qi);
+        if (f_test)
+        {
+            mat ei(nidata, ndata, arma::fill::zeros);
+            ei.cols(igroup) = eye(nidata, nidata);
+            mat pi = ei - si;
+            vec piV(ndata, arma::fill::zeros);
+            for (uword j = 0; j < ngroup; j++)
+            {
+                mat pij = pi.cols(group_span[j]);
+                mat diagPjV = pij.t() * pij * Vf[j];
+                piV.rows(group_span[j]) = diagvec(diagPjV);
+            }
+            qdiag = piV;
+        }
         vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
         vec residual = Ygf[i] - hat_ygi;
         rss += sum(residual % residual);
@@ -717,14 +728,24 @@ HGWR::Parameters HGWR::fit()
     Yf = make_unique<arma::vec[]>(ngroup);
     Ygf = make_unique<arma::vec[]>(ngroup);
     Yhf = make_unique<arma::vec[]>(ngroup);
+    uvec group_size(ngroup);
+    group_span.resize(ngroup);
     for (uword i = 0; i < ngroup; i++)
     {
         uvec ind = find(group == i);
+        group_size(i) = ind.n_elem;
         Yf[i] = y.rows(ind);
         Xf[i] = X.rows(ind);
         Zf[i] = Z.rows(ind);
         Yhf[i] = y.rows(ind);
     }
+    uvec group_to = cumsum(group_size);
+    uvec group_from = group_to - group_size;
+    group_to = group_to - 1;
+    transform(group_from.begin(), group_from.end(), group_to.begin(), group_span.begin(), [](uword from, uword to)
+    {
+        return span(from, to);
+    });
     //----------------------------------------------
     // Generalized Least Squared Estimation for beta
     //----------------------------------------------
@@ -797,6 +818,7 @@ HGWR::Parameters HGWR::fit()
         }
     }
     sigma = fit_sigma();
+    fit_gwr(true);
     //============
     // Diagnostic
     //============
@@ -827,12 +849,14 @@ std::vector<arma::vec4> HGWR::test_glsw()
     double trQ = sum(qdiag), trQ2 = sum(qdiag % qdiag);
     double df2 = trQ * trQ / trQ2;
     mat D_inv = D.i();
+    sp_mat V(ndata, ndata);
     unique_ptr<mat[]> GVGf = make_unique<mat[]>(ngroup);
     unique_ptr<mat[]> GVf = make_unique<mat[]>(ngroup);
     for (size_t i = 0; i < ngroup; i++)
     {
-        const mat& Yi = Ygf[i];
+        uvec ind = find(group == i);
         const mat& Zi = Zf[i];
+        V.submat(group_span[i], group_span[i]) = (Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows)) * sigma * sigma;
         mat Vi_inv = woodbury_eye(D_inv, Zi);
         uword nidata = Zi.n_rows;
         GVf[i] = G.row(i).t() * ones(1, nidata) * Vi_inv;
@@ -871,6 +895,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
         for (uword i = 0; i < ngroup; i++)
         {
             double ni = double(GVf[i].n_cols);
+            const mat& Zi = Zf[i];
             mat d_u = u.each_row() - u.row(i);
             vec d = sqrt(sum(d_u % d_u, 1));
             double fb = actual_bw(d, bw);
@@ -883,7 +908,9 @@ std::vector<arma::vec4> HGWR::test_glsw()
             }
             mat Cit = GWV.t() * GWVG.i().t();
             vec bi = Cit.col(k);
-            diagB += bi % bi * ni - (c % bi * ni) / double(ndata);
+            vec bibitV = diagvec(bi * (bi.t() * V)) * ni;
+            vec cibitV = diagvec(c * (bi.t() * V)) * ni;
+            diagB += bibitV - (cibitV) / double(ndata);
         }
         diagB = diagB / nd;
         double trB = sum(diagB), trB2 = sum(diagB % diagB);
