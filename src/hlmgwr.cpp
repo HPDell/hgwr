@@ -204,8 +204,13 @@ void HGWR::fit_gwr(const bool f_test)
         bw_optimisation(lower, upper, &args);
     }
     /// Calibrate for each gorup.
-    trS = { 0.0, 0.0};
-    sp_mat Q(ndata, ndata);
+    trS = { 0.0, 0.0 };
+    trQ = { 0.0, 0.0 };
+    unique_ptr<mat[]> Qf = make_unique<mat[]>(ngroup);
+    for (uword j = 0; j < ngroup; j++)
+    {
+        Qf[j].resize(size(Vf[j])).fill(0.0);
+    }
     double rss = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
@@ -237,7 +242,7 @@ void HGWR::fit_gwr(const bool f_test)
             for (uword j = 0; j < ngroup; j++)
             {
                 mat pij = pi.cols(group_span[j]);
-                Q.submat(group_span[j], group_span[j]) = pij.t() * pij * Vf[j];
+                Qf[j] += pij.t() * pij;
             }
         }
         vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
@@ -246,7 +251,12 @@ void HGWR::fit_gwr(const bool f_test)
     }
     if (f_test)
     {
-        trQ = { trace(Q), trace(Q * Q) };
+        for (uword j = 0; j < ngroup; j++)
+        {
+            Qf[j] *= Vf[j];
+            trQ(0) += trace(Qf[j]);
+            trQ(1) += trace(Qf[j] * Qf[j]);
+        }
     }
     glsw_sigma = rss / (double(ndata) - enp());
     gamma_se = sqrt(glsw_sigma * gamma_se);
@@ -894,7 +904,11 @@ std::vector<arma::vec4> HGWR::test_glsw()
             vec bi = Cit.col(k);
             c += bi * double(ni);
         }
-        sp_mat B(ndata, ndata);
+        unique_ptr<mat[]> Bf = make_unique<mat[]>(ngroup);
+        for (size_t j = 0; j < ngroup; j++)
+        {
+            Bf[j].resize(size(Vf[j])).fill(0.0);
+        }
         for (uword i = 0; i < ngroup; i++)
         {
             double ni = double(GVf[i].n_cols);
@@ -914,10 +928,16 @@ std::vector<arma::vec4> HGWR::test_glsw()
             {
                 vec bij = bi.rows(group_span[j]);
                 vec cij = c.rows(group_span[j]);
-                B.submat(group_span[j], group_span[j]) += bij * bij.t() * ni * Vf[j] - cij * bij.t() * ni * Vf[j] / nd;
+                Bf[j] += bij * bij.t() * ni - cij * bij.t() * ni / nd;
             }
         }
-        double trB = trace(B), trB2 = trace(B * B);
+        double trB = 0.0, trB2 = 0.0;
+        for (size_t j = 0; j < ngroup; j++)
+        {
+            Bf[j] *= Vf[j];
+            trB += trace(Bf[j]);
+            trB2 += trace(Bf[j] * Bf[j]);
+        }
         double fv = vk / trB / glsw_sigma;
         double df1 = trB * trB / trB2;
         double pv = gsl_cdf_fdist_Q(fv, df1, df2);
