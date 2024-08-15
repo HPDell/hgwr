@@ -6,6 +6,7 @@
 #include <gsl/gsl_min.h>
 #include <gsl/gsl_multimin.h>
 #include <gsl/gsl_errno.h>
+#include <gsl/gsl_cdf.h>
 
 using namespace std;
 using namespace arma;
@@ -44,6 +45,7 @@ double HGWR::bw_criterion_cv(double bw, void* params)
         }
         catch(const std::exception& e)
         {
+            (*(args->printer))(string("Error occurred when calculating CV value in bandwidth optimisation: ") + e.what());
             return DBL_MAX;
         }
     }
@@ -91,6 +93,7 @@ double HGWR::bw_criterion_aic(double bw, void* params)
         }
         catch(const std::exception& e)
         {
+            (*(args->printer))(string("Error occurred when calculating AIC value in bandwidth optimisation: ") + e.what());
             return DBL_MAX;
         }
     }
@@ -170,12 +173,13 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
  * @param wD Equals to $D$
  * @return mat 
  */
-void HGWR::fit_gwr()
+void HGWR::fit_gwr(const bool f_test)
 {
     uword k = G.n_cols;//, q = Zf[0].n_cols;
     mat D_inv = D.i();
     gamma.fill(arma::fill::zeros);
     gamma_se.fill(arma::fill::zeros);
+    unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
     vec Yg(ngroup, arma::fill::zeros);
@@ -186,6 +190,7 @@ void HGWR::fit_gwr()
         const mat& Zi = Zf[i];
         mat Vi_inv = woodbury_eye(D_inv, Zi);
         uword nidata = Zi.n_rows;
+        if (f_test) Vf[i] = Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows);
         rowvec Visigma = ones(1, nidata) * Vi_inv;
         Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
@@ -195,13 +200,20 @@ void HGWR::fit_gwr()
     /// Check whether need to optimize bw
     if (bw_optim)
     {
-        BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel };
-        double upper = ngroup - 1, lower = k + 2;
+        BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel, pcout };
+        double upper = double(ngroup - 1), lower = double(k + 2);
         // bw = golden_selection(lower, upper, true, args);
         bw_optimisation(lower, upper, &args);
     }
     /// Calibrate for each gorup.
-    trS = { 0.0, 0.0};
+    trS = { 0.0, 0.0 };
+    trQ = { 0.0, 0.0 };
+    unique_ptr<mat[]> Qf = make_unique<mat[]>(ngroup);
+    for (uword j = 0; j < ngroup; j++)
+    {
+        Qf[j].resize(size(Vf[j]));
+        Qf[j].fill(0.0);
+    }
     double rss = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
@@ -218,18 +230,39 @@ void HGWR::fit_gwr()
         mat Ci = GtWVG_inv * GtW;
         gamma_se.row(i) = trans(sum(Ci % Ci, 1));
         uvec igroup = find(group == i);
+        uword nidata = igroup.n_elem;
         // mat GtWe = GtW.cols(group);
         // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
-        mat si_left = (G.rows(group.rows(igroup)) * Ci).eval().cols(group);
+        mat si_left = (repelem(G.row(i), nidata, 1) * Ci).eval().cols(group);
         mat si = si_left.each_row() % rVsigma;
         trS(0) += trace(si.cols(igroup));
         trS(1) += trace(si * si.t());
+        if (f_test)
+        {
+            mat ei(nidata, ndata, arma::fill::zeros);
+            ei.cols(igroup) = eye(nidata, nidata);
+            mat pi = ei - si;
+            for (uword j = 0; j < ngroup; j++)
+            {
+                mat pij = pi.cols(group_span[j]);
+                Qf[j] += pij.t() * pij;
+            }
+        }
         vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
         vec residual = Ygf[i] - hat_ygi;
         rss += sum(residual % residual);
     }
-    double sigmahat = rss / (double(ndata) - enp());
-    gamma_se = sqrt(sigmahat * gamma_se);
+    if (f_test)
+    {
+        for (uword j = 0; j < ngroup; j++)
+        {
+            Qf[j] *= Vf[j];
+            trQ(0) += trace(Qf[j]);
+            trQ(1) += trace(Qf[j] * Qf[j]);
+        }
+    }
+    glsw_sigma = rss / (double(ndata) - enp());
+    gamma_se = sqrt(glsw_sigma * gamma_se);
 }
 
 vec HGWR::fit_gls()
@@ -692,7 +725,7 @@ double HGWR::fit_sigma()
     return sqrt(sigma2 / (double)ndata);
 }
 
-HGWR::Parameters HGWR::fit()
+HGWR::Parameters HGWR::fit(const bool f_test)
 {
     //===============
     // Prepare Matrix
@@ -709,14 +742,24 @@ HGWR::Parameters HGWR::fit()
     Yf = make_unique<arma::vec[]>(ngroup);
     Ygf = make_unique<arma::vec[]>(ngroup);
     Yhf = make_unique<arma::vec[]>(ngroup);
+    uvec group_size(ngroup);
+    group_span.resize(ngroup);
     for (uword i = 0; i < ngroup; i++)
     {
         uvec ind = find(group == i);
+        group_size(i) = ind.n_elem;
         Yf[i] = y.rows(ind);
         Xf[i] = X.rows(ind);
         Zf[i] = Z.rows(ind);
         Yhf[i] = y.rows(ind);
     }
+    uvec group_to = cumsum(group_size);
+    uvec group_from = group_to - group_size;
+    group_to = group_to - 1;
+    transform(group_from.begin(), group_from.end(), group_to.begin(), group_span.begin(), [](uword from, uword to)
+    {
+        return span(from, to);
+    });
     //----------------------------------------------
     // Generalized Least Squared Estimation for beta
     //----------------------------------------------
@@ -789,6 +832,8 @@ HGWR::Parameters HGWR::fit()
         }
     }
     sigma = fit_sigma();
+    if (verbose > 0) pcout("Re-fit GLSW effects for f test\n");
+    fit_gwr(f_test);
     //============
     // Diagnostic
     //============
@@ -810,4 +855,98 @@ void HGWR::calc_var_beta()
         XtViX += Xi.t() * Vi_inv * Xi;
     }
     var_beta = diagvec(XtViX.i());
+}
+
+std::vector<arma::vec4> HGWR::test_glsw()
+{
+    if (verbose > 0) pcout("Preparing f test\n");
+    uword ng = gamma.n_cols;
+    double nd = double(ndata);
+    double df2 = trQ(0) * trQ(0) / trQ(1);
+    mat D_inv = D.i();
+    unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
+    unique_ptr<mat[]> GVGf = make_unique<mat[]>(ngroup);
+    unique_ptr<mat[]> GVf = make_unique<mat[]>(ngroup);
+    for (size_t i = 0; i < ngroup; i++)
+    {
+        uvec ind = find(group == i);
+        const mat& Zi = Zf[i];
+        Vf[i] = Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows);
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        uword nidata = Zi.n_rows;
+        GVf[i] = G.row(i).t() * ones(1, nidata) * Vi_inv;
+        GVGf[i] = (GVf[i] * ones(nidata, 1) * G.row(i));
+    }
+    vec nw(ngroup, arma::fill::zeros);
+    for (uword i = 0; i < ngroup; i++)
+    {
+        nw(i) = double(Zf[i].n_rows);
+    }
+    vector<vec4> results;
+    for (uword k = 0; k < ng; k++)
+    {
+        if (verbose > 0) pcout("Doing f test for effect " + to_string(k) + "\n");
+        double sum_gk = sum(gamma.col(k) % nw);
+        double sum_gk2 = sum(gamma.col(k) % gamma.col(k) % nw);
+        double vk2 = (sum_gk2 - sum_gk * sum_gk / nd) / nd;
+        vec c(ndata, arma::fill::zeros);
+        for (uword i = 0; i < ngroup; i++)
+        {
+            double ni = double(GVf[i].n_cols);
+            mat d_u = u.each_row() - u.row(i);
+            vec d = sqrt(sum(d_u % d_u, 1));
+            double fb = actual_bw(d, bw);
+            vec w = (*gwr_kernel)(d % d, fb * fb);
+            mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
+            for (size_t j = 0; j < ngroup; j++)
+            {
+                GWVG += (w[j] * GVGf[j]);
+                GWV.cols(find(group == j)) = w[j] * GVf[j];
+            }
+            mat Cit = GWV.t() * GWVG.i().t();
+            vec bi = Cit.col(k);
+            c += bi * double(ni);
+        }
+        unique_ptr<mat[]> Bf = make_unique<mat[]>(ngroup);
+        for (size_t j = 0; j < ngroup; j++)
+        {
+            Bf[j].resize(size(Vf[j]));
+            Bf[j].fill(0.0);
+        }
+        for (uword i = 0; i < ngroup; i++)
+        {
+            double ni = double(GVf[i].n_cols);
+            mat d_u = u.each_row() - u.row(i);
+            vec d = sqrt(sum(d_u % d_u, 1));
+            double fb = actual_bw(d, bw);
+            vec w = (*gwr_kernel)(d % d, fb * fb);
+            mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
+            for (size_t j = 0; j < ngroup; j++)
+            {
+                GWVG += GVGf[j] * w[j];
+                GWV.cols(find(group == j)) = GVf[j] * w[j];
+            }
+            mat Cit = GWV.t() * GWVG.i().t();
+            vec bi = Cit.col(k);
+            for (uword j = 0; j < ngroup; j++)
+            {
+                vec bij = bi.rows(group_span[j]);
+                vec cij = c.rows(group_span[j]);
+                Bf[j] += bij * bij.t() * ni - cij * bij.t() * ni / nd;
+            }
+        }
+        double trB = 0.0, trB2 = 0.0;
+        for (size_t j = 0; j < ngroup; j++)
+        {
+            Bf[j] *= Vf[j] / nd;
+            trB += trace(Bf[j]);
+            trB2 += trace(Bf[j] * Bf[j]);
+        }
+        double fv = vk2 / trB / (sigma * sigma);
+        double df1 = trB * trB / trB2;
+        double pv = gsl_cdf_fdist_Q(fv, df1, df2);
+        vec4 result = { fv, df1, df2, pv };
+        results.push_back(result);
+    }
+    return results;
 }
