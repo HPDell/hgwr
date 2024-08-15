@@ -32,14 +32,6 @@ public:  // Type defs
 
     typedef arma::vec (*GWRKernelFunctionSquared)(arma::vec, double);
 
-    enum class BwOptimCriterionType
-    {
-        CV,
-        AIC
-    };
-
-    typedef double (*BwOptimCriterion)(double, void*);
-
     static double actual_bw(arma::vec d, double bw)
     {
         arma::vec ds = sort(d);
@@ -113,7 +105,16 @@ public:  // Type defs
         std::reference_wrapper<arma::rowvec> rVsigma;
         std::reference_wrapper<arma::uvec> group;
         GWRKernelFunctionSquared kernel;
+        PrintFunction printer;
     };
+
+    enum class BwOptimCriterionType
+    {
+        CV,
+        AIC
+    };
+
+    typedef double (*BwOptimCriterion)(double, void*);
 
     static double bw_criterion_cv(double bw, void* params);
 

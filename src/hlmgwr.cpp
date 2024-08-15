@@ -45,6 +45,7 @@ double HGWR::bw_criterion_cv(double bw, void* params)
         }
         catch(const std::exception& e)
         {
+            (*(args->printer))(string("Error occurred when calculating CV value in bandwidth optimisation: ") + e.what());
             return DBL_MAX;
         }
     }
@@ -92,6 +93,7 @@ double HGWR::bw_criterion_aic(double bw, void* params)
         }
         catch(const std::exception& e)
         {
+            (*(args->printer))(string("Error occurred when calculating AIC value in bandwidth optimisation: ") + e.what());
             return DBL_MAX;
         }
     }
@@ -198,8 +200,8 @@ void HGWR::fit_gwr(const bool f_test)
     /// Check whether need to optimize bw
     if (bw_optim)
     {
-        BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel };
-        double upper = ngroup - 1, lower = k + 2;
+        BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel, pcout };
+        double upper = double(ngroup - 1), lower = double(k + 2);
         // bw = golden_selection(lower, upper, true, args);
         bw_optimisation(lower, upper, &args);
     }
@@ -209,7 +211,8 @@ void HGWR::fit_gwr(const bool f_test)
     unique_ptr<mat[]> Qf = make_unique<mat[]>(ngroup);
     for (uword j = 0; j < ngroup; j++)
     {
-        Qf[j].resize(size(Vf[j])).fill(0.0);
+        Qf[j].resize(size(Vf[j]));
+        Qf[j].fill(0.0);
     }
     double rss = 0.0;
     for (size_t i = 0; i < ngroup; i++)
@@ -907,7 +910,8 @@ std::vector<arma::vec4> HGWR::test_glsw()
         unique_ptr<mat[]> Bf = make_unique<mat[]>(ngroup);
         for (size_t j = 0; j < ngroup; j++)
         {
-            Bf[j].resize(size(Vf[j])).fill(0.0);
+            Bf[j].resize(size(Vf[j]));
+            Bf[j].fill(0.0);
         }
         for (uword i = 0; i < ngroup; i++)
         {
