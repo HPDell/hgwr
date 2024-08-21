@@ -833,6 +833,10 @@ HGWR::Parameters HGWR::fit(const bool f_test)
     }
     sigma = fit_sigma();
     if (verbose > 0) pcout("Re-fit GLSW effects for f test\n");
+    for (uword i = 0; i < ngroup; i++)
+    {
+        Ygf[i] = Yf[i] - Xf[i] * beta;
+    }
     fit_gwr(f_test);
     //============
     // Diagnostic
