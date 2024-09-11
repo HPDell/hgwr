@@ -304,7 +304,7 @@ public:
 
 public:
     int bw_optimisation(double lower, double upper, const BwSelectionArgs* args);
-    void fit_gwr(const bool f_test = false);
+    void fit_gwr(const bool t_test = false, const bool f_test = false);
     arma::vec fit_gls();
     double fit_D(ML_Params* params);
     double fit_D_beta(ML_Params* params);
