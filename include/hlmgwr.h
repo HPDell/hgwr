@@ -367,7 +367,6 @@ private:
     arma::vec trS;
     arma::vec var_beta;
     arma::vec trQ;
-    double glsw_sigma = 0.0;
 };
     
 }

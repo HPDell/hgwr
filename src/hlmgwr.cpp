@@ -216,7 +216,6 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
         Qf[j].resize(size(Vf[j]));
         Qf[j].fill(0.0);
     }
-    double rss = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
