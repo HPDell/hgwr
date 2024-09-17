@@ -173,28 +173,30 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
  * @param wD Equals to $D$
  * @return mat 
  */
-void HGWR::fit_gwr(const bool f_test)
+void HGWR::fit_gwr(const bool t_test, const bool f_test)
 {
     uword k = G.n_cols;//, q = Zf[0].n_cols;
     mat D_inv = D.i();
     gamma.fill(arma::fill::zeros);
-    gamma_se.fill(arma::fill::zeros);
+    if (t_test) gamma_se.fill(arma::fill::zeros);
     unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
     vec Yg(ngroup, arma::fill::zeros);
     rowvec rVsigma = rowvec(ndata, arma::fill::zeros);
+    rowvec Vig_var(ngroup, arma::fill::zeros);
     for (size_t i = 0; i < ngroup; i++)
     {
         const mat& Yi = Ygf[i];
         const mat& Zi = Zf[i];
         mat Vi_inv = woodbury_eye(D_inv, Zi);
         uword nidata = Zi.n_rows;
-        if (f_test) Vf[i] = Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows);
+        if (f_test || t_test) Vf[i] = Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows);
         rowvec Visigma = ones(1, nidata) * Vi_inv;
         Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
         rVsigma(find(group == i)) = Visigma;
+        if (t_test) Vig_var(i) = as_scalar(Visigma * Vf[i] * Visigma.t());
     }
     // mat mVsigma = ones(ngroup, 1) * rVsigma;
     /// Check whether need to optimize bw
@@ -214,7 +216,6 @@ void HGWR::fit_gwr(const bool f_test)
         Qf[j].resize(size(Vf[j]));
         Qf[j].fill(0.0);
     }
-    double rss = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
@@ -228,7 +229,7 @@ void HGWR::fit_gwr(const bool f_test)
         vec gammai = GtWVG_inv * GtWVy;
         gamma.row(i) = trans(gammai);
         mat Ci = GtWVG_inv * GtW;
-        gamma_se.row(i) = trans(sum(Ci % Ci, 1));
+        if (t_test) gamma_se.row(i) = trans(sum((Ci.each_row() % Vig_var) % Ci, 1));
         uvec igroup = find(group == i);
         uword nidata = igroup.n_elem;
         // mat GtWe = GtW.cols(group);
@@ -249,8 +250,6 @@ void HGWR::fit_gwr(const bool f_test)
             }
         }
         vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
-        vec residual = Ygf[i] - hat_ygi;
-        rss += sum(residual % residual);
     }
     if (f_test)
     {
@@ -261,8 +260,10 @@ void HGWR::fit_gwr(const bool f_test)
             trQ(1) += trace(Qf[j] * Qf[j]);
         }
     }
-    glsw_sigma = rss / (double(ndata) - enp());
-    gamma_se = sqrt(glsw_sigma * gamma_se);
+    if (t_test)
+    {
+        gamma_se = sigma * sqrt(gamma_se);
+    }
 }
 
 vec HGWR::fit_gls()
@@ -837,7 +838,7 @@ HGWR::Parameters HGWR::fit(const bool f_test)
     {
         Ygf[i] = Yf[i] - Xf[i] * beta;
     }
-    fit_gwr(f_test);
+    fit_gwr(true, f_test);
     //============
     // Diagnostic
     //============
