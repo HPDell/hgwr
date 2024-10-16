@@ -43,9 +43,8 @@ double HGWR::bw_criterion_cv(double bw, void* params)
             vec residual = Ygf[i] - hat_ygi;
             cv += sum(residual % residual);
         }
-        catch(const std::exception& e)
+        catch(...)
         {
-            (*(args->printer))(string("Error occurred when calculating CV value in bandwidth optimisation: ") + e.what() + "\n");
             return DBL_MAX;
         }
     }
@@ -91,9 +90,8 @@ double HGWR::bw_criterion_aic(double bw, void* params)
             vec residual = Ygf[i] - hat_ygi;
             rss += sum(residual % residual);
         }
-        catch(const std::exception& e)
+        catch(...)
         {
-            (*(args->printer))(string("Error occurred when calculating AIC value in bandwidth optimisation: ") + e.what());
             return DBL_MAX;
         }
     }
