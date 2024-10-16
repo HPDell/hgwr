@@ -32,7 +32,6 @@ double HGWR::bw_criterion_cv(double bw, void* params)
         mat d_u = u.each_row() - u.row(i);
         vec d = sqrt(sum(d_u % d_u, 1));
         double b = actual_bw(d, bw);
-        if (i == 0) (*(args->printer))(string("bw: ") + to_string(bw) + "; b: " + to_string(b) + "\n");
         vec wW = (*args->kernel)(d % d, b * b);
         wW(i) = 0;
         mat GtWVG = (G.each_col() % wW).t() * Vig;
