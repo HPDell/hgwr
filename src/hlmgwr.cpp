@@ -45,7 +45,7 @@ double HGWR::bw_criterion_cv(double bw, void* params)
         }
         catch(const std::exception& e)
         {
-            (*(args->printer))(string("Error occurred when calculating CV value in bandwidth optimisation: ") + e.what());
+            (*(args->printer))(string("Error occurred when calculating CV value in bandwidth optimisation: ") + e.what() + "\n");
             return DBL_MAX;
         }
     }
@@ -198,7 +198,6 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
         rVsigma(find(group == i)) = Visigma;
         if (t_test) Vig_var(i) = as_scalar(Visigma * Vf[i] * Visigma.t());
     }
-    // mat mVsigma = ones(ngroup, 1) * rVsigma;
     /// Check whether need to optimize bw
     if (bw_optim)
     {
