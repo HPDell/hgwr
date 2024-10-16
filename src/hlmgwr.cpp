@@ -32,6 +32,7 @@ double HGWR::bw_criterion_cv(double bw, void* params)
         mat d_u = u.each_row() - u.row(i);
         vec d = sqrt(sum(d_u % d_u, 1));
         double b = actual_bw(d, bw);
+        if (i == 0) (*(args->printer))(string("bw: ") + to_string(bw) + "; b: " + to_string(b) + "\n");
         vec wW = (*args->kernel)(d % d, b * b);
         wW(i) = 0;
         mat GtWVG = (G.each_col() % wW).t() * Vig;
@@ -203,7 +204,7 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
     {
         BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel, pcout };
         uword extra = (kernel == KernelType::BISQUARED) ? 1 : 0;
-        double upper = double(ngroup - 1), lower = double(k + extra);
+        double upper = double(ngroup - 1), lower = double(k + 2 + extra);
         bw_optimisation(lower, upper, &args);
     }
     /// Calibrate for each gorup.
