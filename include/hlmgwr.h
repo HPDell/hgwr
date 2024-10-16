@@ -48,7 +48,7 @@ public:  // Type defs
     
     static arma::vec gwr_kernel_bisquare2(arma::vec dist2, double bw2)
     {
-        return ((1 - dist2 / bw2) % (1 - dist2 / bw2)) % (dist2 < bw2);
+        return ((1.0 - dist2 / bw2) % (1.0 - dist2 / bw2)) % (dist2 < bw2);
     }
 
 

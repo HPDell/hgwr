@@ -32,6 +32,7 @@ double HGWR::bw_criterion_cv(double bw, void* params)
         mat d_u = u.each_row() - u.row(i);
         vec d = sqrt(sum(d_u % d_u, 1));
         double b = actual_bw(d, bw);
+        if (i == 0) (*(args->printer))(string("bw: ") + to_string(bw) + "; b: " + to_string(b) + "\n");
         vec wW = (*args->kernel)(d % d, b * b);
         wW(i) = 0;
         mat GtWVG = (G.each_col() % wW).t() * Vig;
@@ -45,7 +46,7 @@ double HGWR::bw_criterion_cv(double bw, void* params)
         }
         catch(const std::exception& e)
         {
-            (*(args->printer))(string("Error occurred when calculating CV value in bandwidth optimisation: ") + e.what());
+            (*(args->printer))(string("Error occurred when calculating CV value in bandwidth optimisation: ") + e.what() + "\n");
             return DBL_MAX;
         }
     }
@@ -198,13 +199,12 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
         rVsigma(find(group == i)) = Visigma;
         if (t_test) Vig_var(i) = as_scalar(Visigma * Vf[i] * Visigma.t());
     }
-    // mat mVsigma = ones(ngroup, 1) * rVsigma;
     /// Check whether need to optimize bw
     if (bw_optim)
     {
         BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel, pcout };
-        double upper = double(ngroup - 1), lower = double(k + 2);
-        // bw = golden_selection(lower, upper, true, args);
+        uword extra = (kernel == KernelType::BISQUARED) ? 1 : 0;
+        double upper = double(ngroup - 1), lower = double(k + 2 + extra);
         bw_optimisation(lower, upper, &args);
     }
     /// Calibrate for each gorup.
