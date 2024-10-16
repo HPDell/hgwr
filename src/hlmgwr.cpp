@@ -203,8 +203,8 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
     if (bw_optim)
     {
         BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel, pcout };
-        double upper = double(ngroup - 1), lower = double(k + 2);
-        // bw = golden_selection(lower, upper, true, args);
+        uword extra = (kernel == KernelType::BISQUARED) ? 1 : 0;
+        double upper = double(ngroup - 1), lower = double(k + extra);
         bw_optimisation(lower, upper, &args);
     }
     /// Calibrate for each gorup.
