@@ -833,6 +833,7 @@ HGWR::Parameters HGWR::fit(const bool f_test)
             sout << endl;
             pcout(sout.str());
         }
+        (*(this->pcancel))();
     }
     sigma = fit_sigma();
     if (verbose > 0) pcout("Re-fit GLSW effects for f test\n");
