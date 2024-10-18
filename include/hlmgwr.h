@@ -65,11 +65,15 @@ public:  // Type defs
     }
 
     typedef void (*PrintFunction)(const std::string&);
+
+    typedef void (*CancelFunction)();
     
     static void Printer(const std::string& msg)
     {
         (void)msg;
     }
+
+    static void Canceler() { }
 
     struct Options
     {
@@ -286,6 +290,8 @@ public:
 
     void set_printer(PrintFunction printer) { pcout = printer; }
 
+    void set_canceler(CancelFunction canceler) { pcancel = canceler; }
+
     double gamma_enp()
     {
         double n = 2.0 * trS[0] - trS[1];
@@ -345,7 +351,7 @@ private:
     size_t verbose = (size_t)0;
     size_t ml_type = (size_t)0;
     PrintFunction pcout = &Printer;
-
+    CancelFunction pcancel = &Canceler;
 
     /* others */
     BwOptimCriterion bw_criterion = &bw_criterion_cv;
