@@ -201,7 +201,10 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
     /// Check whether need to optimize bw
     if (bw_optim)
     {
-        BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel, pcout };
+        BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel, Printer };
+        if (verbose > 1) {
+            args.printer = pcout;
+        }
         uword extra = (kernel == KernelType::BISQUARED) ? 1 : 0;
         double upper = double(ngroup - 1), lower = double(k + 2 + extra);
         bw_optimisation(lower, upper, &args);
