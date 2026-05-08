@@ -73,14 +73,14 @@ int main()
         options_mcmc.eps_gradient = 1e-6;
         options_mcmc.max_iters = 10000;
         options_mcmc.max_retries = 10;
-        options_mcmc.verbose = 2;
+        options_mcmc.verbose = 1;
         options_mcmc.ml_type = 2;
 
         HGWR alg_mcmc(G, X, Z, y, u, group, kernel, bw, options_mcmc);
-        MCMC_Params mcmc_params = { 1000, 200 };
+        MCMC_Params mcmc_params = { 5000, 1000 };
         alg_mcmc.set_mcmc_params(mcmc_params);
         alg_mcmc.set_printer(printer);
-        auto res_mcmc = alg_mcmc.fit();
+        auto res_mcmc = alg_mcmc.fit_mcmc_backfitting();
 
         cout << "  MCMC Results:" << endl;
         cout << "  bw    = " << res_mcmc.bw << endl;

@@ -839,6 +839,68 @@ double HGWR::fit_sigma()
     return sqrt(sigma2 / (double)ndata);
 }
 
+arma::mat make_spd(const arma::mat& A, double jitter = 1e-8)
+{
+    arma::mat B = 0.5 * (A + A.t());
+
+    arma::vec eigval;
+    arma::mat eigvec;
+    arma::eig_sym(eigval, eigvec, B);
+
+    double min_eig = eigval.min();
+    if (min_eig < jitter)
+    {
+        B += arma::eye(B.n_rows, B.n_cols) * (jitter - min_eig);
+    }
+
+    return 0.5 * (B + B.t());
+}
+
+arma::mat safe_inv_sympd(const arma::mat& A, double jitter = 1e-8)
+{
+    arma::mat B;
+    arma::mat A_spd = make_spd(A, jitter);
+
+    bool ok = arma::inv_sympd(B, A_spd);
+    if (ok) return B;
+
+    for (int k = 0; k < 8; ++k)
+    {
+        double j = jitter * std::pow(10.0, k + 1);
+        ok = arma::inv_sympd(B, A_spd + arma::eye(A.n_rows, A.n_cols) * j);
+        if (ok) return B;
+    }
+
+    return arma::pinv(A_spd);
+}
+
+arma::mat safe_chol_lower(const arma::mat& A, double jitter = 1e-8)
+{
+    arma::mat L;
+    arma::mat A_spd = make_spd(A, jitter);
+
+    bool ok = arma::chol(L, A_spd, "lower");
+    if (ok) return L;
+
+    for (int k = 0; k < 8; ++k)
+    {
+        double j = jitter * std::pow(10.0, k + 1);
+        ok = arma::chol(L, A_spd + arma::eye(A.n_rows, A.n_cols) * j, "lower");
+        if (ok) return L;
+    }
+
+    arma::vec eigval;
+    arma::mat eigvec;
+    arma::eig_sym(eigval, eigvec, A_spd);
+
+    eigval.transform([jitter](double x)
+    {
+        return std::sqrt(std::max(x, jitter));
+    });
+
+    return eigvec * arma::diagmat(eigval);
+}
+
 HGWR::Parameters HGWR::fit(const bool f_test)
 {
     //===============
@@ -961,6 +1023,429 @@ HGWR::Parameters HGWR::fit(const bool f_test)
     //============
     loglik = - mlf * double(ndata);
     calc_var_beta();
+    return { gamma, beta, mu, D, sigma, bw };
+}
+
+HGWR::Parameters HGWR::fit_mcmc_backfitting(const bool f_test)
+{
+    // ============================================================
+    // HGWR-MCMC Backfitting Estimator
+    //
+    // Model:
+    //   y_ij = G_j gamma_j + X_ij beta + Z_ij mu_j + e_ij
+    //   mu_j ~ N(0, sigma2 D)
+    //   e_ij ~ N(0, sigma2)
+    //
+    // Backfitting:
+    //   1. gamma is estimated by the original fit_gwr()
+    //   2. beta, D, sigma2, mu are estimated by MCMC
+    // ============================================================
+
+    int precision = int(std::log10(1.0 / eps_iter));
+    double tss = arma::sum((y - arma::mean(y)) % (y - arma::mean(y)));
+
+    // -------------------------
+    // 1. Initialise parameters
+    // -------------------------
+    gamma = arma::mat(ngroup, nvg, arma::fill::zeros);
+    gamma_se = arma::mat(ngroup, nvg, arma::fill::zeros);
+
+    beta = arma::vec(nvx, arma::fill::zeros);
+    mu = arma::mat(ngroup, nvz, arma::fill::zeros);
+    D = arma::mat(nvz, nvz, arma::fill::eye);
+    sigma = 1.0;
+
+    // -------------------------
+    // 2. Prepare grouped data
+    // -------------------------
+    Zf = std::make_unique<arma::mat[]>(ngroup);
+    Xf = std::make_unique<arma::mat[]>(ngroup);
+    Yf = std::make_unique<arma::vec[]>(ngroup);
+    Ygf = std::make_unique<arma::vec[]>(ngroup);
+    Yhf = std::make_unique<arma::vec[]>(ngroup);
+
+    arma::uvec group_size(ngroup);
+    group_span.resize(ngroup);
+
+    for (arma::uword j = 0; j < ngroup; ++j)
+    {
+        arma::uvec ind = arma::find(group == j);
+
+        group_size(j) = ind.n_elem;
+
+        Yf[j] = y.rows(ind);
+        Xf[j] = X.rows(ind);
+        Zf[j] = Z.rows(ind);
+
+        Ygf[j] = y.rows(ind);
+        Yhf[j] = y.rows(ind);
+    }
+
+    arma::uvec group_to = arma::cumsum(group_size);
+    arma::uvec group_from = group_to - group_size;
+    group_to = group_to - 1;
+
+    std::transform(
+        group_from.begin(),
+        group_from.end(),
+        group_to.begin(),
+        group_span.begin(),
+        [](arma::uword from, arma::uword to)
+        {
+            return arma::span(from, to);
+        }
+    );
+
+    // -------------------------------------------------
+    // 3. Initial beta using simple GLS under D = I
+    // -------------------------------------------------
+    beta = fit_gls();
+
+    // Initial mu under the same parameterisation.
+    fit_mu();
+
+    // Initial sigma2 from residual.
+    double sigma2_cur = 1.0;
+    {
+        double rss_init = 0.0;
+
+        for (arma::uword j = 0; j < ngroup; ++j)
+        {
+            arma::vec rj = Yf[j] - Xf[j] * beta - Zf[j] * mu.row(j).t();
+            rss_init += arma::dot(rj, rj);
+        }
+
+        if (std::isfinite(rss_init) && rss_init > 0.0)
+        {
+            sigma2_cur = rss_init / double(ndata);
+            sigma = std::sqrt(sigma2_cur);
+        }
+    }
+
+    // -------------------------
+    // 4. MCMC hyperparameters
+    // -------------------------
+    const arma::uword p = nvx;
+    const arma::uword q = nvz;
+
+    const size_t niters = mcmc_params.niters;
+    const size_t nburnin = mcmc_params.nburnin;
+
+    if (niters <= nburnin)
+    {
+        throw std::runtime_error("MCMC error: niters must be larger than nburnin.");
+    }
+
+    // beta | sigma2 ~ N(beta0, sigma2 B0)
+    const double tau_beta = 1.0e2;
+    arma::vec beta0(p, arma::fill::zeros);
+    arma::mat B0_inv = arma::eye(p, p) / tau_beta;
+
+    // D ~ Inv-Wishart(nu0, S0)
+    // Use a weak but proper prior.
+    const double nu0 = double(q) + 5.0;
+    arma::mat D_prior_mean = arma::eye(q, q);
+    arma::mat S0 = (nu0 - double(q) - 1.0) * D_prior_mean;
+    S0 = make_spd(S0);
+
+    // sigma2 ~ Inv-Gamma(a0, b0)
+    const double a0 = 0.001;
+    const double b0 = 0.001;
+
+    // -------------------------
+    // 5. Backfitting loop
+    // -------------------------
+    double rss = DBL_MAX;
+    double rss_prev = DBL_MAX;
+    double rel_diff = DBL_MAX;
+    double mlf = 0.0;
+
+    for (size_t bf_iter = 0;
+         bf_iter < max_iters && rel_diff > eps_iter;
+         ++bf_iter)
+    {
+        rss_prev = rss;
+
+        // =====================================================
+        // Step A. Estimate gamma by original GWR-like estimator
+        // =====================================================
+        //
+        // Yg = y - X beta
+        //
+        for (arma::uword j = 0; j < ngroup; ++j)
+        {
+            Ygf[j] = Yf[j] - Xf[j] * beta;
+        }
+
+        fit_gwr(false, false);
+
+        // =====================================================
+        // Step B. Construct Yh = y - G gamma
+        // =====================================================
+        //
+        // For each group j:
+        //   Yh_j = Y_j - G_j gamma_j
+        //
+        for (arma::uword j = 0; j < ngroup; ++j)
+        {
+            double gj = arma::as_scalar(G.row(j) * gamma.row(j).t());
+            Yhf[j] = Yf[j] - gj;
+        }
+
+        // =====================================================
+        // Step C. MCMC block for beta, D, sigma2, mu
+        // =====================================================
+        //
+        // Conditional model:
+        //   Yh_j = X_j beta + Z_j mu_j + e_j
+        //   mu_j ~ N(0, sigma2 D)
+        //   e_j  ~ N(0, sigma2 I)
+        //
+        arma::vec beta_cur = beta;
+        arma::mat D_cur = make_spd(D);
+        arma::mat mu_cur = mu;
+
+        // Use previous sigma as initial value.
+        sigma2_cur = sigma * sigma;
+        if (!std::isfinite(sigma2_cur) || sigma2_cur <= 0.0)
+        {
+            sigma2_cur = 1.0;
+        }
+
+        size_t nkeep = 0;
+
+        arma::vec beta_sum(p, arma::fill::zeros);
+        arma::mat D_sum(q, q, arma::fill::zeros);
+        arma::mat mu_sum(ngroup, q, arma::fill::zeros);
+        double sigma2_sum = 0.0;
+
+        for (size_t mcmc_iter = 0; mcmc_iter < niters; ++mcmc_iter)
+        {
+            // -------------------------------------------------
+            // C1. Sample mu_j | beta, D, sigma2, Yh
+            // -------------------------------------------------
+            arma::mat D_inv = safe_inv_sympd(D_cur);
+            arma::mat mu_new(ngroup, q, arma::fill::zeros);
+
+            for (arma::uword j = 0; j < ngroup; ++j)
+            {
+                const arma::mat& Xj = Xf[j];
+                const arma::mat& Zj = Zf[j];
+                const arma::vec& Yhj = Yhf[j];
+
+                arma::mat C_mu = safe_inv_sympd(Zj.t() * Zj + D_inv);
+                arma::vec m_mu = C_mu * Zj.t() * (Yhj - Xj * beta_cur);
+
+                arma::mat L_mu = safe_chol_lower(sigma2_cur * C_mu);
+                arma::vec draw_mu = m_mu + L_mu * arma::randn(q);
+
+                mu_new.row(j) = draw_mu.t();
+            }
+
+            mu_cur = mu_new;
+
+            // -------------------------------------------------
+            // C2. Sample beta | mu, sigma2, Yh
+            // -------------------------------------------------
+            arma::mat XtX(p, p, arma::fill::zeros);
+            arma::vec XtY(p, arma::fill::zeros);
+
+            for (arma::uword j = 0; j < ngroup; ++j)
+            {
+                const arma::mat& Xj = Xf[j];
+                const arma::mat& Zj = Zf[j];
+                const arma::vec& Yhj = Yhf[j];
+
+                arma::vec muj = mu_cur.row(j).t();
+                arma::vec y_tilde = Yhj - Zj * muj;
+
+                XtX += Xj.t() * Xj;
+                XtY += Xj.t() * y_tilde;
+            }
+
+            arma::mat C_beta = safe_inv_sympd(XtX + B0_inv);
+            arma::vec m_beta = C_beta * (XtY + B0_inv * beta0);
+
+            arma::mat L_beta = safe_chol_lower(sigma2_cur * C_beta);
+            beta_cur = m_beta + L_beta * arma::randn(p);
+
+            // -------------------------------------------------
+            // C3. Sample D | mu, sigma2
+            // -------------------------------------------------
+            //
+            // Since mu_j ~ N(0, sigma2 D),
+            // the sufficient statistic is:
+            //   sum(mu_j mu_j') / sigma2
+            //
+            arma::mat SS(q, q, arma::fill::zeros);
+
+            for (arma::uword j = 0; j < ngroup; ++j)
+            {
+                arma::vec muj = mu_cur.row(j).t();
+                SS += muj * muj.t();
+            }
+
+            arma::mat S_post = make_spd(S0 + SS / sigma2_cur);
+            double nu_post = nu0 + double(ngroup);
+
+            D_cur = make_spd(rinvwishart(nu_post, S_post));
+
+            // -------------------------------------------------
+            // C4. Sample sigma2 | beta, mu, D, Yh
+            // -------------------------------------------------
+            D_inv = safe_inv_sympd(D_cur);
+
+            double rss_mcmc = 0.0;
+            double re_quad = 0.0;
+
+            for (arma::uword j = 0; j < ngroup; ++j)
+            {
+                const arma::mat& Xj = Xf[j];
+                const arma::mat& Zj = Zf[j];
+                const arma::vec& Yhj = Yhf[j];
+
+                arma::vec muj = mu_cur.row(j).t();
+                arma::vec resid = Yhj - Xj * beta_cur - Zj * muj;
+
+                rss_mcmc += arma::dot(resid, resid);
+                re_quad += arma::as_scalar(muj.t() * D_inv * muj);
+            }
+
+            arma::vec beta_diff = beta_cur - beta0;
+            double beta_quad = arma::as_scalar(beta_diff.t() * B0_inv * beta_diff);
+
+            double a_post = a0 + 0.5 * double(ndata + ngroup * q + p);
+            double b_post = b0 + 0.5 * (rss_mcmc + re_quad + beta_quad);
+
+            sigma2_cur = rinvgamma(a_post, b_post);
+
+            if (!std::isfinite(sigma2_cur) || sigma2_cur <= 0.0)
+            {
+                sigma2_cur = std::max(1.0e-8, rss_mcmc / double(ndata));
+            }
+
+            // -------------------------------------------------
+            // C5. Store posterior draws after burn-in
+            // -------------------------------------------------
+            if (mcmc_iter >= nburnin)
+            {
+                beta_sum += beta_cur;
+                D_sum += D_cur;
+                mu_sum += mu_cur;
+                sigma2_sum += sigma2_cur;
+                ++nkeep;
+            }
+
+            if (verbose > 1)
+            {
+                std::ostringstream sout;
+                sout << "BF iter=" << bf_iter
+                     << ", MCMC iter=" << mcmc_iter
+                     << ", rss_mcmc=" << rss_mcmc
+                     << ", sigma2=" << sigma2_cur
+                     << "\n";
+                pcout(sout.str());
+            }
+
+            (*(pcancel))();
+        }
+
+        if (nkeep == 0)
+        {
+            throw std::runtime_error("MCMC error: no posterior samples retained.");
+        }
+
+        // =====================================================
+        // Step D. Posterior means become new Backfitting values
+        // =====================================================
+        beta = beta_sum / double(nkeep);
+        D = make_spd(D_sum / double(nkeep));
+        mu = mu_sum / double(nkeep);
+        sigma = std::sqrt(sigma2_sum / double(nkeep));
+
+        // =====================================================
+        // Step E. Calculate full HGWR residual
+        // =====================================================
+        arma::vec fitted_glsw_group = arma::sum(G % gamma, 1);
+        arma::vec fitted_glsw_sample = fitted_glsw_group.rows(group);
+
+        arma::vec fitted_fixed = X * beta;
+        arma::vec fitted_random = arma::sum(Z % mu.rows(group), 1);
+
+        arma::vec resid_full = y - fitted_glsw_sample - fitted_fixed - fitted_random;
+
+        rss = arma::dot(resid_full, resid_full);
+
+        if (bf_iter == 0 || !std::isfinite(rss_prev))
+        {
+            rel_diff = DBL_MAX;
+        }
+        else
+        {
+            rel_diff = std::abs(rss - rss_prev) / (rss_prev + 1.0e-12);
+        }
+
+        // Existing marginal/profile likelihood diagnostic.
+        mlf = -loglikelihood(
+            Xf.get(),
+            Yhf.get(),
+            Zf.get(),
+            ngroup,
+            D,
+            beta,
+            ndata
+        ) / double(ndata);
+
+        if (verbose > 0)
+        {
+            std::ostringstream sout;
+            sout << std::fixed << std::setprecision(precision)
+                 << "BF-MCMC Iter: " << bf_iter;
+
+            if (bw_optim)
+            {
+                sout << ", Bw: " << bw;
+            }
+
+            sout << ", RSS: " << rss
+                 << ", rel_dRSS: " << rel_diff
+                 << ", R2: " << (1.0 - rss / tss)
+                 << ", sigma: " << sigma
+                 << ", -loglik/n: " << mlf
+                 << ", beta: " << beta.t()
+                 << "\n";
+
+            pcout(sout.str());
+        }
+
+        (*(this->pcancel))();
+    }
+
+    // =========================================================
+    // 6. Final re-fit gamma for t-test / f-test diagnostics
+    // =========================================================
+    if (verbose > 0)
+    {
+        pcout("Final re-fit GLSW effects for t-test / f-test\n");
+    }
+
+    for (arma::uword j = 0; j < ngroup; ++j)
+    {
+        Ygf[j] = Yf[j] - Xf[j] * beta;
+    }
+
+    fit_gwr(true, f_test);
+
+    // =========================================================
+    // 7. Diagnostics
+    // =========================================================
+    loglik = -mlf * double(ndata);
+
+    // calc_var_beta() is still based on the marginal GLS formula.
+    // It is acceptable as an approximate diagnostic, but posterior
+    // beta samples would be better for Bayesian inference.
+    calc_var_beta();
+
     return { gamma, beta, mu, D, sigma, bw };
 }
 

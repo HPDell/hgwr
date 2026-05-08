@@ -350,6 +350,7 @@ public:
     void fit_mu();
     double fit_sigma();
     Parameters fit(const bool f_test = false);
+    Parameters fit_mcmc_backfitting(const bool f_test = false);
     void calc_var_beta();
     std::vector<arma::vec4> test_glsw();
 
