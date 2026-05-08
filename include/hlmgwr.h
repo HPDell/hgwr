@@ -21,12 +21,6 @@ struct ML_Params
     arma::uword q;
 };
 
-struct MCMC_Params
-{
-    std::size_t niters;
-    std::size_t nburnin;
-};
-
 class HGWR
 {
 public:  // Type defs
@@ -34,6 +28,12 @@ public:  // Type defs
     {
         GAUSSIAN,
         BISQUARED
+    };
+
+    enum class MLType
+    {
+        D_ONLY = 0,
+        D_BETA = 1,
     };
 
     typedef arma::vec (*GWRKernelFunctionSquared)(arma::vec, double);
@@ -298,9 +298,6 @@ public:
     
     size_t get_ml_type() { return ml_type; }
     void set_ml_type(size_t value) { ml_type = value; }
-
-    auto get_mcmc_params() { return mcmc_params; }
-    void set_mcmc_params(const MCMC_Params& value) { mcmc_params = value; }
     
     arma::mat get_gamma() { return gamma; }
 
@@ -346,11 +343,10 @@ public:
     arma::vec fit_gls();
     double fit_D(ML_Params* params);
     double fit_D_beta(ML_Params* params);
-    double fit_D_beta_mcmc(const MCMC_Params& params);
     void fit_mu();
     double fit_sigma();
     Parameters fit(const bool f_test = false);
-    Parameters fit_mcmc_backfitting(const bool f_test = false);
+    Parameters fit_mcmc_backfitting(const bool f_test = false, std::size_t iters = 1000, std::size_t burnin = 200);
     void calc_var_beta();
     std::vector<arma::vec4> test_glsw();
 
@@ -386,8 +382,6 @@ private:
     size_t ml_type = (size_t)0;
     PrintFunction pcout = &Printer;
     CancelFunction pcancel = &Canceler;
-
-    MCMC_Params mcmc_params {10000, 2000};
 
     /* others */
     BwOptimCriterion bw_criterion = &bw_criterion_cv;

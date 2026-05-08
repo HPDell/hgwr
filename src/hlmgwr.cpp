@@ -710,117 +710,6 @@ void HGWR::fit_mu()
     }
 }
 
-double HGWR::fit_D_beta_mcmc(const MCMC_Params& params)
-{
-    uword nvz = D.n_rows;
-    uword nvx = beta.n_rows;
-
-    size_t niters = params.niters;
-    size_t nburnin = params.nburnin;
-
-    double tau_beta = 1000.0;
-    mat Sigma_beta_inv = eye(nvx, nvx) / tau_beta;
-
-    size_t nu0 = nvz + 1;
-    mat S0 = eye(nvz, nvz);
-
-    double a0 = 0.001;
-    double b0 = 0.001;
-
-    mat D_cur = D;
-    vec beta_cur = beta;
-    double sigma2_cur = 1.0;
-
-    size_t nsamples = niters;
-    cube D_samples(nvz, nvz, nsamples);
-    mat beta_samples(nsamples, nvx);
-
-    // size_t sample_idx = 0;
-
-    for (size_t iter = 0; iter < niters; iter++)
-    {
-        mat D_inv = inv_sympd(D_cur);
-        mat mu_new(ngroup, nvz);
-
-        for (size_t i = 0; i < ngroup; i++)
-        {
-            const mat& Zi = Zf[i];
-            const vec& Yhfi = Yhf[i];
-            const mat& Xi = Xf[i];
-            mat Sigma_mu_inv = Zi.t() * Zi / sigma2_cur + D_inv;
-            mat Sigma_mu = inv_sympd(Sigma_mu_inv);
-            vec mu_mean = Sigma_mu * Zi.t() * (Yhfi - Xi * beta_cur) / sigma2_cur;
-            mat L_mu = chol(Sigma_mu, "lower");
-            mu_new.row(i) = (mu_mean + L_mu * randn(nvz)).t();
-        }
-
-        mat sum_XtX(nvx, nvx, fill::zeros);
-        vec sum_XtY(nvx, fill::zeros);
-        mat SS(nvz, nvz, fill::zeros);
-
-        for (size_t i = 0; i < ngroup; i++)
-        {
-            const mat& Xi = Xf[i];
-            const vec& Yhfi = Yhf[i];
-            vec mu_i = mu_new.row(i).t();
-            sum_XtX += Xi.t() * Xi;
-            sum_XtY += Xi.t() * (Yhfi - Zf[i] * mu_i);
-            SS += mu_i * mu_i.t();
-        }
-
-        mat Sigma_beta_inv_post = sum_XtX / sigma2_cur + Sigma_beta_inv;
-        mat Sigma_beta_post = inv_sympd(Sigma_beta_inv_post);
-        vec beta_mean = Sigma_beta_post * sum_XtY / sigma2_cur;
-        mat L_beta = chol(Sigma_beta_post, "lower");
-        beta_cur = beta_mean + L_beta * randn(nvx);
-
-        D_cur = rinvwishart(nu0 + ngroup, S0 + SS);
-
-        double rss = 0.0;
-
-        for (size_t i = 0; i < ngroup; i++)
-        {
-            const mat& Xi = Xf[i];
-            const vec& Yhfi = Yhf[i];
-            vec mu_i = mu_new.row(i).t();
-            vec resid = Yhfi - Xi * beta_cur - Zf[i] * mu_i;
-            rss += dot(resid, resid);
-        }
-
-        double a_post = a0 + double(ndata) / 2.0;
-        double b_post = b0 + 0.5 * rss;
-        sigma2_cur = rinvgamma(a_post, b_post);
-
-        D_samples.slice(iter) = D_cur;
-        beta_samples.row(iter) = beta_cur.t();
-
-        if (verbose > 1) {
-            pcout(string("iter=") + to_string(iter) + " rss=" + to_string(rss) + " sigma2=" + to_string(sigma2_cur) + "\r");
-        }
-
-        (*(pcancel))();
-    }
-
-    D_samples = D_samples.slices(nburnin, niters - 1);
-    beta_samples = beta_samples.rows(nburnin, niters - 1);
-
-    D = mean(D_samples, 2);
-    beta = mean(beta_samples, 0).t();
-
-    if (verbose > 0) {
-        ostringstream sout;
-        sout << "MCMC done: burnin=" << nburnin << " samples=" << (niters - nburnin) << " D=" << endl;
-        sout << D;
-        sout << endl << "beta=" << beta.t();
-        pcout(sout.str());
-        pcout("\n");
-    }
-
-    double mlf = -loglikelihood(Xf.get(), Yhf.get(), Zf.get(), ngroup, D, beta, ndata) / double(ndata);
-
-    return mlf;
-}
-
 double HGWR::fit_sigma()
 {
     mat D_inv = D.i();
@@ -975,9 +864,6 @@ HGWR::Parameters HGWR::fit(const bool f_test)
             beta = fit_gls();
             mlf = fit_D_beta(&ml_params);
             break;
-        case 2:
-            mlf = fit_D_beta_mcmc(mcmc_params);
-            break;
         default:
             mlf = fit_D(&ml_params);
             beta = fit_gls();
@@ -1026,20 +912,12 @@ HGWR::Parameters HGWR::fit(const bool f_test)
     return { gamma, beta, mu, D, sigma, bw };
 }
 
-HGWR::Parameters HGWR::fit_mcmc_backfitting(const bool f_test)
+HGWR::Parameters HGWR::fit_mcmc_backfitting(const bool f_test, std::size_t niters, std::size_t nburnin)
 {
-    // ============================================================
-    // HGWR-MCMC Backfitting Estimator
-    //
-    // Model:
-    //   y_ij = G_j gamma_j + X_ij beta + Z_ij mu_j + e_ij
-    //   mu_j ~ N(0, sigma2 D)
-    //   e_ij ~ N(0, sigma2)
-    //
-    // Backfitting:
-    //   1. gamma is estimated by the original fit_gwr()
-    //   2. beta, D, sigma2, mu are estimated by MCMC
-    // ============================================================
+    if (niters <= nburnin)
+    {
+        throw std::runtime_error("MCMC error: niters must be larger than nburnin.");
+    }
 
     int precision = int(std::log10(1.0 / eps_iter));
     double tss = arma::sum((y - arma::mean(y)) % (y - arma::mean(y)));
@@ -1125,27 +1003,17 @@ HGWR::Parameters HGWR::fit_mcmc_backfitting(const bool f_test)
     // -------------------------
     // 4. MCMC hyperparameters
     // -------------------------
-    const arma::uword p = nvx;
-    const arma::uword q = nvz;
-
-    const size_t niters = mcmc_params.niters;
-    const size_t nburnin = mcmc_params.nburnin;
-
-    if (niters <= nburnin)
-    {
-        throw std::runtime_error("MCMC error: niters must be larger than nburnin.");
-    }
 
     // beta | sigma2 ~ N(beta0, sigma2 B0)
     const double tau_beta = 1.0e2;
-    arma::vec beta0(p, arma::fill::zeros);
-    arma::mat B0_inv = arma::eye(p, p) / tau_beta;
+    arma::vec beta0(nvx, arma::fill::zeros);
+    arma::mat B0_inv = arma::eye(nvx, nvx) / tau_beta;
 
     // D ~ Inv-Wishart(nu0, S0)
     // Use a weak but proper prior.
-    const double nu0 = double(q) + 5.0;
-    arma::mat D_prior_mean = arma::eye(q, q);
-    arma::mat S0 = (nu0 - double(q) - 1.0) * D_prior_mean;
+    const double nu0 = double(nvz) + 5.0;
+    arma::mat D_prior_mean = arma::eye(nvz, nvz);
+    arma::mat S0 = (nu0 - double(nvz) - 1.0) * D_prior_mean;
     S0 = make_spd(S0);
 
     // sigma2 ~ Inv-Gamma(a0, b0)
@@ -1160,9 +1028,7 @@ HGWR::Parameters HGWR::fit_mcmc_backfitting(const bool f_test)
     double rel_diff = DBL_MAX;
     double mlf = 0.0;
 
-    for (size_t bf_iter = 0;
-         bf_iter < max_iters && rel_diff > eps_iter;
-         ++bf_iter)
+    for (size_t bf_iter = 0; bf_iter < max_iters && rel_diff > eps_iter; bf_iter++)
     {
         rss_prev = rss;
 
@@ -1214,9 +1080,9 @@ HGWR::Parameters HGWR::fit_mcmc_backfitting(const bool f_test)
 
         size_t nkeep = 0;
 
-        arma::vec beta_sum(p, arma::fill::zeros);
-        arma::mat D_sum(q, q, arma::fill::zeros);
-        arma::mat mu_sum(ngroup, q, arma::fill::zeros);
+        arma::vec beta_sum(nvx, arma::fill::zeros);
+        arma::mat D_sum(nvz, nvz, arma::fill::zeros);
+        arma::mat mu_sum(ngroup, nvz, arma::fill::zeros);
         double sigma2_sum = 0.0;
 
         for (size_t mcmc_iter = 0; mcmc_iter < niters; ++mcmc_iter)
@@ -1225,7 +1091,7 @@ HGWR::Parameters HGWR::fit_mcmc_backfitting(const bool f_test)
             // C1. Sample mu_j | beta, D, sigma2, Yh
             // -------------------------------------------------
             arma::mat D_inv = safe_inv_sympd(D_cur);
-            arma::mat mu_new(ngroup, q, arma::fill::zeros);
+            arma::mat mu_new(ngroup, nvz, arma::fill::zeros);
 
             for (arma::uword j = 0; j < ngroup; ++j)
             {
@@ -1237,7 +1103,7 @@ HGWR::Parameters HGWR::fit_mcmc_backfitting(const bool f_test)
                 arma::vec m_mu = C_mu * Zj.t() * (Yhj - Xj * beta_cur);
 
                 arma::mat L_mu = safe_chol_lower(sigma2_cur * C_mu);
-                arma::vec draw_mu = m_mu + L_mu * arma::randn(q);
+                arma::vec draw_mu = m_mu + L_mu * arma::randn(nvz);
 
                 mu_new.row(j) = draw_mu.t();
             }
@@ -1247,8 +1113,8 @@ HGWR::Parameters HGWR::fit_mcmc_backfitting(const bool f_test)
             // -------------------------------------------------
             // C2. Sample beta | mu, sigma2, Yh
             // -------------------------------------------------
-            arma::mat XtX(p, p, arma::fill::zeros);
-            arma::vec XtY(p, arma::fill::zeros);
+            arma::mat XtX(nvx, nvx, arma::fill::zeros);
+            arma::vec XtY(nvx, arma::fill::zeros);
 
             for (arma::uword j = 0; j < ngroup; ++j)
             {
@@ -1267,7 +1133,7 @@ HGWR::Parameters HGWR::fit_mcmc_backfitting(const bool f_test)
             arma::vec m_beta = C_beta * (XtY + B0_inv * beta0);
 
             arma::mat L_beta = safe_chol_lower(sigma2_cur * C_beta);
-            beta_cur = m_beta + L_beta * arma::randn(p);
+            beta_cur = m_beta + L_beta * arma::randn(nvx);
 
             // -------------------------------------------------
             // C3. Sample D | mu, sigma2
@@ -1277,7 +1143,7 @@ HGWR::Parameters HGWR::fit_mcmc_backfitting(const bool f_test)
             // the sufficient statistic is:
             //   sum(mu_j mu_j') / sigma2
             //
-            arma::mat SS(q, q, arma::fill::zeros);
+            arma::mat SS(nvz, nvz, arma::fill::zeros);
 
             for (arma::uword j = 0; j < ngroup; ++j)
             {
@@ -1314,7 +1180,7 @@ HGWR::Parameters HGWR::fit_mcmc_backfitting(const bool f_test)
             arma::vec beta_diff = beta_cur - beta0;
             double beta_quad = arma::as_scalar(beta_diff.t() * B0_inv * beta_diff);
 
-            double a_post = a0 + 0.5 * double(ndata + ngroup * q + p);
+            double a_post = a0 + 0.5 * double(ndata + ngroup * nvz + nvx);
             double b_post = b0 + 0.5 * (rss_mcmc + re_quad + beta_quad);
 
             sigma2_cur = rinvgamma(a_post, b_post);
@@ -1386,15 +1252,7 @@ HGWR::Parameters HGWR::fit_mcmc_backfitting(const bool f_test)
         }
 
         // Existing marginal/profile likelihood diagnostic.
-        mlf = -loglikelihood(
-            Xf.get(),
-            Yhf.get(),
-            Zf.get(),
-            ngroup,
-            D,
-            beta,
-            ndata
-        ) / double(ndata);
+        mlf = -loglikelihood(Xf.get(), Yhf.get(), Zf.get(), ngroup, D, beta, ndata) / double(ndata);
 
         if (verbose > 0)
         {
