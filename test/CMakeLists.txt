@@ -24,3 +24,10 @@ add_test(
     NAME Test_HGWRBFMCMC
     COMMAND $<TARGET_FILE:testHGWRBFMCMC>  --success
 )
+
+add_executable(testQuick test_mcmc.cpp helper.cpp)
+target_link_libraries(testQuick PRIVATE hgwrbml Catch2::Catch2WithMain)
+add_test(
+    NAME Test_Quick
+    COMMAND $<TARGET_FILE:testQuick>  --success
+)

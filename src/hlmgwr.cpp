@@ -795,13 +795,7 @@ double HGWR::fit_D_beta_mcmc(const MCMC_Params& params)
         beta_samples.row(iter) = beta_cur.t();
 
         if (verbose > 1) {
-            pcout("iter=");
-            pcout(to_string(iter));
-            pcout(" rss=");
-            pcout(to_string(rss));
-            pcout(" sigma2=");
-            pcout(to_string(sigma2_cur));
-            pcout("\n");
+            pcout(string("iter=") + to_string(iter) + " rss=" + to_string(rss) + " sigma2=" + to_string(sigma2_cur) + "\r");
         }
 
         (*(pcancel))();
