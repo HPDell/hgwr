@@ -17,3 +17,10 @@ add_test(
     NAME Test_HGWRBML
     COMMAND $<TARGET_FILE:testHGWRBML>  --success
 )
+
+add_executable(testHGWRBFMCMC test_hgwrbfmcmc.cpp helper.cpp)
+target_link_libraries(testHGWRBFMCMC PRIVATE hgwrbml Catch2::Catch2WithMain)
+add_test(
+    NAME Test_HGWRBFMCMC
+    COMMAND $<TARGET_FILE:testHGWRBFMCMC>  --success
+)

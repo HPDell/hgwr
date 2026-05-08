@@ -21,6 +21,12 @@ struct ML_Params
     arma::uword q;
 };
 
+struct MCMC_Params
+{
+    std::size_t niters;
+    std::size_t nburnin;
+};
+
 class HGWR
 {
 public:  // Type defs
@@ -62,6 +68,29 @@ public:  // Type defs
     static arma::mat woodbury_eye(const arma::mat& M_inv, const arma::mat& L)
     {
         return arma::eye<arma::mat>(L.n_rows, L.n_rows) - L * (M_inv + L.t() * L).i() * L.t();
+    }
+
+    static arma::mat rinvwishart(size_t nu, const arma::mat& S)
+    {
+        size_t d = S.n_rows;
+        arma::mat S_inv = arma::inv_sympd(S);
+        arma::mat L = arma::chol(S_inv, "lower");
+        arma::mat A(d, d, arma::fill::zeros);
+        for (size_t i = 0; i < d; i++)
+        {
+            A(i, i) = std::sqrt(arma::chi2rnd(static_cast<double>(nu - i)));
+            for (size_t j = 0; j < i; j++)
+            {
+                A(i, j) = arma::randn();
+            }
+        }
+        arma::mat W = L * A * A.t() * L.t();
+        return arma::inv_sympd(W);
+    }
+
+    static double rinvgamma(double shape, double rate)
+    {
+        return 1.0 / arma::randg(arma::distr_param(shape, 1.0 / rate));
     }
 
     typedef void (*PrintFunction)(const std::string&);
@@ -269,6 +298,9 @@ public:
     
     size_t get_ml_type() { return ml_type; }
     void set_ml_type(size_t value) { ml_type = value; }
+
+    auto get_mcmc_params() { return mcmc_params; }
+    void set_mcmc_params(const MCMC_Params& value) { mcmc_params = value; }
     
     arma::mat get_gamma() { return gamma; }
 
@@ -314,6 +346,7 @@ public:
     arma::vec fit_gls();
     double fit_D(ML_Params* params);
     double fit_D_beta(ML_Params* params);
+    double fit_D_beta_mcmc(const MCMC_Params& params);
     void fit_mu();
     double fit_sigma();
     Parameters fit(const bool f_test = false);
@@ -352,6 +385,8 @@ private:
     size_t ml_type = (size_t)0;
     PrintFunction pcout = &Printer;
     CancelFunction pcancel = &Canceler;
+
+    MCMC_Params mcmc_params {10000, 2000};
 
     /* others */
     BwOptimCriterion bw_criterion = &bw_criterion_cv;

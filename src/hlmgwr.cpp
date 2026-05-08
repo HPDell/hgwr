@@ -710,6 +710,123 @@ void HGWR::fit_mu()
     }
 }
 
+double HGWR::fit_D_beta_mcmc(const MCMC_Params& params)
+{
+    uword nvz = D.n_rows;
+    uword nvx = beta.n_rows;
+
+    size_t niters = params.niters;
+    size_t nburnin = params.nburnin;
+
+    double tau_beta = 1000.0;
+    mat Sigma_beta_inv = eye(nvx, nvx) / tau_beta;
+
+    size_t nu0 = nvz + 1;
+    mat S0 = eye(nvz, nvz);
+
+    double a0 = 0.001;
+    double b0 = 0.001;
+
+    mat D_cur = D;
+    vec beta_cur = beta;
+    double sigma2_cur = 1.0;
+
+    size_t nsamples = niters;
+    cube D_samples(nvz, nvz, nsamples);
+    mat beta_samples(nsamples, nvx);
+
+    // size_t sample_idx = 0;
+
+    for (size_t iter = 0; iter < niters; iter++)
+    {
+        mat D_inv = inv_sympd(D_cur);
+        mat mu_new(ngroup, nvz);
+
+        for (size_t i = 0; i < ngroup; i++)
+        {
+            const mat& Zi = Zf[i];
+            const vec& Yhfi = Yhf[i];
+            const mat& Xi = Xf[i];
+            mat Sigma_mu_inv = Zi.t() * Zi / sigma2_cur + D_inv;
+            mat Sigma_mu = inv_sympd(Sigma_mu_inv);
+            vec mu_mean = Sigma_mu * Zi.t() * (Yhfi - Xi * beta_cur) / sigma2_cur;
+            mat L_mu = chol(Sigma_mu, "lower");
+            mu_new.row(i) = (mu_mean + L_mu * randn(nvz)).t();
+        }
+
+        mat sum_XtX(nvx, nvx, fill::zeros);
+        vec sum_XtY(nvx, fill::zeros);
+        mat SS(nvz, nvz, fill::zeros);
+
+        for (size_t i = 0; i < ngroup; i++)
+        {
+            const mat& Xi = Xf[i];
+            const vec& Yhfi = Yhf[i];
+            vec mu_i = mu_new.row(i).t();
+            sum_XtX += Xi.t() * Xi;
+            sum_XtY += Xi.t() * (Yhfi - Zf[i] * mu_i);
+            SS += mu_i * mu_i.t();
+        }
+
+        mat Sigma_beta_inv_post = sum_XtX / sigma2_cur + Sigma_beta_inv;
+        mat Sigma_beta_post = inv_sympd(Sigma_beta_inv_post);
+        vec beta_mean = Sigma_beta_post * sum_XtY / sigma2_cur;
+        mat L_beta = chol(Sigma_beta_post, "lower");
+        beta_cur = beta_mean + L_beta * randn(nvx);
+
+        D_cur = rinvwishart(nu0 + ngroup, S0 + SS);
+
+        double rss = 0.0;
+
+        for (size_t i = 0; i < ngroup; i++)
+        {
+            const mat& Xi = Xf[i];
+            const vec& Yhfi = Yhf[i];
+            vec mu_i = mu_new.row(i).t();
+            vec resid = Yhfi - Xi * beta_cur - Zf[i] * mu_i;
+            rss += dot(resid, resid);
+        }
+
+        double a_post = a0 + double(ndata) / 2.0;
+        double b_post = b0 + 0.5 * rss;
+        sigma2_cur = rinvgamma(a_post, b_post);
+
+        D_samples.slice(iter) = D_cur;
+        beta_samples.row(iter) = beta_cur.t();
+
+        if (verbose > 1) {
+            pcout("iter=");
+            pcout(to_string(iter));
+            pcout(" rss=");
+            pcout(to_string(rss));
+            pcout(" sigma2=");
+            pcout(to_string(sigma2_cur));
+            pcout("\n");
+        }
+
+        (*(pcancel))();
+    }
+
+    D_samples = D_samples.slices(nburnin, niters - 1);
+    beta_samples = beta_samples.rows(nburnin, niters - 1);
+
+    D = mean(D_samples, 2);
+    beta = mean(beta_samples, 0).t();
+
+    if (verbose > 0) {
+        ostringstream sout;
+        sout << "MCMC done: burnin=" << nburnin << " samples=" << (niters - nburnin) << " D=" << endl;
+        sout << D;
+        sout << endl << "beta=" << beta.t();
+        pcout(sout.str());
+        pcout("\n");
+    }
+
+    double mlf = -loglikelihood(Xf.get(), Yhf.get(), Zf.get(), ngroup, D, beta, ndata) / double(ndata);
+
+    return mlf;
+}
+
 double HGWR::fit_sigma()
 {
     mat D_inv = D.i();
@@ -801,6 +918,9 @@ HGWR::Parameters HGWR::fit(const bool f_test)
             ml_params.beta = nullptr;
             beta = fit_gls();
             mlf = fit_D_beta(&ml_params);
+            break;
+        case 2:
+            mlf = fit_D_beta_mcmc(mcmc_params);
             break;
         default:
             mlf = fit_D(&ml_params);
