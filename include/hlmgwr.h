@@ -70,7 +70,7 @@ public:  // Type defs
         return arma::eye<arma::mat>(L.n_rows, L.n_rows) - L * (M_inv + L.t() * L).i() * L.t();
     }
 
-    static arma::mat rinvwishart(size_t nu, const arma::mat& S)
+    static arma::mat rinvwishart(double nu, const arma::mat& S)
     {
         size_t d = S.n_rows;
         arma::mat S_inv = arma::inv_sympd(S);
@@ -78,7 +78,7 @@ public:  // Type defs
         arma::mat A(d, d, arma::fill::zeros);
         for (size_t i = 0; i < d; i++)
         {
-            A(i, i) = std::sqrt(arma::chi2rnd(static_cast<double>(nu - i)));
+            A(i, i) = std::sqrt(arma::chi2rnd(nu - i * 1.0));
             for (size_t j = 0; j < i; j++)
             {
                 A(i, j) = arma::randn();

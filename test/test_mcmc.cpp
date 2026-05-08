@@ -77,8 +77,6 @@ int main()
         options_mcmc.ml_type = 2;
 
         HGWR alg_mcmc(G, X, Z, y, u, group, kernel, bw, options_mcmc);
-        MCMC_Params mcmc_params = { 5000, 1000 };
-        alg_mcmc.set_mcmc_params(mcmc_params);
         alg_mcmc.set_printer(printer);
         auto res_mcmc = alg_mcmc.fit_mcmc_backfitting();
 
@@ -104,8 +102,6 @@ int main()
         options_mcmc.ml_type = 2;
 
         HGWR alg_mcmc(G, X, Z, y, u, group, kernel, bw, options_mcmc);
-        MCMC_Params mcmc_params = { 1000, 200 };
-        alg_mcmc.set_mcmc_params(mcmc_params);
         alg_mcmc.set_printer(printer);
         auto res_mcmc = alg_mcmc.fit();
 

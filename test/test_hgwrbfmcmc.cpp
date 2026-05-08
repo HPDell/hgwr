@@ -28,9 +28,9 @@ TEST_CASE("HGWR(BFML)")
     SECTION("Specified bandwidth 10") {
         auto kernel = HGWR::KernelType::GAUSSIAN;
         double bw = 10.0;
-        HGWR::Options options { 0.1, 1e-6, 1e-6, 100000, 10, 0, 2 };
+        HGWR::Options options { 0.1, 1e-6, 1e-6, 100000, 10, 0, 0 };
         HGWR algorithm { G, X, Z, y, u, group, kernel, bw, options, pcout };
-        REQUIRE_NOTHROW(algorithm.fit());
+        REQUIRE_NOTHROW(algorithm.fit_mcmc_backfitting());
         INFO("Results:");
         CAPTURE(algorithm.get_bw(), algorithm.get_sigma(), algorithm.get_gamma(), algorithm.get_beta(), algorithm.get_mu(), algorithm.get_D());
         CHECK_THAT(algorithm.get_bw(), Catch::Matchers::WithinAbs(10.0, 1e-6));
