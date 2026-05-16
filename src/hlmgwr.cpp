@@ -14,9 +14,14 @@ using namespace hgwr;
 
 const double log2pi = log(2.0 * M_PI);
 
+//=============================================================================
+// Single-scale bandwidth criterion (CV)
+//=============================================================================
 double HGWR::bw_criterion_cv(double bw, void* params)
 {
     BwSelectionArgs* args = (BwSelectionArgs*)params;
+    if (args->multiscale) return bw_criterion_cv_multiscale(bw, params);
+
     const mat& Vig = args->Vig.get();
     const vec& Viy = args->Viy.get();
     const mat& G = args->G.get();
@@ -25,7 +30,7 @@ double HGWR::bw_criterion_cv(double bw, void* params)
     const mat* Zf = args->Zf;
     const mat& mu = args->mu.get();
     const size_t ngroup = Viy.n_rows;
-    /// Calibrate for each gorup.
+    /// Calibrate for each group.
     double cv = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
@@ -52,9 +57,79 @@ double HGWR::bw_criterion_cv(double bw, void* params)
     return cv;
 }
 
+//=============================================================================
+// Multiscale bandwidth criterion (CV)
+//=============================================================================
+double HGWR::bw_criterion_cv_multiscale(double bw, void* params)
+{
+    BwSelectionArgs* args = (BwSelectionArgs*)params;
+    const mat& Vig = args->Vig.get();
+    const vec& Viy = args->Viy.get();
+    const mat& G = args->G.get();
+    const mat& u = args->u.get();
+    const mat* Ygf = args->Ygf;
+    const mat* Zf = args->Zf;
+    const mat& mu = args->mu.get();
+    const uword col_idx = args->col_idx;
+    const mat* gamma_ptr = args->gamma_ptr;
+    const size_t ngroup = Viy.n_rows;
+    double cv = 0.0;
+    for (size_t i = 0; i < ngroup; i++)
+    {
+        mat d_u = u.each_row() - u.row(i);
+        vec d = sqrt(sum(d_u % d_u, 1));
+        double b = actual_bw(d, bw);
+        vec wW = (*args->kernel)(d % d, b * b);
+        wW(i) = 0;
+        double num = 0.0, den = 0.0;
+        for (size_t j = 0; j < ngroup; j++)
+        {
+            double partial_viy = Viy(j);
+            if (gamma_ptr != nullptr)
+            {
+                for (uword m = 0; m < G.n_cols; m++)
+                {
+                    if (m != col_idx)
+                    {
+                        partial_viy -= Vig(j, m) * (*gamma_ptr)(j, m);
+                    }
+                }
+            }
+            num += wW(j) * G(j, col_idx) * partial_viy;
+            den += wW(j) * G(j, col_idx) * Vig(j, col_idx);
+        }
+        try
+        {
+            double gammai_k = num / den;
+            double hat_g = 0.0;
+            for (uword m = 0; m < G.n_cols; m++)
+            {
+                if (m == col_idx)
+                    hat_g += G(i, m) * gammai_k;
+                else if (gamma_ptr != nullptr)
+                    hat_g += G(i, m) * (*gamma_ptr)(i, m);
+            }
+            vec hat_ygi = hat_g * arma::ones(Zf[i].n_rows) + Zf[i] * mu.row(i).t();
+            vec residual = Ygf[i] - hat_ygi;
+            cv += sum(residual % residual);
+        }
+        catch(const std::exception& e)
+        {
+            (*(args->printer))(string("Error occurred when calculating CV value in bandwidth optimisation: ") + e.what() + "\n");
+            return DBL_MAX;
+        }
+    }
+    return cv;
+}
+
+//=============================================================================
+// Single-scale bandwidth criterion (AIC)
+//=============================================================================
 double HGWR::bw_criterion_aic(double bw, void* params)
 {
     BwSelectionArgs* args = (BwSelectionArgs*)params;
+    if (args->multiscale) return bw_criterion_aic_multiscale(bw, params);
+
     const mat& Vig = args->Vig.get();
     const vec& Viy = args->Viy.get();
     const mat& G = args->G.get();
@@ -65,7 +140,7 @@ double HGWR::bw_criterion_aic(double bw, void* params)
     const mat& rVsigma = args->rVsigma.get();
     const uvec& group = args->group.get();
     const size_t ngroup = Viy.n_rows;
-    /// Calibrate for each gorup.
+    /// Calibrate for each group.
     double rss = 0.0;
     double trS = 0.0;
     for (size_t i = 0; i < ngroup; i++)
@@ -82,8 +157,6 @@ double HGWR::bw_criterion_aic(double bw, void* params)
             mat GtWVG_inv = inv(GtWVG);
             vec gammai = GtWVG_inv * GtWVy;
             uvec igroup = find(group == i);
-            // mat GtWe = GtW.cols(group);
-            // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
             mat si_left = G.rows(group.rows(igroup)) * GtWVG_inv * GtW.col(i);
             mat si = si_left * rVsigma.cols(igroup);
             trS += trace(si);
@@ -102,6 +175,81 @@ double HGWR::bw_criterion_aic(double bw, void* params)
     return aic;
 }
 
+//=============================================================================
+// Multiscale bandwidth criterion (AIC)
+//=============================================================================
+double HGWR::bw_criterion_aic_multiscale(double bw, void* params)
+{
+    BwSelectionArgs* args = (BwSelectionArgs*)params;
+    const mat& Vig = args->Vig.get();
+    const vec& Viy = args->Viy.get();
+    const mat& G = args->G.get();
+    const mat& u = args->u.get();
+    const mat* Ygf = args->Ygf;
+    const mat* Zf = args->Zf;
+    const mat& mu = args->mu.get();
+    const mat& rVsigma = args->rVsigma.get();
+    const uvec& group = args->group.get();
+    const uword col_idx = args->col_idx;
+    const mat* gamma_ptr = args->gamma_ptr;
+    const size_t ngroup = Viy.n_rows;
+    double rss = 0.0;
+    double trS = 0.0;
+    for (size_t i = 0; i < ngroup; i++)
+    {
+        mat d_u = u.each_row() - u.row(i);
+        vec d = sqrt(sum(d_u % d_u, 1));
+        double b = actual_bw(d, bw);
+        vec wW = (*args->kernel)(d % d, b * b);
+        double num = 0.0, den = 0.0;
+        for (size_t j = 0; j < ngroup; j++)
+        {
+            double partial_viy = Viy(j);
+            if (gamma_ptr != nullptr)
+            {
+                for (uword m = 0; m < G.n_cols; m++)
+                {
+                    if (m != col_idx)
+                    {
+                        partial_viy -= Vig(j, m) * (*gamma_ptr)(j, m);
+                    }
+                }
+            }
+            num += wW(j) * G(j, col_idx) * partial_viy;
+            den += wW(j) * G(j, col_idx) * Vig(j, col_idx);
+        }
+        try
+        {
+            double gammai_k = num / den;
+            uvec igroup = find(group == i);
+            double si_val = G(i, col_idx) * G(i, col_idx) / den;
+            trS += si_val * accu(rVsigma.cols(igroup));
+            double hat_g = 0.0;
+            for (uword m = 0; m < G.n_cols; m++)
+            {
+                if (m == col_idx)
+                    hat_g += G(i, m) * gammai_k;
+                else if (gamma_ptr != nullptr)
+                    hat_g += G(i, m) * (*gamma_ptr)(i, m);
+            }
+            vec hat_ygi = hat_g * arma::ones(Zf[i].n_rows) + Zf[i] * mu.row(i).t();
+            vec residual = Ygf[i] - hat_ygi;
+            rss += sum(residual % residual);
+        }
+        catch(const std::exception& e)
+        {
+            (*(args->printer))(string("Error occurred when calculating AIC value in bandwidth optimisation: ") + e.what());
+            return DBL_MAX;
+        }
+    }
+    double n = double(ngroup);
+    double aic = n * log(rss / n) + n * log(2 * arma::datum::pi) + n + trS;
+    return aic;
+}
+
+//=============================================================================
+// Single-scale bandwidth optimisation
+//=============================================================================
 int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* args)
 {
     gsl_set_error_handler([](const char* reason, const char* file, int line, int gsl_errno)
@@ -120,14 +268,14 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
     int status = gsl_min_fminimizer_set(minimizer, &func, m, lower, upper);
     if (status == GSL_EINVAL)
     {
-        if (bw > 0)
+        if (bw(0) > 0)
         {
-            if (verbose > 0) pcout("Bandwidth optimisation failed. Use last value: " + to_string(bw) + "\n");
+            if (verbose > 0) pcout("Bandwidth optimisation failed. Use last value: " + to_string(bw(0)) + "\n");
         }
         else
         {
-            bw = gsl_min_fminimizer_x_minimum(minimizer);
-            if (verbose > 0) pcout("Bandwidth optimisation failed to initialise. Use default value: " + to_string(bw) + "\n");
+            bw(0) = gsl_min_fminimizer_x_minimum(minimizer);
+            if (verbose > 0) pcout("Bandwidth optimisation failed to initialise. Use default value: " + to_string(bw(0)) + "\n");
         }
         return GSL_EINVAL;
     }
@@ -147,35 +295,91 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
     } while (status == GSL_CONTINUE && iter < max_bw_iters);
     if (status == GSL_SUCCESS)
     {
-        bw = m;
+        bw(0) = m;
         double fm = gsl_min_fminimizer_f_minimum(minimizer);
         if (verbose > 1) pcout("\n");
-        if (verbose > 0) pcout(string("bw: ") + to_string(bw) + "; f: " + to_string(fm) + "\n");
+        if (verbose > 0) pcout(string("bw: ") + to_string(bw(0)) + "; f: " + to_string(fm) + "\n");
     }
     else
     {
-        if (verbose > 0) pcout("Bandwidth optimisation failed. Use last value: " + to_string(bw) + "\n");
+        if (verbose > 0) pcout("Bandwidth optimisation failed. Use last value: " + to_string(bw(0)) + "\n");
     }
     gsl_min_fminimizer_free(minimizer);
     gsl_set_error_handler_off();
     return status;
 }
 
-/**
- * @brief Estimate $\gamma$.
- * 
- * @param X Equals to $g$
- * @param y Equals to $\bar{y}$
- * @param S Equals to $s$
- * @param u Used to calculate $W$
- * @param bw Bandwidth 
- * @param wn Equals to $N$
- * @param wD Equals to $D$
- * @return mat 
- */
+//=============================================================================
+// Multiscale bandwidth optimisation
+//=============================================================================
+int HGWR::bw_optimisation_multiscale(double lower, double upper, const BwSelectionArgs* args)
+{
+    uword col_idx = args->col_idx;
+    gsl_set_error_handler([](const char* reason, const char* file, int line, int gsl_errno)
+    {
+        (void)reason;
+        (void)file;
+        (void)line;
+        (void)gsl_errno;
+    });
+    gsl_function func;
+    func.params = (void*)args;
+    func.function = bw_criterion;
+    gsl_min_fminimizer* minimizer = gsl_min_fminimizer_alloc(gsl_min_fminimizer_brent);
+    const double R = (sqrt(5)-1)/2;
+    double m = lower + R * (upper - lower);
+    int status = gsl_min_fminimizer_set(minimizer, &func, m, lower, upper);
+    if (status == GSL_EINVAL)
+    {
+        if (bw(col_idx) > 0)
+        {
+            if (verbose > 0) pcout("Bandwidth optimisation failed for column " + to_string(col_idx) + ". Use last value: " + to_string(bw(col_idx)) + "\n");
+        }
+        else
+        {
+            bw(col_idx) = gsl_min_fminimizer_x_minimum(minimizer);
+            if (verbose > 0) pcout("Bandwidth optimisation failed to initialise for column " + to_string(col_idx) + ". Use default value: " + to_string(bw(col_idx)) + "\n");
+        }
+        return GSL_EINVAL;
+    }
+    size_t iter = 0;
+    do
+    {
+        status = gsl_min_fminimizer_iterate(minimizer);
+        m = gsl_min_fminimizer_x_minimum(minimizer);
+        lower = gsl_min_fminimizer_x_lower(minimizer);
+        upper = gsl_min_fminimizer_x_upper(minimizer);
+        status = gsl_min_test_interval(lower, upper, 1e-4, 0.0);
+        if (verbose > 1)
+        {
+            double fm = gsl_min_fminimizer_f_minimum(minimizer);
+            pcout(string("xL: ") + to_string(lower) + "; xU: " + to_string(upper) + "; x: " + to_string(m) + "; f: " + to_string(fm) + "\r");
+        }
+    } while (status == GSL_CONTINUE && iter < max_bw_iters);
+    if (status == GSL_SUCCESS)
+    {
+        bw(col_idx) = m;
+        double fm = gsl_min_fminimizer_f_minimum(minimizer);
+        if (verbose > 1) pcout("\n");
+        if (verbose > 0) pcout(string("bw[") + to_string(col_idx) + "]: " + to_string(bw(col_idx)) + "; f: " + to_string(fm) + "\n");
+    }
+    else
+    {
+        if (verbose > 0) pcout("Bandwidth optimisation failed for column " + to_string(col_idx) + ". Use last value: " + to_string(bw(col_idx)) + "\n");
+    }
+    gsl_min_fminimizer_free(minimizer);
+    gsl_set_error_handler_off();
+    return status;
+}
+
+//=============================================================================
+// Single-scale GWR fitting
+//=============================================================================
 void HGWR::fit_gwr(const bool t_test, const bool f_test)
 {
-    uword k = G.n_cols;//, q = Zf[0].n_cols;
+    if (multiscale) { fit_gwr_multiscale(t_test, f_test); return; }
+
+    uword k = G.n_cols;
     mat D_inv = D.i();
     gamma.fill(arma::fill::zeros);
     if (t_test) gamma_se.fill(arma::fill::zeros);
@@ -209,7 +413,7 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
         double upper = double(ngroup - 1), lower = double(k + 2 + extra);
         bw_optimisation(lower, upper, &args);
     }
-    /// Calibrate for each gorup.
+    /// Calibrate for each group.
     trS = { 0.0, 0.0 };
     trQ = { 0.0, 0.0 };
     unique_ptr<mat[]> Qf = make_unique<mat[]>(ngroup);
@@ -222,7 +426,7 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
     {
         mat d_u = u.each_row() - u.row(i);
         vec d = sqrt(sum(d_u % d_u, 1));
-        double b = actual_bw(d, bw);
+        double b = actual_bw(d, bw(0));
         vec wW = (*gwr_kernel)(d % d, b * b);
         mat GtW = (G.each_col() % wW).t();
         mat GtWVG = GtW * Vig;
@@ -234,8 +438,6 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
         if (t_test) gamma_se.row(i) = trans(sum((Ci.each_row() % Vig_var) % Ci, 1));
         uvec igroup = find(group == i);
         uword nidata = igroup.n_elem;
-        // mat GtWe = GtW.cols(group);
-        // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
         mat si_left = (repelem(G.row(i), nidata, 1) * Ci).eval().cols(group);
         mat si = si_left.each_row() % rVsigma;
         trS(0) += trace(si.cols(igroup));
@@ -251,7 +453,168 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
                 Qf[j] += pij.t() * pij;
             }
         }
-        vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
+    }
+    if (f_test)
+    {
+        for (uword j = 0; j < ngroup; j++)
+        {
+            Qf[j] *= Vf[j];
+            trQ(0) += trace(Qf[j]);
+            trQ(1) += trace(Qf[j] * Qf[j]);
+        }
+    }
+    if (t_test)
+    {
+        gamma_se = sigma * sqrt(gamma_se);
+    }
+}
+
+//=============================================================================
+// Multiscale GWR fitting
+//=============================================================================
+void HGWR::fit_gwr_multiscale(const bool t_test, const bool f_test)
+{
+    uword k = G.n_cols;
+    mat D_inv = D.i();
+    gamma.fill(arma::fill::zeros);
+    if (t_test) gamma_se.fill(arma::fill::zeros);
+    unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
+    mat Vig(ngroup, k, arma::fill::zeros);
+    vec Viy(ngroup, arma::fill::zeros);
+    rowvec rVsigma = rowvec(ndata, arma::fill::zeros);
+    rowvec Vig_var(ngroup, arma::fill::zeros);
+    for (size_t i = 0; i < ngroup; i++)
+    {
+        const mat& Yi = Ygf[i];
+        const mat& Zi = Zf[i];
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        uword nidata = Zi.n_rows;
+        if (f_test || t_test) Vf[i] = Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows);
+        rowvec Visigma = ones(1, nidata) * Vi_inv;
+        Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
+        Viy(i) = as_scalar(Visigma * Yi);
+        rVsigma(find(group == i)) = Visigma;
+        if (t_test) Vig_var(i) = as_scalar(Visigma * Vf[i] * Visigma.t());
+    }
+    // Per-column bandwidth optimization and gamma estimation (backfitting)
+    for (uword col = 0; col < k; col++)
+    {
+        vec partial_viy(Viy);
+        for (uword m = 0; m < k; m++)
+        {
+            if (m != col)
+            {
+                partial_viy -= Vig.col(m) % gamma.col(m);
+            }
+        }
+        if (bw_optim)
+        {
+            BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel, Printer };
+            args.col_idx = col;
+            args.gamma_ptr = &gamma;
+            args.multiscale = true;
+            if (verbose > 1) {
+                args.printer = pcout;
+            }
+            uword extra = (kernel == KernelType::BISQUARED) ? 1 : 0;
+            double upper = double(ngroup - 1), lower = double(2 + extra);
+            bw_optimisation_multiscale(lower, upper, &args);
+        }
+        // Estimate gamma column using bw(col)
+        for (size_t i = 0; i < ngroup; i++)
+        {
+            mat d_u = u.each_row() - u.row(i);
+            vec d = sqrt(sum(d_u % d_u, 1));
+            double b = actual_bw(d, bw(col));
+            vec wW = (*gwr_kernel)(d % d, b * b);
+            double num = 0.0, den = 0.0;
+            for (size_t j = 0; j < ngroup; j++)
+            {
+                double pviy = Viy(j);
+                for (uword m = 0; m < k; m++)
+                {
+                    if (m != col)
+                    {
+                        pviy -= Vig(j, m) * gamma(j, m);
+                    }
+                }
+                num += wW(j) * G(j, col) * pviy;
+                den += wW(j) * G(j, col) * Vig(j, col);
+            }
+            gamma(i, col) = num / den;
+            if (t_test)
+            {
+                double se2 = 0.0;
+                for (size_t j = 0; j < ngroup; j++)
+                {
+                    double coeff = wW(j) * G(j, col) / den;
+                    se2 += coeff * coeff * Vig_var(j);
+                }
+                gamma_se(i, col) = se2;
+            }
+        }
+    }
+    // Compute trS and trQ for diagnostics
+    trS = { 0.0, 0.0 };
+    trQ = { 0.0, 0.0 };
+    unique_ptr<mat[]> Qf = make_unique<mat[]>(ngroup);
+    for (uword j = 0; j < ngroup; j++)
+    {
+        Qf[j].resize(size(Vf[j]));
+        Qf[j].fill(0.0);
+    }
+    for (size_t i = 0; i < ngroup; i++)
+    {
+        uvec igroup = find(group == i);
+        uword nidata = igroup.n_elem;
+        for (uword col = 0; col < k; col++)
+        {
+            mat d_u = u.each_row() - u.row(i);
+            vec d = sqrt(sum(d_u % d_u, 1));
+            double b = actual_bw(d, bw(col));
+            vec wW = (*gwr_kernel)(d % d, b * b);
+            double den = 0.0;
+            for (size_t j = 0; j < ngroup; j++)
+            {
+                den += wW(j) * G(j, col) * Vig(j, col);
+            }
+            double si_val = G(i, col) * G(i, col) / den;
+            double rvsum = accu(rVsigma.cols(igroup));
+            trS(0) += si_val * rvsum;
+            trS(1) += si_val * si_val * rvsum * rvsum;
+        }
+        if (f_test)
+        {
+            for (uword col = 0; col < k; col++)
+            {
+                mat d_u = u.each_row() - u.row(i);
+                vec d = sqrt(sum(d_u % d_u, 1));
+                double b = actual_bw(d, bw(col));
+                vec wW = (*gwr_kernel)(d % d, b * b);
+                double den = 0.0;
+                for (size_t j = 0; j < ngroup; j++)
+                {
+                    den += wW(j) * G(j, col) * Vig(j, col);
+                }
+                for (size_t j = 0; j < ngroup; j++)
+                {
+                    double s_ij = G(i, col) * wW(j) * G(j, col) / den;
+                    uvec jgroup = find(group == j);
+                    double rv_j = accu(rVsigma.cols(jgroup));
+                    double rv_i = accu(rVsigma.cols(igroup));
+                    trS(0) += s_ij * rv_j;
+                    trS(1) += s_ij * s_ij * rv_j * rv_i;
+                }
+            }
+            mat ei(nidata, ndata, arma::fill::zeros);
+            ei.cols(igroup) = eye(nidata, nidata);
+            mat pi = ei;
+            for (uword j = 0; j < ngroup; j++)
+            {
+                mat pij = pi.cols(group_span[j]);
+                Qf[j] += pij.t() * pij;
+            }
+        }
     }
     if (f_test)
     {
@@ -312,7 +675,6 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
     mat ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
     mat KKt(arma::size(D), arma::fill::zeros);
     double J = 0.0, n = (double)ndata;
-    // field<mat> Kf(ngroup);
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Xi = Xf[i];
@@ -334,7 +696,6 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
     mat ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
     mat KKt(arma::size(D), arma::fill::zeros), G(arma::size(beta), arma::fill::zeros);
     double J = 0.0, n = (double)ndata;
-    // field<mat> Kf(ngroup);
     field<mat> Kf(ngroup), Gf(ngroup);
     for (uword i = 0; i < ngroup; i++)
     {
@@ -586,7 +947,7 @@ double HGWR::fit_D_beta(ML_Params* params)
     minex_fun.df = ml_gsl_df_D_beta;
     minex_fun.fdf = ml_gsl_fdf_D_beta;
     minex_fun.params = (void*)params;
-    gsl_vector *target = gsl_vector_alloc(ntarget);//, *step_size = gsl_vector_alloc(ntarget);
+    gsl_vector *target = gsl_vector_alloc(ntarget);
     for (uword i = 0; i < p; i++)
     {
         gsl_vector_set(target, i, beta(i));
@@ -728,8 +1089,13 @@ double HGWR::fit_sigma()
     return sqrt(sigma2 / (double)ndata);
 }
 
+//=============================================================================
+// Single-scale fit (entry point, dispatches based on multiscale flag)
+//=============================================================================
 HGWR::Parameters HGWR::fit(const bool f_test)
 {
+    if (multiscale) return fit_multiscale(f_test);
+
     //===============
     // Prepare Matrix
     //===============
@@ -824,7 +1190,7 @@ HGWR::Parameters HGWR::fit(const bool f_test)
         {
             ostringstream sout;
             sout << fixed << setprecision(prescition) << "Iter: " << iter;
-            if (bw_optim) sout << ", " << "Bw: " << bw;
+            if (bw_optim) sout << ", " << "Bw: " << bw(0);
             sout << ", " << "RSS: " << rss;
             if (abs(diff) < DBL_MAX) sout << ", " << "dRSS: " << diff;
             sout << ", " << "R2: " << (1 - rss / tss);
@@ -850,6 +1216,138 @@ HGWR::Parameters HGWR::fit(const bool f_test)
     return { gamma, beta, mu, D, sigma, bw };
 }
 
+//=============================================================================
+// Multiscale fit
+//=============================================================================
+HGWR::Parameters HGWR::fit_multiscale(const bool f_test)
+{
+    //===============
+    // Prepare Matrix
+    //===============
+    int prescition = (int)log10(1 / eps_iter);
+    double tss = sum((y - mean(y)) % (y - mean(y)));
+    gamma = mat(ngroup, nvg, arma::fill::zeros);
+    gamma_se = mat(ngroup, nvg, arma::fill::zeros);
+    beta = vec(nvx, arma::fill::zeros);
+    mu = mat(ngroup, nvz, arma::fill::zeros);
+    D = mat(nvz, nvz, arma::fill::eye);
+    Zf = make_unique<arma::mat[]>(ngroup);
+    Xf = make_unique<arma::mat[]>(ngroup);
+    Yf = make_unique<arma::vec[]>(ngroup);
+    Ygf = make_unique<arma::vec[]>(ngroup);
+    Yhf = make_unique<arma::vec[]>(ngroup);
+    uvec group_size(ngroup);
+    group_span.resize(ngroup);
+    for (uword i = 0; i < ngroup; i++)
+    {
+        uvec ind = find(group == i);
+        group_size(i) = ind.n_elem;
+        Yf[i] = y.rows(ind);
+        Xf[i] = X.rows(ind);
+        Zf[i] = Z.rows(ind);
+        Yhf[i] = y.rows(ind);
+    }
+    uvec group_to = cumsum(group_size);
+    uvec group_from = group_to - group_size;
+    group_to = group_to - 1;
+    transform(group_from.begin(), group_from.end(), group_to.begin(), group_span.begin(), [](uword from, uword to)
+    {
+        return span(from, to);
+    });
+    //----------------------------------------------
+    // Generalized Least Squared Estimation for beta
+    //----------------------------------------------
+    beta = fit_gls();
+    fit_mu();
+    //============
+    // Backfitting
+    //============
+    size_t retry = 0;
+    double rss = DBL_MAX, rss0 = DBL_MAX, diff = DBL_MAX, mlf = 0.0;
+    for (size_t iter = 0; (abs(diff) > eps_iter) && iter < max_iters && retry < max_retries; iter++)
+    {
+        rss0 = rss;
+        //--------------------
+        // Initial Guess for M
+        //--------------------
+        for (uword i = 0; i < ngroup; i++)
+        {
+            Ygf[i] = Yf[i] - Xf[i] * beta;
+        }
+        fit_gwr_multiscale();
+        vec hatMg = sum(G % gamma, 1);
+        vec hatM = hatMg.rows(group);
+        vec yh = y - hatM;
+        for (uword i = 0; i < ngroup; i++)
+        {
+            Yhf[i] = Yf[i] - sum(G.row(i) % gamma.row(i));
+        }
+        //------------------------------------
+        // Maximum Likelihood Estimation for D
+        //------------------------------------
+        ML_Params ml_params = { Xf.get(), Yhf.get(), Zf.get(), &beta, ngroup, ndata, nvx, nvz };
+        switch (ml_type)
+        {
+        case 1:
+            ml_params.beta = nullptr;
+            beta = fit_gls();
+            mlf = fit_D_beta(&ml_params);
+            break;
+        default:
+            mlf = fit_D(&ml_params);
+            beta = fit_gls();
+            break;
+        }
+        fit_mu();
+        //------------------------------
+        // Calculate Termination Measure
+        //------------------------------
+        vec yhat = yh - (X * beta) - sum(Z % (mu.rows(group)), 1);
+        vec residual = yhat % yhat;
+        rss = sum(residual);
+        diff = rss - rss0;
+        if (rss < rss0) 
+        {
+            if (retry > 0) retry = 0;
+        }
+        else if (iter > 0) retry++;
+        if (verbose > 0)
+        {
+            ostringstream sout;
+            sout << fixed << setprecision(prescition) << "Iter: " << iter;
+            if (bw_optim) {
+                sout << ", Bw: [";
+                for (uword bi = 0; bi < bw.n_elem; bi++) {
+                    if (bi > 0) sout << ",";
+                    sout << bw(bi);
+                }
+                sout << "]";
+            }
+            sout << ", " << "RSS: " << rss;
+            if (abs(diff) < DBL_MAX) sout << ", " << "dRSS: " << diff;
+            sout << ", " << "R2: " << (1 - rss / tss);
+            sout << ", " << "-loglik/n: " << mlf;
+            if (retry > 0) sout << ", " << "Retry: " << retry;
+            sout << endl;
+            pcout(sout.str());
+        }
+        (*(this->pcancel))();
+    }
+    sigma = fit_sigma();
+    if (verbose > 0) pcout("Re-fit GLSW effects for f test\n");
+    for (uword i = 0; i < ngroup; i++)
+    {
+        Ygf[i] = Yf[i] - Xf[i] * beta;
+    }
+    fit_gwr_multiscale(true, f_test);
+    //============
+    // Diagnostic
+    //============
+    loglik = - mlf * double(ndata);
+    calc_var_beta();
+    return { gamma, beta, mu, D, sigma, bw };
+}
+
 void HGWR::calc_var_beta()
 {
     mat D_inv = D.i(), XtViX(X.n_cols, X.n_cols, arma::fill::zeros);
@@ -865,7 +1363,109 @@ void HGWR::calc_var_beta()
     var_beta = diagvec(XtViX.i());
 }
 
+//=============================================================================
+// Single-scale F-test
+//=============================================================================
 std::vector<arma::vec4> HGWR::test_glsw()
+{
+    if (multiscale) return test_glsw_multiscale();
+
+    if (verbose > 0) pcout("Preparing f test\n");
+    uword ng = gamma.n_cols;
+    double nd = double(ndata);
+    double df2 = trQ(0) * trQ(0) / trQ(1);
+    mat D_inv = D.i();
+    unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
+    unique_ptr<mat[]> GVGf = make_unique<mat[]>(ngroup);
+    unique_ptr<mat[]> GVf = make_unique<mat[]>(ngroup);
+    for (size_t i = 0; i < ngroup; i++)
+    {
+        uvec ind = find(group == i);
+        const mat& Zi = Zf[i];
+        Vf[i] = Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows);
+        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        uword nidata = Zi.n_rows;
+        GVf[i] = G.row(i).t() * ones(1, nidata) * Vi_inv;
+        GVGf[i] = (GVf[i] * ones(nidata, 1) * G.row(i));
+    }
+    vec nw(ngroup, arma::fill::zeros);
+    for (uword i = 0; i < ngroup; i++)
+    {
+        nw(i) = double(Zf[i].n_rows);
+    }
+    vector<vec4> results;
+    for (uword k = 0; k < ng; k++)
+    {
+        if (verbose > 0) pcout("Doing f test for effect " + to_string(k) + "\n");
+        double sum_gk = sum(gamma.col(k) % nw);
+        double sum_gk2 = sum(gamma.col(k) % gamma.col(k) % nw);
+        double vk2 = (sum_gk2 - sum_gk * sum_gk / nd) / nd;
+        vec c(ndata, arma::fill::zeros);
+        for (uword i = 0; i < ngroup; i++)
+        {
+            double ni = double(GVf[i].n_cols);
+            mat d_u = u.each_row() - u.row(i);
+            vec d = sqrt(sum(d_u % d_u, 1));
+            double fb = actual_bw(d, bw(0));
+            vec w = (*gwr_kernel)(d % d, fb * fb);
+            mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
+            for (size_t j = 0; j < ngroup; j++)
+            {
+                GWVG += (w[j] * GVGf[j]);
+                GWV.cols(find(group == j)) = w[j] * GVf[j];
+            }
+            mat Cit = GWV.t() * GWVG.i().t();
+            vec bi = Cit.col(k);
+            c += bi * double(ni);
+        }
+        unique_ptr<mat[]> Bf = make_unique<mat[]>(ngroup);
+        for (size_t j = 0; j < ngroup; j++)
+        {
+            Bf[j].resize(size(Vf[j]));
+            Bf[j].fill(0.0);
+        }
+        for (uword i = 0; i < ngroup; i++)
+        {
+            double ni = double(GVf[i].n_cols);
+            mat d_u = u.each_row() - u.row(i);
+            vec d = sqrt(sum(d_u % d_u, 1));
+            double fb = actual_bw(d, bw(0));
+            vec w = (*gwr_kernel)(d % d, fb * fb);
+            mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
+            for (size_t j = 0; j < ngroup; j++)
+            {
+                GWVG += GVGf[j] * w[j];
+                GWV.cols(find(group == j)) = GVf[j] * w[j];
+            }
+            mat Cit = GWV.t() * GWVG.i().t();
+            vec bi = Cit.col(k);
+            for (uword j = 0; j < ngroup; j++)
+            {
+                vec bij = bi.rows(group_span[j]);
+                vec cij = c.rows(group_span[j]);
+                Bf[j] += bij * bij.t() * ni - cij * bij.t() * ni / nd;
+            }
+        }
+        double trB = 0.0, trB2 = 0.0;
+        for (size_t j = 0; j < ngroup; j++)
+        {
+            Bf[j] *= Vf[j] / nd;
+            trB += trace(Bf[j]);
+            trB2 += trace(Bf[j] * Bf[j]);
+        }
+        double fv = vk2 / trB / (sigma * sigma);
+        double df1 = trB * trB / trB2;
+        double pv = gsl_cdf_fdist_Q(fv, df1, df2);
+        vec4 result = { fv, df1, df2, pv };
+        results.push_back(result);
+    }
+    return results;
+}
+
+//=============================================================================
+// Multiscale F-test
+//=============================================================================
+std::vector<arma::vec4> HGWR::test_glsw_multiscale()
 {
     if (verbose > 0) pcout("Preparing f test\n");
     uword ng = gamma.n_cols;
@@ -903,7 +1503,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
             double ni = double(GVf[i].n_cols);
             mat d_u = u.each_row() - u.row(i);
             vec d = sqrt(sum(d_u % d_u, 1));
-            double fb = actual_bw(d, bw);
+            double fb = actual_bw(d, bw(k));
             vec w = (*gwr_kernel)(d % d, fb * fb);
             mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
             for (size_t j = 0; j < ngroup; j++)
@@ -926,7 +1526,7 @@ std::vector<arma::vec4> HGWR::test_glsw()
             double ni = double(GVf[i].n_cols);
             mat d_u = u.each_row() - u.row(i);
             vec d = sqrt(sum(d_u % d_u, 1));
-            double fb = actual_bw(d, bw);
+            double fb = actual_bw(d, bw(k));
             vec w = (*gwr_kernel)(d % d, fb * fb);
             mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
             for (size_t j = 0; j < ngroup; j++)

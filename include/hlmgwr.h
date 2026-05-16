@@ -84,6 +84,7 @@ public:  // Type defs
         size_t max_retries = (size_t)10;
         size_t verbose = (size_t)0;
         size_t ml_type = (size_t)0;
+        bool multiscale = false;
     };
 
     struct Parameters
@@ -93,7 +94,7 @@ public:  // Type defs
         arma::mat mu;
         arma::mat D;
         double sigma;
-        double bw;
+        arma::vec bw;
     };
 
     // using BwSelectionArgs = std::pair<std::reference_wrapper<arma::mat>, std::reference_wrapper<arma::vec>>;
@@ -110,6 +111,11 @@ public:  // Type defs
         std::reference_wrapper<arma::uvec> group;
         GWRKernelFunctionSquared kernel;
         PrintFunction printer;
+        arma::uword col_idx = 0;
+        const arma::mat* gamma_ptr = nullptr;
+        const arma::mat* Vig_ptr = nullptr;
+        const arma::vec* Viy_ptr = nullptr;
+        bool multiscale = false;
     };
 
     enum class BwOptimCriterionType
@@ -123,6 +129,10 @@ public:  // Type defs
     static double bw_criterion_cv(double bw, void* params);
 
     static double bw_criterion_aic(double bw, void* params);
+
+    static double bw_criterion_cv_multiscale(double bw, void* params);
+
+    static double bw_criterion_aic_multiscale(double bw, void* params);
 
 public:
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group)
@@ -138,6 +148,8 @@ public:
         nvg = G.n_cols;
         nvx = X.n_cols;
         nvz = Z.n_cols;
+        bw = arma::vec(nvg);
+        bw.fill(0.0);
         bw_optim = true;
     }
 
@@ -151,6 +163,7 @@ public:
         this->max_retries = options.max_retries;
         this->verbose = options.verbose;
         this->ml_type = options.ml_type;
+        this->multiscale = options.multiscale;
         bw_optim = true;
     }
 
@@ -171,7 +184,8 @@ public:
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, double bw)
         : HGWR(G, X, Z, y, u, group, kernel)
     {
-        this->bw = bw;
+        this->bw = arma::vec(nvg);
+        this->bw.fill(bw);
         bw_optim = false;
     }
 
@@ -179,7 +193,8 @@ public:
         : HGWR(G, X, Z, y, u, group, options)
     {
         set_kernel(kernel);
-        this->bw = bw;
+        this->bw = arma::vec(nvg);
+        this->bw.fill(bw);
         bw_optim = false;
     }
 
@@ -209,8 +224,15 @@ public:
     const arma::uvec& get_group() { return group; }
     void set_group(const arma::uvec& value) { group = value; }
     
-    double get_bw() { return bw; }
+    double get_bw() { return bw(0); }
+    const arma::vec& get_bws() { return bw; }
     void set_bw(double value)
+    {
+        bw = arma::vec(nvg);
+        bw.fill(value);
+        bw_optim = false;
+    }
+    void set_bw(const arma::vec& value)
     {
         bw = value;
         bw_optim = false;
@@ -269,6 +291,9 @@ public:
     
     size_t get_ml_type() { return ml_type; }
     void set_ml_type(size_t value) { ml_type = value; }
+
+    bool get_multiscale() { return multiscale; }
+    void set_multiscale(bool value) { multiscale = value; }
     
     arma::mat get_gamma() { return gamma; }
 
@@ -310,15 +335,19 @@ public:
 
 public:
     int bw_optimisation(double lower, double upper, const BwSelectionArgs* args);
+    int bw_optimisation_multiscale(double lower, double upper, const BwSelectionArgs* args);
     void fit_gwr(const bool t_test = false, const bool f_test = false);
+    void fit_gwr_multiscale(const bool t_test = false, const bool f_test = false);
     arma::vec fit_gls();
     double fit_D(ML_Params* params);
     double fit_D_beta(ML_Params* params);
     void fit_mu();
     double fit_sigma();
     Parameters fit(const bool f_test = false);
+    Parameters fit_multiscale(const bool f_test = false);
     void calc_var_beta();
     std::vector<arma::vec4> test_glsw();
+    std::vector<arma::vec4> test_glsw_multiscale();
 
 private:
     /* data */
@@ -328,8 +357,9 @@ private:
     arma::vec y;
     arma::mat u;
     arma::uvec group;
-    double bw = 0.0;
+    arma::vec bw;
     bool bw_optim = false;
+    bool multiscale = false;
     KernelType kernel = KernelType::GAUSSIAN;
     BwOptimCriterionType bw_criterion_type = BwOptimCriterionType::CV;
 
