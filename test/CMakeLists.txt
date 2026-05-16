@@ -17,3 +17,10 @@ add_test(
     NAME Test_HGWRBML
     COMMAND $<TARGET_FILE:testHGWRBML>  --success
 )
+
+add_executable(testHGWRBMLMultiscale test_hgwrbfml_multiscale.cpp helper.cpp)
+target_link_libraries(testHGWRBMLMultiscale PRIVATE hgwrbml Catch2::Catch2WithMain)
+add_test(
+    NAME Test_HGWRBML_Multiscale
+    COMMAND $<TARGET_FILE:testHGWRBMLMultiscale>  --success
+)

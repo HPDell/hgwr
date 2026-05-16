@@ -198,7 +198,28 @@ public:
         bw_optim = false;
     }
 
+    explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, const arma::vec& bw)
+        : HGWR(G, X, Z, y, u, group, kernel)
+    {
+        this->bw = bw;
+        bw_optim = false;
+    }
+
+    explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, const arma::vec& bw, const Options& options)
+        : HGWR(G, X, Z, y, u, group, options)
+    {
+        set_kernel(kernel);
+        this->bw = bw;
+        bw_optim = false;
+    }
+
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, double bw, const Options& options, const PrintFunction printer)
+        : HGWR(G, X, Z, y, u, group, kernel, bw, options)
+    {
+        this->pcout = printer;
+    }
+
+    explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group, KernelType kernel, const arma::vec& bw, const Options& options, const PrintFunction printer)
         : HGWR(G, X, Z, y, u, group, kernel, bw, options)
     {
         this->pcout = printer;
