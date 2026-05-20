@@ -101,13 +101,13 @@ double HGWR::bw_criterion_cv_multiscale(double bw, void* params)
         try
         {
             double gammai_k = num / den;
-            double hat_g = 0.0;
-            for (uword m = 0; m < G.n_cols; m++)
-            {
-                if (m == col_idx)
-                    hat_g += G(i, m) * gammai_k;
-                else if (gamma_ptr != nullptr)
-                    hat_g += G(i, m) * (*gamma_ptr)(i, m);
+            double hat_g;
+            if (gamma_ptr != nullptr) {
+                rowvec gamma_row = (*gamma_ptr).row(i);
+                gamma_row(col_idx) = gammai_k;
+                hat_g = as_scalar(G.row(i) * gamma_row.t());
+            } else {
+                hat_g = G(i, col_idx) * gammai_k;
             }
             vec hat_ygi = hat_g * arma::ones(Zf[i].n_rows) + Zf[i] * mu.row(i).t();
             vec residual = Ygf[i] - hat_ygi;
@@ -224,13 +224,13 @@ double HGWR::bw_criterion_aic_multiscale(double bw, void* params)
             uvec igroup = find(group == i);
             double si_val = G(i, col_idx) * G(i, col_idx) / den;
             trS += si_val * accu(rVsigma.cols(igroup));
-            double hat_g = 0.0;
-            for (uword m = 0; m < G.n_cols; m++)
-            {
-                if (m == col_idx)
-                    hat_g += G(i, m) * gammai_k;
-                else if (gamma_ptr != nullptr)
-                    hat_g += G(i, m) * (*gamma_ptr)(i, m);
+            double hat_g;
+            if (gamma_ptr != nullptr) {
+                rowvec gamma_row = (*gamma_ptr).row(i);
+                gamma_row(col_idx) = gammai_k;
+                hat_g = as_scalar(G.row(i) * gamma_row.t());
+            } else {
+                hat_g = G(i, col_idx) * gammai_k;
             }
             vec hat_ygi = hat_g * arma::ones(Zf[i].n_rows) + Zf[i] * mu.row(i).t();
             vec residual = Ygf[i] - hat_ygi;
