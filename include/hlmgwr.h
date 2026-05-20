@@ -112,7 +112,6 @@ public:  // Type defs
         GWRKernelFunctionSquared kernel;
         PrintFunction printer;
         arma::uword col_idx = 0;
-        const arma::mat* gamma_ptr = nullptr;
         const arma::mat* Vig_ptr = nullptr;
         const arma::vec* Viy_ptr = nullptr;
         bool multiscale = false;
@@ -368,7 +367,6 @@ public:
     Parameters fit_multiscale(const bool f_test = false);
     void calc_var_beta();
     std::vector<arma::vec4> test_glsw();
-    std::vector<arma::vec4> test_glsw_multiscale();
 
 private:
     /* data */

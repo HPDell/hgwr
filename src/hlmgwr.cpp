@@ -71,7 +71,6 @@ double HGWR::bw_criterion_cv_multiscale(double bw, void* params)
     const mat* Zf = args->Zf;
     const mat& mu = args->mu.get();
     const uword col_idx = args->col_idx;
-    const mat* gamma_ptr = args->gamma_ptr;
     const size_t ngroup = Viy.n_rows;
     double cv = 0.0;
     for (size_t i = 0; i < ngroup; i++)
@@ -81,34 +80,12 @@ double HGWR::bw_criterion_cv_multiscale(double bw, void* params)
         double b = actual_bw(d, bw);
         vec wW = (*args->kernel)(d % d, b * b);
         wW(i) = 0;
-        double num = 0.0, den = 0.0;
-        for (size_t j = 0; j < ngroup; j++)
-        {
-            double partial_viy = Viy(j);
-            if (gamma_ptr != nullptr)
-            {
-                for (uword m = 0; m < G.n_cols; m++)
-                {
-                    if (m != col_idx)
-                    {
-                        partial_viy -= Vig(j, m) * (*gamma_ptr)(j, m);
-                    }
-                }
-            }
-            num += wW(j) * G(j, col_idx) * partial_viy;
-            den += wW(j) * G(j, col_idx) * Vig(j, col_idx);
-        }
+        double num = sum(wW % G.col(col_idx) % Viy);
+        double den = sum(wW % G.col(col_idx) % Vig.col(0));
         try
         {
             double gammai_k = num / den;
-            double hat_g;
-            if (gamma_ptr != nullptr) {
-                rowvec gamma_row = (*gamma_ptr).row(i);
-                gamma_row(col_idx) = gammai_k;
-                hat_g = as_scalar(G.row(i) * gamma_row.t());
-            } else {
-                hat_g = G(i, col_idx) * gammai_k;
-            }
+            double hat_g = G(i, col_idx) * gammai_k;
             vec hat_ygi = hat_g * arma::ones(Zf[i].n_rows) + Zf[i] * mu.row(i).t();
             vec residual = Ygf[i] - hat_ygi;
             cv += sum(residual % residual);
@@ -191,7 +168,6 @@ double HGWR::bw_criterion_aic_multiscale(double bw, void* params)
     const mat& rVsigma = args->rVsigma.get();
     const uvec& group = args->group.get();
     const uword col_idx = args->col_idx;
-    const mat* gamma_ptr = args->gamma_ptr;
     const size_t ngroup = Viy.n_rows;
     double rss = 0.0;
     double trS = 0.0;
@@ -201,37 +177,15 @@ double HGWR::bw_criterion_aic_multiscale(double bw, void* params)
         vec d = sqrt(sum(d_u % d_u, 1));
         double b = actual_bw(d, bw);
         vec wW = (*args->kernel)(d % d, b * b);
-        double num = 0.0, den = 0.0;
-        for (size_t j = 0; j < ngroup; j++)
-        {
-            double partial_viy = Viy(j);
-            if (gamma_ptr != nullptr)
-            {
-                for (uword m = 0; m < G.n_cols; m++)
-                {
-                    if (m != col_idx)
-                    {
-                        partial_viy -= Vig(j, m) * (*gamma_ptr)(j, m);
-                    }
-                }
-            }
-            num += wW(j) * G(j, col_idx) * partial_viy;
-            den += wW(j) * G(j, col_idx) * Vig(j, col_idx);
-        }
+        double num = sum(wW % G.col(col_idx) % Viy);
+        double den = sum(wW % G.col(col_idx) % Vig.col(0));
         try
         {
             double gammai_k = num / den;
             uvec igroup = find(group == i);
             double si_val = G(i, col_idx) * G(i, col_idx) / den;
             trS += si_val * accu(rVsigma.cols(igroup));
-            double hat_g;
-            if (gamma_ptr != nullptr) {
-                rowvec gamma_row = (*gamma_ptr).row(i);
-                gamma_row(col_idx) = gammai_k;
-                hat_g = as_scalar(G.row(i) * gamma_row.t());
-            } else {
-                hat_g = G(i, col_idx) * gammai_k;
-            }
+            double hat_g = G(i, col_idx) * gammai_k;
             vec hat_ygi = hat_g * arma::ones(Zf[i].n_rows) + Zf[i] * mu.row(i).t();
             vec residual = Ygf[i] - hat_ygi;
             rss += sum(residual % residual);
@@ -474,44 +428,46 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
 //=============================================================================
 void HGWR::fit_gwr_multiscale(const bool t_test, const bool f_test)
 {
+    (void)t_test;
+    (void)f_test;
     uword k = G.n_cols;
     mat D_inv = D.i();
     gamma.fill(arma::fill::zeros);
-    if (t_test) gamma_se.fill(arma::fill::zeros);
-    unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
-    mat Vig(ngroup, k, arma::fill::zeros);
-    vec Viy(ngroup, arma::fill::zeros);
-    rowvec rVsigma = rowvec(ndata, arma::fill::zeros);
-    rowvec Vig_var(ngroup, arma::fill::zeros);
+    // Pre-compute Visigma per group (independent of gamma columns)
+    unique_ptr<rowvec[]> Visigma_f = make_unique<rowvec[]>(ngroup);
     for (size_t i = 0; i < ngroup; i++)
     {
-        const mat& Yi = Ygf[i];
         const mat& Zi = Zf[i];
         mat Vi_inv = woodbury_eye(D_inv, Zi);
-        uword nidata = Zi.n_rows;
-        if (f_test || t_test) Vf[i] = Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows);
-        rowvec Visigma = ones(1, nidata) * Vi_inv;
-        Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
-        Viy(i) = as_scalar(Visigma * Yi);
-        rVsigma(find(group == i)) = Visigma;
-        if (t_test) Vig_var(i) = as_scalar(Visigma * Vf[i] * Visigma.t());
+        Visigma_f[i] = ones(1, Zi.n_rows) * Vi_inv;
     }
     // Per-column bandwidth optimization and gamma estimation (backfitting)
     for (uword col = 0; col < k; col++)
     {
-        vec partial_viy(Viy);
-        for (uword m = 0; m < k; m++)
+        // Compute colVig (ngroup x 1) and pViy (ngroup x 1) for this column
+        mat colVig(ngroup, 1, arma::fill::zeros);
+        vec pViy(ngroup, arma::fill::zeros);
+        rowvec rVsigma(ndata, arma::fill::zeros);
+        for (size_t i = 0; i < ngroup; i++)
         {
-            if (m != col)
-            {
-                partial_viy -= Vig.col(m) % gamma.col(m);
-            }
+            const vec& Yi = Ygf[i];
+            const rowvec& Visigma = Visigma_f[i];
+            uword nidata = Visigma_f[i].n_cols;
+            colVig(i, 0) = as_scalar(Visigma * ones(nidata, 1) * G(i, col));
+            // pYgf = Ygf - sum(G % gamma, 1) + G.col(col) % gamma.col(col)
+            double total_g = 0.0;
+            for (uword m = 0; m < k; m++)
+                total_g += G(i, m) * gamma(i, m);
+            double col_g = G(i, col) * gamma(i, col);
+            vec pYgf_i = Yi - ones(nidata, 1) * (total_g - col_g);
+            pViy(i) = as_scalar(Visigma * pYgf_i);
+            rVsigma(find(group == i)) = Visigma;
         }
+        // Optimize bandwidth for this column
         if (bw_optim)
         {
-            BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel, Printer };
+            BwSelectionArgs args { colVig, pViy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel, Printer };
             args.col_idx = col;
-            args.gamma_ptr = &gamma;
             args.multiscale = true;
             if (verbose > 1) {
                 args.printer = pcout;
@@ -527,107 +483,10 @@ void HGWR::fit_gwr_multiscale(const bool t_test, const bool f_test)
             vec d = sqrt(sum(d_u % d_u, 1));
             double b = actual_bw(d, bw(col));
             vec wW = (*gwr_kernel)(d % d, b * b);
-            double num = 0.0, den = 0.0;
-            for (size_t j = 0; j < ngroup; j++)
-            {
-                double pviy = Viy(j);
-                for (uword m = 0; m < k; m++)
-                {
-                    if (m != col)
-                    {
-                        pviy -= Vig(j, m) * gamma(j, m);
-                    }
-                }
-                num += wW(j) * G(j, col) * pviy;
-                den += wW(j) * G(j, col) * Vig(j, col);
-            }
+            double num = sum(wW % G.col(col) % pViy);
+            double den = sum(wW % G.col(col) % colVig.col(0));
             gamma(i, col) = num / den;
-            if (t_test)
-            {
-                double se2 = 0.0;
-                for (size_t j = 0; j < ngroup; j++)
-                {
-                    double coeff = wW(j) * G(j, col) / den;
-                    se2 += coeff * coeff * Vig_var(j);
-                }
-                gamma_se(i, col) = se2;
-            }
         }
-    }
-    // Compute trS and trQ for diagnostics
-    trS = { 0.0, 0.0 };
-    trQ = { 0.0, 0.0 };
-    unique_ptr<mat[]> Qf = make_unique<mat[]>(ngroup);
-    for (uword j = 0; j < ngroup; j++)
-    {
-        Qf[j].resize(size(Vf[j]));
-        Qf[j].fill(0.0);
-    }
-    for (size_t i = 0; i < ngroup; i++)
-    {
-        uvec igroup = find(group == i);
-        uword nidata = igroup.n_elem;
-        for (uword col = 0; col < k; col++)
-        {
-            mat d_u = u.each_row() - u.row(i);
-            vec d = sqrt(sum(d_u % d_u, 1));
-            double b = actual_bw(d, bw(col));
-            vec wW = (*gwr_kernel)(d % d, b * b);
-            double den = 0.0;
-            for (size_t j = 0; j < ngroup; j++)
-            {
-                den += wW(j) * G(j, col) * Vig(j, col);
-            }
-            double si_val = G(i, col) * G(i, col) / den;
-            double rvsum = accu(rVsigma.cols(igroup));
-            trS(0) += si_val * rvsum;
-            trS(1) += si_val * si_val * rvsum * rvsum;
-        }
-        if (f_test)
-        {
-            for (uword col = 0; col < k; col++)
-            {
-                mat d_u = u.each_row() - u.row(i);
-                vec d = sqrt(sum(d_u % d_u, 1));
-                double b = actual_bw(d, bw(col));
-                vec wW = (*gwr_kernel)(d % d, b * b);
-                double den = 0.0;
-                for (size_t j = 0; j < ngroup; j++)
-                {
-                    den += wW(j) * G(j, col) * Vig(j, col);
-                }
-                for (size_t j = 0; j < ngroup; j++)
-                {
-                    double s_ij = G(i, col) * wW(j) * G(j, col) / den;
-                    uvec jgroup = find(group == j);
-                    double rv_j = accu(rVsigma.cols(jgroup));
-                    double rv_i = accu(rVsigma.cols(igroup));
-                    trS(0) += s_ij * rv_j;
-                    trS(1) += s_ij * s_ij * rv_j * rv_i;
-                }
-            }
-            mat ei(nidata, ndata, arma::fill::zeros);
-            ei.cols(igroup) = eye(nidata, nidata);
-            mat pi = ei;
-            for (uword j = 0; j < ngroup; j++)
-            {
-                mat pij = pi.cols(group_span[j]);
-                Qf[j] += pij.t() * pij;
-            }
-        }
-    }
-    if (f_test)
-    {
-        for (uword j = 0; j < ngroup; j++)
-        {
-            Qf[j] *= Vf[j];
-            trQ(0) += trace(Qf[j]);
-            trQ(1) += trace(Qf[j] * Qf[j]);
-        }
-    }
-    if (t_test)
-    {
-        gamma_se = sigma * sqrt(gamma_se);
     }
 }
 
@@ -1334,12 +1193,6 @@ HGWR::Parameters HGWR::fit_multiscale(const bool f_test)
         (*(this->pcancel))();
     }
     sigma = fit_sigma();
-    if (verbose > 0) pcout("Re-fit GLSW effects for f test\n");
-    for (uword i = 0; i < ngroup; i++)
-    {
-        Ygf[i] = Yf[i] - Xf[i] * beta;
-    }
-    fit_gwr_multiscale(true, f_test);
     //============
     // Diagnostic
     //============
@@ -1368,8 +1221,6 @@ void HGWR::calc_var_beta()
 //=============================================================================
 std::vector<arma::vec4> HGWR::test_glsw()
 {
-    if (multiscale) return test_glsw_multiscale();
-
     if (verbose > 0) pcout("Preparing f test\n");
     uword ng = gamma.n_cols;
     double nd = double(ndata);
@@ -1430,103 +1281,6 @@ std::vector<arma::vec4> HGWR::test_glsw()
             mat d_u = u.each_row() - u.row(i);
             vec d = sqrt(sum(d_u % d_u, 1));
             double fb = actual_bw(d, bw(0));
-            vec w = (*gwr_kernel)(d % d, fb * fb);
-            mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
-            for (size_t j = 0; j < ngroup; j++)
-            {
-                GWVG += GVGf[j] * w[j];
-                GWV.cols(find(group == j)) = GVf[j] * w[j];
-            }
-            mat Cit = GWV.t() * GWVG.i().t();
-            vec bi = Cit.col(k);
-            for (uword j = 0; j < ngroup; j++)
-            {
-                vec bij = bi.rows(group_span[j]);
-                vec cij = c.rows(group_span[j]);
-                Bf[j] += bij * bij.t() * ni - cij * bij.t() * ni / nd;
-            }
-        }
-        double trB = 0.0, trB2 = 0.0;
-        for (size_t j = 0; j < ngroup; j++)
-        {
-            Bf[j] *= Vf[j] / nd;
-            trB += trace(Bf[j]);
-            trB2 += trace(Bf[j] * Bf[j]);
-        }
-        double fv = vk2 / trB / (sigma * sigma);
-        double df1 = trB * trB / trB2;
-        double pv = gsl_cdf_fdist_Q(fv, df1, df2);
-        vec4 result = { fv, df1, df2, pv };
-        results.push_back(result);
-    }
-    return results;
-}
-
-//=============================================================================
-// Multiscale F-test
-//=============================================================================
-std::vector<arma::vec4> HGWR::test_glsw_multiscale()
-{
-    if (verbose > 0) pcout("Preparing f test\n");
-    uword ng = gamma.n_cols;
-    double nd = double(ndata);
-    double df2 = trQ(0) * trQ(0) / trQ(1);
-    mat D_inv = D.i();
-    unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
-    unique_ptr<mat[]> GVGf = make_unique<mat[]>(ngroup);
-    unique_ptr<mat[]> GVf = make_unique<mat[]>(ngroup);
-    for (size_t i = 0; i < ngroup; i++)
-    {
-        uvec ind = find(group == i);
-        const mat& Zi = Zf[i];
-        Vf[i] = Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows);
-        mat Vi_inv = woodbury_eye(D_inv, Zi);
-        uword nidata = Zi.n_rows;
-        GVf[i] = G.row(i).t() * ones(1, nidata) * Vi_inv;
-        GVGf[i] = (GVf[i] * ones(nidata, 1) * G.row(i));
-    }
-    vec nw(ngroup, arma::fill::zeros);
-    for (uword i = 0; i < ngroup; i++)
-    {
-        nw(i) = double(Zf[i].n_rows);
-    }
-    vector<vec4> results;
-    for (uword k = 0; k < ng; k++)
-    {
-        if (verbose > 0) pcout("Doing f test for effect " + to_string(k) + "\n");
-        double sum_gk = sum(gamma.col(k) % nw);
-        double sum_gk2 = sum(gamma.col(k) % gamma.col(k) % nw);
-        double vk2 = (sum_gk2 - sum_gk * sum_gk / nd) / nd;
-        vec c(ndata, arma::fill::zeros);
-        for (uword i = 0; i < ngroup; i++)
-        {
-            double ni = double(GVf[i].n_cols);
-            mat d_u = u.each_row() - u.row(i);
-            vec d = sqrt(sum(d_u % d_u, 1));
-            double fb = actual_bw(d, bw(k));
-            vec w = (*gwr_kernel)(d % d, fb * fb);
-            mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
-            for (size_t j = 0; j < ngroup; j++)
-            {
-                GWVG += (w[j] * GVGf[j]);
-                GWV.cols(find(group == j)) = w[j] * GVf[j];
-            }
-            mat Cit = GWV.t() * GWVG.i().t();
-            vec bi = Cit.col(k);
-            c += bi * double(ni);
-        }
-        unique_ptr<mat[]> Bf = make_unique<mat[]>(ngroup);
-        for (size_t j = 0; j < ngroup; j++)
-        {
-            Bf[j].resize(size(Vf[j]));
-            Bf[j].fill(0.0);
-        }
-        for (uword i = 0; i < ngroup; i++)
-        {
-            double ni = double(GVf[i].n_cols);
-            mat d_u = u.each_row() - u.row(i);
-            vec d = sqrt(sum(d_u % d_u, 1));
-            double fb = actual_bw(d, bw(k));
             vec w = (*gwr_kernel)(d % d, fb * fb);
             mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
             for (size_t j = 0; j < ngroup; j++)

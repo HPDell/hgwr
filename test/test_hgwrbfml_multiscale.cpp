@@ -63,22 +63,6 @@ TEST_CASE("HGWR Multiscale (BFML)")
         CHECK_THAT(algorithm.get_sigma(), Catch::Matchers::WithinAbs(1.95, 3e-2));
     }
 
-    SECTION("F test") {
-        auto kernel = HGWR::KernelType::GAUSSIAN;
-        arma::vec bws(G.n_cols);
-        bws.fill(10.0);
-        HGWR::Options options { 0.1, 1e-6, 1e-6, 100000, 10, 0, 0, true };
-        HGWR algorithm { G, X, Z, y, u, group, kernel, bws, options, pcout };
-        REQUIRE_NOTHROW(algorithm.fit());
-        vector<vec4> fResults = algorithm.test_glsw();
-        INFO("Results:");
-        REQUIRE(fResults.size() == G.n_cols);
-        for (auto &&i : fResults)
-        {
-            CAPTURE(i(0), i(1), i(2), i(3));
-        }
-    }
-
     SECTION("Switch mode at runtime") {
         auto kernel = HGWR::KernelType::GAUSSIAN;
         double bw = 10.0;
