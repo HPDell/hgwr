@@ -1090,6 +1090,7 @@ HGWR::Parameters HGWR::fit_multiscale(const bool f_test)
     beta = vec(nvx, arma::fill::zeros);
     mu = mat(ngroup, nvz, arma::fill::zeros);
     D = mat(nvz, nvz, arma::fill::eye);
+    trS = { 0.0, 0.0 };
     Zf = make_unique<arma::mat[]>(ngroup);
     Xf = make_unique<arma::mat[]>(ngroup);
     Yf = make_unique<arma::vec[]>(ngroup);

@@ -419,9 +419,9 @@ private:
 
     /* diagnostic information */
     double loglik = 0;
-    arma::vec trS;
+    arma::vec trS = { 0.0, 0.0 };
     arma::vec var_beta;
-    arma::vec trQ;
+    arma::vec trQ = { 0.0, 0.0 };
 };
     
 }
