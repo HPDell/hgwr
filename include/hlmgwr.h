@@ -114,13 +114,15 @@ public:  // Type defs
         arma::uword col_idx = 0;
         const arma::mat* Vig_ptr = nullptr;
         const arma::vec* Viy_ptr = nullptr;
+        const arma::vec* other_g = nullptr;
         bool multiscale = false;
     };
 
     enum class BwOptimCriterionType
     {
         CV,
-        AIC
+        AIC,
+        AICC
     };
 
     typedef double (*BwOptimCriterion)(double, void*);
@@ -132,6 +134,10 @@ public:  // Type defs
     static double bw_criterion_cv_multiscale(double bw, void* params);
 
     static double bw_criterion_aic_multiscale(double bw, void* params);
+
+    static double bw_criterion_aicc_multiscale(double bw, void* params);
+
+    static double bw_criterion_aicc(double bw, void* params);
 
 public:
     explicit HGWR(const arma::mat& G, const arma::mat& X, const arma::mat& Z, const arma::vec& y, const arma::mat& u, const arma::uvec& group)
@@ -284,6 +290,9 @@ public:
         {
         case BwOptimCriterionType::AIC:
             bw_criterion = &bw_criterion_aic;
+            break;
+        case BwOptimCriterionType::AICC:
+            bw_criterion = &bw_criterion_aicc;
             break;
         default:
             bw_criterion = &bw_criterion_cv;

@@ -63,6 +63,24 @@ TEST_CASE("HGWR Multiscale (BFML)")
         CHECK_THAT(algorithm.get_sigma(), Catch::Matchers::WithinAbs(1.95, 3e-2));
     }
 
+    SECTION("Optimise bandwidth per column with AICc") {
+        auto kernel = HGWR::KernelType::GAUSSIAN;
+        HGWR::Options options { 0.1, 1e-6, 1e-6, 100000, 10, 0, 0, true };
+        HGWR algorithm { G, X, Z, y, u, group, kernel, options };
+        algorithm.set_bw_criterion_type(HGWR::BwOptimCriterionType::AICC);
+        algorithm.set_printer(pcout);
+        REQUIRE_NOTHROW(algorithm.fit());
+        INFO("Results:");
+        CAPTURE(algorithm.get_bw(), algorithm.get_sigma(), algorithm.get_gamma());
+        const arma::vec& bws = algorithm.get_bws();
+        REQUIRE(bws.n_elem == G.n_cols);
+        for (arma::uword k = 0; k < bws.n_elem; k++)
+        {
+            CHECK(bws(k) > 2.0);
+            CHECK(bws(k) < 60.0);
+        }
+    }
+
     SECTION("Switch mode at runtime") {
         auto kernel = HGWR::KernelType::GAUSSIAN;
         double bw = 10.0;

@@ -202,6 +202,76 @@ double HGWR::bw_criterion_aic_multiscale(double bw, void* params)
 }
 
 //=============================================================================
+// AICc dispatch: forwards to multiscale version when applicable
+//=============================================================================
+double HGWR::bw_criterion_aicc(double bw, void* params)
+{
+    BwSelectionArgs* args = (BwSelectionArgs*)params;
+    if (args->multiscale) return bw_criterion_aicc_multiscale(bw, params);
+    // Fall back to single-scale AIC for non-multiscale mode
+    return bw_criterion_aic(bw, params);
+}
+
+//=============================================================================
+// Multiscale bandwidth criterion (AICc)
+// AICc(bw) = 2*n*log(RSS/n) + n*log(2*pi) + n*(n+tr(S))/(n-2-tr(S))
+// RSS computed on pYgf (other columns' effects already removed)
+//=============================================================================
+double HGWR::bw_criterion_aicc_multiscale(double bw, void* params)
+{
+    BwSelectionArgs* args = (BwSelectionArgs*)params;
+    const mat& Vig = args->Vig.get();
+    const vec& Viy = args->Viy.get();
+    const mat& G = args->G.get();
+    const mat& u = args->u.get();
+    const mat* Ygf = args->Ygf;
+    const mat* Zf = args->Zf;
+    const mat& mu = args->mu.get();
+    const mat& rVsigma = args->rVsigma.get();
+    const uvec& group = args->group.get();
+    const uword col_idx = args->col_idx;
+    const vec& other_g = *(args->other_g);
+    const size_t ngroup = Viy.n_rows;
+    double nd = double(rVsigma.n_elem);  // ndata
+    double rss = 0.0;
+    double trS = 0.0;
+    for (size_t i = 0; i < ngroup; i++)
+    {
+        mat d_u = u.each_row() - u.row(i);
+        vec d = sqrt(sum(d_u % d_u, 1));
+        double b = actual_bw(d, bw);
+        vec wW = (*args->kernel)(d % d, b * b);
+        double num = sum(wW % G.col(col_idx) % Viy);
+        double den = sum(wW % G.col(col_idx) % Vig.col(0));
+        try
+        {
+            double gammai_k = num / den;
+            uvec igroup = find(group == i);
+            // tr(S) contribution
+            double si_val = G(i, col_idx) * G(i, col_idx) / den;
+            trS += si_val * accu(rVsigma.cols(igroup));
+            // RSS: use other_g to compute partial response
+            double hat_g = G(i, col_idx) * gammai_k;
+            vec pYgf_i = Ygf[i] - ones(Zf[i].n_rows) * other_g(i);
+            vec hat_ygi = hat_g * arma::ones(Zf[i].n_rows) + Zf[i] * mu.row(i).t();
+            vec residual = pYgf_i - hat_ygi;
+            rss += sum(residual % residual);
+        }
+        catch(const std::exception& e)
+        {
+            (*(args->printer))(string("Error occurred when calculating AICc value in bandwidth optimisation: ") + e.what());
+            return DBL_MAX;
+        }
+    }
+    // AICc = 2*n*log(RSS/n) + n*log(2*pi) + n*(n+tr(S))/(n-2-tr(S))
+    double n_m_trS = nd - 2.0 - trS;
+    if (n_m_trS <= 0.0) return DBL_MAX;
+    double aicc = 2.0 * nd * log(rss / nd) + nd * log(2.0 * arma::datum::pi)
+                + nd * (nd + trS) / n_m_trS;
+    return aicc;
+}
+
+//=============================================================================
 // Single-scale bandwidth optimisation
 //=============================================================================
 int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* args)
@@ -444,6 +514,15 @@ void HGWR::fit_gwr_multiscale(const bool t_test, const bool f_test)
     // Per-column bandwidth optimization and gamma estimation (backfitting)
     for (uword col = 0; col < k; col++)
     {
+        // Compute other_g(i) = sum_{m != col} G(i,m) * gamma(i,m)
+        vec other_g(ngroup, arma::fill::zeros);
+        for (size_t i = 0; i < ngroup; i++)
+        {
+            double og = 0.0;
+            for (uword m = 0; m < k; m++)
+                if (m != col) og += G(i, m) * gamma(i, m);
+            other_g(i) = og;
+        }
         // Compute colVig (ngroup x 1) and pViy (ngroup x 1) for this column
         mat colVig(ngroup, 1, arma::fill::zeros);
         vec pViy(ngroup, arma::fill::zeros);
@@ -451,15 +530,11 @@ void HGWR::fit_gwr_multiscale(const bool t_test, const bool f_test)
         for (size_t i = 0; i < ngroup; i++)
         {
             const vec& Yi = Ygf[i];
+            const mat& Zi = Zf[i];
             const rowvec& Visigma = Visigma_f[i];
-            uword nidata = Visigma_f[i].n_cols;
+            uword nidata = Zi.n_rows;
             colVig(i, 0) = as_scalar(Visigma * ones(nidata, 1) * G(i, col));
-            // pYgf = Ygf - sum(G % gamma, 1) + G.col(col) % gamma.col(col)
-            double total_g = 0.0;
-            for (uword m = 0; m < k; m++)
-                total_g += G(i, m) * gamma(i, m);
-            double col_g = G(i, col) * gamma(i, col);
-            vec pYgf_i = Yi - ones(nidata, 1) * (total_g - col_g);
+            vec pYgf_i = Yi - ones(nidata, 1) * other_g(i);
             pViy(i) = as_scalar(Visigma * pYgf_i);
             rVsigma(find(group == i)) = Visigma;
         }
@@ -468,6 +543,7 @@ void HGWR::fit_gwr_multiscale(const bool t_test, const bool f_test)
         {
             BwSelectionArgs args { colVig, pViy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel, Printer };
             args.col_idx = col;
+            args.other_g = &other_g;
             args.multiscale = true;
             if (verbose > 1) {
                 args.printer = pcout;
