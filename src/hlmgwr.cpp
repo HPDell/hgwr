@@ -171,20 +171,22 @@ double HGWR::bw_criterion_aic_multiscale(double bw, void* params)
     const size_t ngroup = Viy.n_rows;
     double rss = 0.0;
     double trS = 0.0;
+    vec Gi = G.col(col_idx);
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
         vec d = sqrt(sum(d_u % d_u, 1));
         double b = actual_bw(d, bw);
         vec wW = (*args->kernel)(d % d, b * b);
-        double num = sum(wW % G.col(col_idx) % Viy);
-        double den = sum(wW % G.col(col_idx) % Vig.col(0));
+        vec GtW = trans(Gi % wW);
+        double GtWVG = as_scalar(GtW * Vig);
+        double GtWVy = as_scalar(GtW * Viy);
         try
         {
-            double gammai_k = num / den;
+            double gammai_k = GtWVy / GtWVG;
             uvec igroup = find(group == i);
-            double si_val = G(i, col_idx) * G(i, col_idx) / den;
-            trS += si_val * accu(rVsigma.cols(igroup));
+            mat si_val = Gi.rows(group.rows(igroup)) / GtWVG * GtW.col(i) * rVsigma.cols(igroup);
+            trS += trace(si_val);
             double hat_g = G(i, col_idx) * gammai_k;
             vec hat_ygi = hat_g * arma::ones(Zf[i].n_rows) + Zf[i] * mu.row(i).t();
             vec residual = Ygf[i] - hat_ygi;
