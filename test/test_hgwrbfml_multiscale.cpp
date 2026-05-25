@@ -67,6 +67,7 @@ TEST_CASE("HGWR Multiscale (BFML)")
         auto kernel = HGWR::KernelType::GAUSSIAN;
         HGWR::Options options { 0.1, 1e-6, 1e-6, 100000, 10, 0, 0, true };
         HGWR algorithm { G, X, Z, y, u, group, kernel, options };
+        algorithm.set_bw_optim(true);
         algorithm.set_bw_criterion_type(HGWR::BwOptimCriterionType::AICC);
         algorithm.set_printer(pcout);
         REQUIRE_NOTHROW(algorithm.fit());
