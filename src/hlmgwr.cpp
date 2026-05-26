@@ -433,7 +433,7 @@ void ml_gsl_df_D(const gsl_vector* v, void* p, gsl_vector *df)
     vec dL_D_tri = dL_D(trimatl_ind(size(D)));
     for (uword i = 0; i < ntarget; i++)
     {
-        gsl_vector_set(df, i, dL_D(i));
+        gsl_vector_set(df, i, dL_D_tri(i));
     }
 }
 
@@ -485,7 +485,7 @@ void ml_gsl_fdf_D(const gsl_vector* v, void* p, double *f, gsl_vector *df)
 
 void ml_gsl_fdf_D_beta(const gsl_vector* v, void* p, double *f, gsl_vector *df)
 {
-    *f = ml_gsl_f_D(v, p);
+    *f = ml_gsl_f_D_beta(v, p);
     ml_gsl_df_D_beta(v, p, df);
 }
 
