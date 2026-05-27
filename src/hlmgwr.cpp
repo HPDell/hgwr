@@ -20,7 +20,8 @@ double HGWR::bw_criterion_cv(double bw, void* params)
     const mat& Vig = args->Vig.get();
     const vec& Viy = args->Viy.get();
     const mat& G = args->G.get();
-    const mat& u = args->u.get();
+    const mat& distance = args->distance.get();
+    const mat& distance2 = args->distance2.get();
     const mat* Ygf = args->Ygf;
     const mat* Zf = args->Zf;
     const mat& mu = args->mu.get();
@@ -29,10 +30,9 @@ double HGWR::bw_criterion_cv(double bw, void* params)
     double cv = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
-        mat d_u = u.each_row() - u.row(i);
-        vec d = sqrt(sum(d_u % d_u, 1));
+        vec d = distance.col(i);
         double b = actual_bw(d, bw);
-        vec wW = (*args->kernel)(d % d, b * b);
+        vec wW = (*args->kernel)(distance2.col(i), b * b);
         wW(i) = 0;
         mat GtWVG = (G.each_col() % wW).t() * Vig;
         mat GtWVy = (G.each_col() % wW).t() * Viy;
@@ -58,7 +58,8 @@ double HGWR::bw_criterion_aic(double bw, void* params)
     const mat& Vig = args->Vig.get();
     const vec& Viy = args->Viy.get();
     const mat& G = args->G.get();
-    const mat& u = args->u.get();
+    const mat& distance = args->distance.get();
+    const mat& distance2 = args->distance2.get();
     const mat* Ygf = args->Ygf;
     const mat* Zf = args->Zf;
     const mat& mu = args->mu.get();
@@ -70,10 +71,9 @@ double HGWR::bw_criterion_aic(double bw, void* params)
     double trS = 0.0;
     for (size_t i = 0; i < ngroup; i++)
     {
-        mat d_u = u.each_row() - u.row(i);
-        vec d = sqrt(sum(d_u % d_u, 1));
+        vec d = distance.col(i);
         double b = actual_bw(d, bw);
-        vec wW = (*args->kernel)(d % d, b * b);
+        vec wW = (*args->kernel)(distance2.col(i), b * b);
         mat GtW = trans(G.each_col() % wW);
         mat GtWVG = GtW * Vig;
         mat GtWVy = GtW * Viy;
@@ -144,7 +144,7 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
             double fm = gsl_min_fminimizer_f_minimum(minimizer);
             pcout(string("xL: ") + to_string(lower) + "; xU: " + to_string(upper) + "; x: " + to_string(m) + "; f: " + to_string(fm) + "\r");
         }
-    } while (status == GSL_CONTINUE && iter < max_bw_iters);
+    } while (status == GSL_CONTINUE && (++iter) < max_bw_iters);
     if (status == GSL_SUCCESS)
     {
         bw = m;
@@ -161,6 +161,32 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
     return status;
 }
 
+void HGWR::ensure_distance_cache()
+{
+    if (distance_cache_ready &&
+        distance.n_rows == ngroup && distance.n_cols == ngroup &&
+        distance2.n_rows == ngroup && distance2.n_cols == ngroup)
+    {
+        return;
+    }
+
+    distance.set_size(ngroup, ngroup);
+    distance2.set_size(ngroup, ngroup);
+
+#ifdef ENABLE_OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+    for (long long i = 0; i < static_cast<long long>(ngroup); i++)
+    {
+        mat d_u = u.each_row() - u.row(static_cast<uword>(i));
+        vec d2 = sum(d_u % d_u, 1);
+        distance2.col(static_cast<uword>(i)) = d2;
+        distance.col(static_cast<uword>(i)) = sqrt(d2);
+    }
+
+    distance_cache_ready = true;
+}
+
 /**
  * @brief Estimate $\gamma$.
  * 
@@ -175,18 +201,23 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
  */
 void HGWR::fit_gwr(const bool t_test, const bool f_test)
 {
+    ensure_distance_cache();
     uword k = G.n_cols;//, q = Zf[0].n_cols;
     mat D_inv = D.i();
     gamma.fill(arma::fill::zeros);
     if (t_test) gamma_se.fill(arma::fill::zeros);
-    unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
+    unique_ptr<mat[]> Vf;
+    if (f_test || t_test) Vf = make_unique<mat[]>(ngroup);
     mat Vig(ngroup, k, arma::fill::zeros);
     vec Viy(ngroup, arma::fill::zeros);
-    vec Yg(ngroup, arma::fill::zeros);
     rowvec rVsigma = rowvec(ndata, arma::fill::zeros);
     rowvec Vig_var(ngroup, arma::fill::zeros);
-    for (size_t i = 0; i < ngroup; i++)
+#ifdef ENABLE_OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+    for (long long i0 = 0; i0 < static_cast<long long>(ngroup); i0++)
     {
+        uword i = static_cast<uword>(i0);
         const mat& Yi = Ygf[i];
         const mat& Zi = Zf[i];
         mat Vi_inv = woodbury_eye(D_inv, Zi);
@@ -195,13 +226,13 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
         rowvec Visigma = ones(1, nidata) * Vi_inv;
         Vig.row(i) = Visigma * ones(nidata, 1) * G.row(i);
         Viy(i) = as_scalar(Visigma * Yi);
-        rVsigma(find(group == i)) = Visigma;
+        rVsigma(group_span[i]) = Visigma;
         if (t_test) Vig_var(i) = as_scalar(Visigma * Vf[i] * Visigma.t());
     }
     /// Check whether need to optimize bw
     if (bw_optim)
     {
-        BwSelectionArgs args { Vig, Viy, G, u, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel, Printer };
+        BwSelectionArgs args { Vig, Viy, G, u, distance, distance2, Ygf.get(), Zf.get(), mu, rVsigma, group, gwr_kernel, Printer };
         if (verbose > 1) {
             args.printer = pcout;
         }
@@ -212,18 +243,21 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
     /// Calibrate for each gorup.
     trS = { 0.0, 0.0 };
     trQ = { 0.0, 0.0 };
-    unique_ptr<mat[]> Qf = make_unique<mat[]>(ngroup);
-    for (uword j = 0; j < ngroup; j++)
+    unique_ptr<mat[]> Qf;
+    if (f_test)
     {
-        Qf[j].resize(size(Vf[j]));
-        Qf[j].fill(0.0);
+        Qf = make_unique<mat[]>(ngroup);
+        for (uword j = 0; j < ngroup; j++)
+        {
+            Qf[j].resize(size(Vf[j]));
+            Qf[j].fill(0.0);
+        }
     }
     for (size_t i = 0; i < ngroup; i++)
     {
-        mat d_u = u.each_row() - u.row(i);
-        vec d = sqrt(sum(d_u % d_u, 1));
+        vec d = distance.col(i);
         double b = actual_bw(d, bw);
-        vec wW = (*gwr_kernel)(d % d, b * b);
+        vec wW = (*gwr_kernel)(distance2.col(i), b * b);
         mat GtW = (G.each_col() % wW).t();
         mat GtWVG = GtW * Vig;
         mat GtWVy = GtW * Viy;
@@ -232,8 +266,8 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
         gamma.row(i) = trans(gammai);
         mat Ci = GtWVG_inv * GtW;
         if (t_test) gamma_se.row(i) = trans(sum((Ci.each_row() % Vig_var) % Ci, 1));
-        uvec igroup = find(group == i);
-        uword nidata = igroup.n_elem;
+        span igroup = group_span[i];
+        uword nidata = Zf[i].n_rows;
         // mat GtWe = GtW.cols(group);
         // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
         mat si_left = (repelem(G.row(i), nidata, 1) * Ci).eval().cols(group);
@@ -251,7 +285,6 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
                 Qf[j] += pij.t() * pij;
             }
         }
-        vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
     }
     if (f_test)
     {

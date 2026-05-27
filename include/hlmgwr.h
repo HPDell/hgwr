@@ -132,6 +132,8 @@ public:  // Type defs
         std::reference_wrapper<arma::vec> Viy;
         std::reference_wrapper<arma::mat> G;
         std::reference_wrapper<arma::mat> u;
+        std::reference_wrapper<arma::mat> distance;
+        std::reference_wrapper<arma::mat> distance2;
         arma::mat* Ygf;
         arma::mat* Zf;
         std::reference_wrapper<arma::mat> mu;
@@ -233,7 +235,11 @@ public:
     void set_y(const arma::vec& value) { y = value; }
     
     const arma::mat& get_u() { return u; }
-    void set_u(const arma::mat& value) { u = value; }
+    void set_u(const arma::mat& value)
+    {
+        u = value;
+        distance_cache_ready = false;
+    }
     
     const arma::uvec& get_group() { return group; }
     void set_group(const arma::uvec& value) { group = value; }
@@ -339,6 +345,7 @@ public:
 
 public:
     int bw_optimisation(double lower, double upper, const BwSelectionArgs* args);
+    void ensure_distance_cache();
     void fit_gwr(const bool t_test = false, const bool f_test = false);
     arma::vec fit_gls();
     double fit_D(ML_Params* params);
@@ -397,6 +404,9 @@ private:
     arma::uword nvx;
     arma::uword nvz;
     std::vector<arma::span> group_span;
+    arma::mat distance;
+    arma::mat distance2;
+    bool distance_cache_ready = false;
 
     /* diagnostic information */
     double loglik = 0;
