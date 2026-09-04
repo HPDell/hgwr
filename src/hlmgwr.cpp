@@ -1,4 +1,5 @@
 #include "hlmgwr.h"
+#include <cmath>
 #include <sstream>
 #include <iomanip>
 #include <string>
@@ -771,10 +772,11 @@ HGWR::Parameters HGWR::fit(const bool f_test)
     //============
     // Backfitting
     //============
-    size_t retry = 0;
+    size_t retry = 0, iterations = 0;
     double rss = DBL_MAX, rss0 = DBL_MAX, diff = DBL_MAX, mlf = 0.0;
     for (size_t iter = 0; (abs(diff) > eps_iter) && iter < max_iters && retry < max_retries; iter++)
     {
+        iterations = iter + 1;
         rss0 = rss;
         //--------------------
         // Initial Guess for M
@@ -847,7 +849,8 @@ HGWR::Parameters HGWR::fit(const bool f_test)
     //============
     loglik = - mlf * double(ndata);
     calc_var_beta();
-    return { gamma, beta, mu, D, sigma, bw };
+    const bool converged = std::isfinite(diff) && abs(diff) <= eps_iter;
+    return { gamma, beta, mu, D, sigma, bw, iterations, retry, converged };
 }
 
 void HGWR::calc_var_beta()

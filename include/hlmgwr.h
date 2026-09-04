@@ -94,6 +94,9 @@ public:  // Type defs
         arma::mat D;
         double sigma;
         double bw;
+        size_t iterations;
+        size_t retries;
+        bool converged;
     };
 
     // using BwSelectionArgs = std::pair<std::reference_wrapper<arma::mat>, std::reference_wrapper<arma::vec>>;
