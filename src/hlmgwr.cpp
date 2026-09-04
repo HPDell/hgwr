@@ -144,7 +144,7 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
             double fm = gsl_min_fminimizer_f_minimum(minimizer);
             pcout(string("xL: ") + to_string(lower) + "; xU: " + to_string(upper) + "; x: " + to_string(m) + "; f: " + to_string(fm) + "\r");
         }
-    } while (status == GSL_CONTINUE && iter < max_bw_iters);
+    } while (status == GSL_CONTINUE && (++iter) < max_bw_iters);
     if (status == GSL_SUCCESS)
     {
         bw = m;
