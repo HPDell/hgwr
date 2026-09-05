@@ -21,6 +21,17 @@ struct ML_Params
     arma::uword q;
 };
 
+double ml_gradient_relative_error(
+    const arma::mat& X,
+    const arma::mat& Z,
+    const arma::vec& y,
+    const arma::uvec& group,
+    const arma::vec& beta,
+    const arma::mat& D,
+    bool include_beta,
+    double step = 1e-6
+);
+
 class HGWR
 {
 public:  // Type defs
@@ -97,6 +108,11 @@ public:  // Type defs
         size_t iterations;
         size_t retries;
         bool converged;
+        bool ml_converged;
+        int ml_status;
+        size_t ml_iterations;
+        size_t ml_failures;
+        double min_eigen_D;
     };
 
     // using BwSelectionArgs = std::pair<std::reference_wrapper<arma::mat>, std::reference_wrapper<arma::vec>>;
@@ -287,6 +303,14 @@ public:
 
     double get_loglik() { return loglik; }
 
+    bool get_ml_converged() { return ml_converged; }
+
+    int get_ml_status() { return ml_status; }
+
+    size_t get_ml_iterations() { return ml_iterations; }
+
+    size_t get_ml_failures() { return ml_failures; }
+
     arma::vec get_trS() { return trS; }
 
     arma::vec get_var_beta() { return var_beta; }
@@ -373,6 +397,10 @@ private:
 
     /* diagnostic information */
     double loglik = 0;
+    bool ml_converged = false;
+    int ml_status = 0;
+    size_t ml_iterations = 0;
+    size_t ml_failures = 0;
     arma::vec trS;
     arma::vec var_beta;
     arma::vec trQ;
