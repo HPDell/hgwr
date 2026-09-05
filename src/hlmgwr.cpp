@@ -336,12 +336,8 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
     /// Calibrate for each gorup.
     trS = { 0.0, 0.0 };
     trQ = { 0.0, 0.0 };
-    unique_ptr<mat[]> Qf = make_unique<mat[]>(ngroup);
-    for (uword j = 0; j < ngroup; j++)
-    {
-        Qf[j].resize(size(Vf[j]));
-        Qf[j].fill(0.0);
-    }
+    mat smoother_by_group;
+    if (f_test) smoother_by_group.zeros(ngroup, ndata);
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
@@ -358,37 +354,50 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
         if (t_test) gamma_se.row(i) = trans(sum((Ci.each_row() % Vig_var) % Ci, 1));
         uvec igroup = find(group == i);
         uword nidata = igroup.n_elem;
-        // mat GtWe = GtW.cols(group);
-        // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
-        mat si_left = (repelem(G.row(i), nidata, 1) * Ci).eval().cols(group);
-        mat si = si_left.each_row() % rVsigma;
+        rowvec smoother_by_location = G.row(i) * Ci;
+        rowvec smoother_i = smoother_by_location.cols(group) % rVsigma;
+        mat si = repelem(smoother_i, nidata, 1);
         trS(0) += trace(si.cols(igroup));
         trS(1) += trace(si * si.t());
-        if (f_test)
-        {
-            mat ei(nidata, ndata, arma::fill::zeros);
-            ei.cols(igroup) = eye(nidata, nidata);
-            mat pi = ei - si;
-            for (uword j = 0; j < ngroup; j++)
-            {
-                mat pij = pi.cols(group_span[j]);
-                Qf[j] += pij.t() * pij;
-            }
-        }
+        if (f_test) smoother_by_group.row(i) = smoother_i;
         vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
     }
     if (f_test)
     {
-        for (uword j = 0; j < ngroup; j++)
+        // Covariance of (I-S) eta, where the n rows of S repeat within each
+        // group.  tr((QV)^2) must include every off-diagonal block:
+        //   tr((QV)^2) = sum_ij tr((QV)_ij (QV)_ji).
+        // Computing the residual covariance blocks avoids materialising an
+        // n-by-n matrix while retaining those cross-group terms.
+        mat smoother_cov(ngroup, ngroup, arma::fill::zeros);
+        for (uword j = 0; j < ngroup; ++j)
         {
-            Qf[j] *= Vf[j];
-            trQ(0) += trace(Qf[j]);
-            trQ(1) += trace(Qf[j] * Qf[j]);
+            mat Sj = smoother_by_group.cols(group_span[j]);
+            smoother_cov += Sj * Vf[j] * Sj.t();
         }
-    }
-    if (t_test)
-    {
-        gamma_se = sigma * sqrt(gamma_se);
+        smoother_cov = 0.5 * (smoother_cov + smoother_cov.t());
+
+        for (uword i = 0; i < ngroup; ++i)
+        {
+            const uword ni = Vf[i].n_rows;
+            for (uword j = 0; j < ngroup; ++j)
+            {
+                const uword nj = Vf[j].n_rows;
+                mat omega_ij(ni, nj, arma::fill::zeros);
+                if (i == j) omega_ij = Vf[i];
+
+                const span& span_j = group_span[j];
+                const span& span_i = group_span[i];
+                rowvec Sivj = smoother_by_group.row(i).cols(span_j.a, span_j.b) * Vf[j];
+                vec ViSj = Vf[i] * smoother_by_group.row(j).cols(span_i.a, span_i.b).t();
+                omega_ij -= repelem(Sivj, ni, 1);
+                omega_ij -= ViSj * ones<rowvec>(nj);
+                omega_ij += smoother_cov(i, j) * ones<mat>(ni, nj);
+
+                if (i == j) trQ(0) += trace(omega_ij);
+                trQ(1) += accu(omega_ij % omega_ij);
+            }
+        }
     }
 }
 
@@ -915,13 +924,21 @@ HGWR::Parameters HGWR::fit(const bool f_test)
         }
         (*(this->pcancel))();
     }
-    sigma = fit_sigma();
     if (verbose > 0) pcout("Re-fit GLSW effects for f test\n");
     for (uword i = 0; i < ngroup; i++)
     {
         Ygf[i] = Yf[i] - Xf[i] * beta;
     }
     fit_gwr(true, f_test);
+    // The F statistic and standard errors must use the residual-scale estimate
+    // corresponding to the final GLSW surface, rather than the surface from
+    // the preceding backfitting iteration.
+    for (uword i = 0; i < ngroup; i++)
+    {
+        Yhf[i] = Yf[i] - sum(G.row(i) % gamma.row(i));
+    }
+    sigma = fit_sigma();
+    gamma_se = sigma * sqrt(gamma_se);
     //============
     // Diagnostic
     //============
@@ -958,6 +975,14 @@ std::vector<arma::vec4> HGWR::test_glsw()
     if (verbose > 0) pcout("Preparing f test\n");
     uword ng = gamma.n_cols;
     double nd = double(ndata);
+    if (!(trQ(0) > 0.0) || !(trQ(1) > 0.0) || !trQ.is_finite())
+    {
+        throw runtime_error("Invalid residual trace moments in GLSW F test. Fit the model with f_test = TRUE.");
+    }
+    if (!(sigma > 0.0) || !std::isfinite(sigma))
+    {
+        throw runtime_error("Invalid residual-scale estimate in GLSW F test.");
+    }
     double df2 = trQ(0) * trQ(0) / trQ(1);
     unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
     unique_ptr<mat[]> GVGf = make_unique<mat[]>(ngroup);
@@ -985,10 +1010,12 @@ std::vector<arma::vec4> HGWR::test_glsw()
         double sum_gk = sum(gamma.col(k) % nw);
         double sum_gk2 = sum(gamma.col(k) % gamma.col(k) % nw);
         double vk2 = (sum_gk2 - sum_gk * sum_gk / nd) / nd;
-        vec c(ndata, arma::fill::zeros);
+        // Each row maps y_g to the k-th local coefficient estimate.  Keeping
+        // the group-level map lets us evaluate the full second trace through
+        // an m-by-m covariance matrix, including all cross-group blocks.
+        mat coefficient_map(ngroup, ndata, arma::fill::zeros);
         for (uword i = 0; i < ngroup; i++)
         {
-            double ni = double(GVf[i].n_cols);
             mat d_u = u.each_row() - u.row(i);
             vec d = sqrt(sum(d_u % d_u, 1));
             double fb = actual_bw(d, bw);
@@ -1000,43 +1027,26 @@ std::vector<arma::vec4> HGWR::test_glsw()
                 GWV.cols(find(group == j)) = w[j] * GVf[j];
             }
             mat Cit = GWV.t() * GWVG.i().t();
-            vec bi = Cit.col(k);
-            c += bi * double(ni);
+            coefficient_map.row(i) = Cit.col(k).t();
         }
-        unique_ptr<mat[]> Bf = make_unique<mat[]>(ngroup);
-        for (size_t j = 0; j < ngroup; j++)
+
+        rowvec weighted_mean_map = nw.t() * coefficient_map / nd;
+        mat centred_map = coefficient_map.each_row() - weighted_mean_map;
+        mat coefficient_cov(ngroup, ngroup, arma::fill::zeros);
+        for (uword j = 0; j < ngroup; ++j)
         {
-            Bf[j].resize(size(Vf[j]));
-            Bf[j].fill(0.0);
+            mat Cj = centred_map.cols(group_span[j]);
+            coefficient_cov += Cj * Vf[j] * Cj.t();
         }
-        for (uword i = 0; i < ngroup; i++)
+        coefficient_cov = 0.5 * (coefficient_cov + coefficient_cov.t());
+
+        vec observation_weights = nw / nd;
+        double trB = dot(observation_weights, coefficient_cov.diag());
+        mat pair_weights = observation_weights * observation_weights.t();
+        double trB2 = accu(pair_weights % square(coefficient_cov));
+        if (!(trB > 0.0) || !(trB2 > 0.0) || !std::isfinite(trB) || !std::isfinite(trB2))
         {
-            double ni = double(GVf[i].n_cols);
-            mat d_u = u.each_row() - u.row(i);
-            vec d = sqrt(sum(d_u % d_u, 1));
-            double fb = actual_bw(d, bw);
-            vec w = (*gwr_kernel)(d % d, fb * fb);
-            mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
-            for (size_t j = 0; j < ngroup; j++)
-            {
-                GWVG += GVGf[j] * w[j];
-                GWV.cols(find(group == j)) = GVf[j] * w[j];
-            }
-            mat Cit = GWV.t() * GWVG.i().t();
-            vec bi = Cit.col(k);
-            for (uword j = 0; j < ngroup; j++)
-            {
-                vec bij = bi.rows(group_span[j]);
-                vec cij = c.rows(group_span[j]);
-                Bf[j] += bij * bij.t() * ni - cij * bij.t() * ni / nd;
-            }
-        }
-        double trB = 0.0, trB2 = 0.0;
-        for (size_t j = 0; j < ngroup; j++)
-        {
-            Bf[j] *= Vf[j] / nd;
-            trB += trace(Bf[j]);
-            trB2 += trace(Bf[j] * Bf[j]);
+            throw runtime_error("Invalid coefficient trace moments in GLSW F test.");
         }
         double fv = vk2 / trB / (sigma * sigma);
         double df1 = trB * trB / trB2;
