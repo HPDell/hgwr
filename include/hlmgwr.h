@@ -313,6 +313,16 @@ public:
 
     arma::vec get_trS() { return trS; }
 
+    const std::vector<arma::vec4>& get_f_test_scale() { return f_test_scale; }
+
+    const std::vector<arma::vec4>& get_f_test_nuisance() { return f_test_nuisance; }
+
+    const std::vector<arma::vec4>& get_f_test_combined() { return f_test_combined; }
+
+    const std::vector<arma::vec4>& get_f_test_orthogonal() { return f_test_orthogonal; }
+
+    const arma::mat& get_f_test_diagnostics() { return f_test_diagnostics; }
+
     arma::vec get_var_beta() { return var_beta; }
 
     void set_printer(PrintFunction printer) { pcout = printer; }
@@ -404,6 +414,11 @@ private:
     arma::vec trS;
     arma::vec var_beta;
     arma::vec trQ;
+    std::vector<arma::vec4> f_test_scale;
+    std::vector<arma::vec4> f_test_nuisance;
+    std::vector<arma::vec4> f_test_combined;
+    std::vector<arma::vec4> f_test_orthogonal;
+    arma::mat f_test_diagnostics;
 };
     
 }

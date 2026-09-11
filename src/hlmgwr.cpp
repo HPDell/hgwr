@@ -1003,33 +1003,65 @@ std::vector<arma::vec4> HGWR::test_glsw()
     {
         nw(i) = double(Zf[i].n_rows);
     }
-    vector<vec4> results;
-    for (uword k = 0; k < ng; k++)
-    {
-        if (verbose > 0) pcout("Doing f test for effect " + to_string(k) + "\n");
-        double sum_gk = sum(gamma.col(k) % nw);
-        double sum_gk2 = sum(gamma.col(k) % gamma.col(k) % nw);
-        double vk2 = (sum_gk2 - sum_gk * sum_gk / nd) / nd;
-        // Each row maps y_g to the k-th local coefficient estimate.  Keeping
-        // the group-level map lets us evaluate the full second trace through
-        // an m-by-m covariance matrix, including all cross-group blocks.
-        mat coefficient_map(ngroup, ndata, arma::fill::zeros);
-        for (uword i = 0; i < ngroup; i++)
-        {
-            mat d_u = u.each_row() - u.row(i);
-            vec d = sqrt(sum(d_u % d_u, 1));
-            double fb = actual_bw(d, bw);
-            vec w = (*gwr_kernel)(d % d, fb * fb);
-            mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
-            for (size_t j = 0; j < ngroup; j++)
-            {
-                GWVG += (w[j] * GVGf[j]);
-                GWV.cols(find(group == j)) = w[j] * GVf[j];
-            }
-            mat Cit = GWV.t() * GWVG.i().t();
-            coefficient_map.row(i) = Cit.col(k).t();
-        }
+    vec yg(ndata, arma::fill::zeros);
+    for (uword i = 0; i < ngroup; ++i) yg.rows(group_span[i]) = Ygf[i];
 
+    // Compute every coefficient map once.  The experimental single-model
+    // adjustments below need the maps for the target and nuisance surfaces.
+    vector<mat> coefficient_maps;
+    coefficient_maps.reserve(ng);
+    for (uword k = 0; k < ng; ++k)
+    {
+        coefficient_maps.emplace_back(ngroup, ndata, arma::fill::zeros);
+    }
+    for (uword i = 0; i < ngroup; i++)
+    {
+        mat d_u = u.each_row() - u.row(i);
+        vec d = sqrt(sum(d_u % d_u, 1));
+        double fb = actual_bw(d, bw);
+        vec w = (*gwr_kernel)(d % d, fb * fb);
+        mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
+        for (size_t j = 0; j < ngroup; j++)
+        {
+            GWVG += (w[j] * GVGf[j]);
+            GWV.cols(group_span[j]) = w[j] * GVf[j];
+        }
+        mat Cit = GWV.t() * GWVG.i().t();
+        for (uword k = 0; k < ng; ++k) coefficient_maps[k].row(i) = Cit.col(k).t();
+    }
+
+    vec fitted_glsw = sum(G % gamma, 1);
+    mat smoother_by_group(ngroup, ndata, arma::fill::zeros);
+    for (uword i = 0; i < ngroup; ++i)
+    {
+        for (uword l = 0; l < ng; ++l)
+        {
+            smoother_by_group.row(i) += G(i, l) * coefficient_maps[l].row(i);
+        }
+    }
+    vec residual = yg - fitted_glsw.rows(group);
+    double rssg = 0.0;
+    for (uword i = 0; i < ngroup; ++i)
+    {
+        vec residual_i = Ygf[i] - fitted_glsw(i);
+        rssg += dot(residual_i, residual_i);
+    }
+    double sigma_f3_sq = rssg / trQ(0);
+    if (!(sigma_f3_sq > 0.0) || !std::isfinite(sigma_f3_sq))
+    {
+        throw runtime_error("Invalid F3 residual-scale estimate in GLSW F test.");
+    }
+
+    vec observation_weights = nw / nd;
+    mat pair_weights = observation_weights * observation_weights.t();
+    auto weighted_variance = [&](const vec& surface)
+    {
+        double weighted_sum = dot(nw, surface);
+        double weighted_sum_sq = dot(nw, square(surface));
+        return (weighted_sum_sq - weighted_sum * weighted_sum / nd) / nd;
+    };
+    auto trace_moments = [&](const mat& coefficient_map)
+    {
         rowvec weighted_mean_map = nw.t() * coefficient_map / nd;
         mat centred_map = coefficient_map.each_row() - weighted_mean_map;
         mat coefficient_cov(ngroup, ngroup, arma::fill::zeros);
@@ -1039,20 +1071,151 @@ std::vector<arma::vec4> HGWR::test_glsw()
             coefficient_cov += Cj * Vf[j] * Cj.t();
         }
         coefficient_cov = 0.5 * (coefficient_cov + coefficient_cov.t());
+        vec moments(2);
+        moments(0) = dot(observation_weights, coefficient_cov.diag());
+        moments(1) = accu(pair_weights % square(coefficient_cov));
+        return moments;
+    };
 
-        vec observation_weights = nw / nd;
-        double trB = dot(observation_weights, coefficient_cov.diag());
-        mat pair_weights = observation_weights * observation_weights.t();
-        double trB2 = accu(pair_weights % square(coefficient_cov));
-        if (!(trB > 0.0) || !(trB2 > 0.0) || !std::isfinite(trB) || !std::isfinite(trB2))
+    vector<vec4> results;
+    f_test_scale.clear();
+    f_test_nuisance.clear();
+    f_test_combined.clear();
+    f_test_orthogonal.clear();
+    f_test_diagnostics.zeros(ng, 10);
+    for (uword k = 0; k < ng; k++)
+    {
+        if (verbose > 0) pcout("Doing f test for effect " + to_string(k) + "\n");
+        const mat& coefficient_map = coefficient_maps[k];
+        double vk2 = weighted_variance(gamma.col(k));
+
+        // H_{-k} maps y_g to the fitted contribution from all other GLSW
+        // surfaces, using only the already-fitted complete HGWR model.
+        mat nuisance_smoother(ngroup, ndata, arma::fill::zeros);
+        for (uword i = 0; i < ngroup; ++i)
+        {
+            for (uword l = 0; l < ng; ++l)
+            {
+                if (l != k) nuisance_smoother.row(i) += G(i, l) * coefficient_maps[l].row(i);
+            }
+        }
+        mat coefficient_group_sums(ngroup, ngroup, arma::fill::zeros);
+        for (uword j = 0; j < ngroup; ++j)
+        {
+            coefficient_group_sums.col(j) = sum(coefficient_map.cols(group_span[j]), 1);
+        }
+        mat adjusted_map = coefficient_map - coefficient_group_sums * nuisance_smoother;
+        vec adjusted_gamma = adjusted_map * yg;
+        double adjusted_vk2 = weighted_variance(adjusted_gamma);
+
+        vec legacy_moments = trace_moments(coefficient_map);
+        vec adjusted_moments = trace_moments(adjusted_map);
+        if (!(legacy_moments(0) > 0.0) || !(legacy_moments(1) > 0.0) ||
+            !(adjusted_moments(0) > 0.0) || !(adjusted_moments(1) > 0.0) ||
+            !legacy_moments.is_finite() || !adjusted_moments.is_finite())
         {
             throw runtime_error("Invalid coefficient trace moments in GLSW F test.");
         }
-        double fv = vk2 / trB / (sigma * sigma);
-        double df1 = trB * trB / trB2;
-        double pv = gsl_cdf_fdist_Q(fv, df1, df2);
-        vec4 result = { fv, df1, df2, pv };
-        results.push_back(result);
+
+        double legacy_df1 = legacy_moments(0) * legacy_moments(0) / legacy_moments(1);
+        double adjusted_df1 = adjusted_moments(0) * adjusted_moments(0) / adjusted_moments(1);
+        auto make_result = [&](double variance, double expectation, double scale_sq, double df1)
+        {
+            double fv = variance / expectation / scale_sq;
+            double pv = gsl_cdf_fdist_Q(fv, df1, df2);
+            return vec4({ fv, df1, df2, pv });
+        };
+
+        results.push_back(make_result(vk2, legacy_moments(0), sigma * sigma, legacy_df1));
+        f_test_scale.push_back(make_result(vk2, legacy_moments(0), sigma_f3_sq, legacy_df1));
+        f_test_nuisance.push_back(make_result(
+            adjusted_vk2, adjusted_moments(0), sigma * sigma, adjusted_df1
+        ));
+        f_test_combined.push_back(make_result(
+            adjusted_vk2, adjusted_moments(0), sigma_f3_sq, adjusted_df1
+        ));
+
+        // F3 treats the coefficient-surface quadratic form and residual scale
+        // as independent.  A GWR smoother is not an orthogonal projection, so
+        // remove from the complete-model residual the component linearly
+        // predictable from the adjusted coefficient contrast.  This remains a
+        // single-fit calculation and uses no restricted/null model.
+        rowvec adjusted_weighted_mean = nw.t() * adjusted_map / nd;
+        mat adjusted_centred_map = adjusted_map.each_row() - adjusted_weighted_mean;
+        mat adjusted_cov(ngroup, ngroup, arma::fill::zeros);
+        mat smoother_cov_adjusted(ngroup, ngroup, arma::fill::zeros);
+        for (uword j = 0; j < ngroup; ++j)
+        {
+            mat Aj = adjusted_centred_map.cols(group_span[j]);
+            adjusted_cov += Aj * Vf[j] * Aj.t();
+            smoother_cov_adjusted += smoother_by_group.cols(group_span[j]) * Vf[j] * Aj.t();
+        }
+        adjusted_cov = 0.5 * (adjusted_cov + adjusted_cov.t());
+        mat residual_coefficient_cov(ndata, ngroup, arma::fill::zeros);
+        for (uword i = 0; i < ngroup; ++i)
+        {
+            mat Ai = adjusted_centred_map.cols(group_span[i]);
+            residual_coefficient_cov.rows(group_span[i]) =
+                Vf[i] * Ai.t() -
+                ones<vec>(Vf[i].n_rows) * smoother_cov_adjusted.row(i);
+        }
+        mat adjusted_cov_pinv = pinv(adjusted_cov);
+        vec adjusted_contrast = adjusted_centred_map * yg;
+        vec orthogonal_residual = residual -
+            residual_coefficient_cov * adjusted_cov_pinv * adjusted_contrast;
+        double orthogonal_rss = dot(orthogonal_residual, orthogonal_residual);
+
+        mat utu = residual_coefficient_cov.t() * residual_coefficient_cov;
+        mat group_sums_u(ngroup, ngroup, arma::fill::zeros);
+        for (uword i = 0; i < ngroup; ++i)
+        {
+            group_sums_u.row(i) = sum(residual_coefficient_cov.rows(group_span[i]), 0);
+        }
+        mat rt_u = residual_coefficient_cov - smoother_by_group.t() * group_sums_u;
+        mat v_rt_u(ndata, ngroup, arma::fill::zeros);
+        for (uword i = 0; i < ngroup; ++i)
+        {
+            v_rt_u.rows(group_span[i]) = Vf[i] * rt_u.rows(group_span[i]);
+        }
+        mat smoother_v_rt_u = smoother_by_group * v_rt_u;
+        mat omega_u = v_rt_u;
+        for (uword i = 0; i < ngroup; ++i)
+        {
+            omega_u.rows(group_span[i]) -=
+                ones<vec>(Vf[i].n_rows) * smoother_v_rt_u.row(i);
+        }
+        mat ut_omega_u = residual_coefficient_cov.t() * omega_u;
+        double orthogonal_delta1 = trQ(0) - trace(adjusted_cov_pinv * utu);
+        double orthogonal_delta2 = trQ(1)
+            - 2.0 * trace(adjusted_cov_pinv * ut_omega_u)
+            + trace(adjusted_cov_pinv * utu * adjusted_cov_pinv * utu);
+        if (!(orthogonal_rss > 0.0) || !(orthogonal_delta1 > 0.0) ||
+            !(orthogonal_delta2 > 0.0) || !std::isfinite(orthogonal_rss) ||
+            !std::isfinite(orthogonal_delta1) || !std::isfinite(orthogonal_delta2))
+        {
+            throw runtime_error("Invalid orthogonal residual moments in adjusted GLSW F test.");
+        }
+        double orthogonal_df2 = orthogonal_delta1 * orthogonal_delta1 / orthogonal_delta2;
+        double orthogonal_f = (adjusted_vk2 / adjusted_moments(0)) /
+            (orthogonal_rss / orthogonal_delta1);
+        double orthogonal_p = gsl_cdf_fdist_Q(orthogonal_f, adjusted_df1, orthogonal_df2);
+        f_test_orthogonal.push_back(vec4({
+            orthogonal_f, adjusted_df1, orthogonal_df2, orthogonal_p
+        }));
+
+        double map_identity_error = norm(coefficient_map * yg - gamma.col(k), 2);
+        double centred_norm = weighted_variance(gamma.col(k));
+        double leakage_fraction = centred_norm > 0.0
+            ? weighted_variance(gamma.col(k) - adjusted_gamma) / centred_norm
+            : 0.0;
+        double quadratic_covariance = 2.0 * trace(diagmat(observation_weights) * utu);
+        double quadratic_correlation = quadratic_covariance /
+            sqrt((2.0 * adjusted_moments(1)) * (2.0 * trQ(1)));
+        f_test_diagnostics.row(k) = rowvec({
+            sigma * sigma, sigma_f3_sq, rssg, vk2, adjusted_vk2,
+            leakage_fraction, map_identity_error, quadratic_correlation,
+            orthogonal_rss, orthogonal_df2
+        });
     }
     return results;
 }
