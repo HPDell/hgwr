@@ -115,6 +115,20 @@ public:  // Type defs
         size_t ml_type = (size_t)0;
     };
 
+    struct MonteCarloOptions
+    {
+        size_t iters = (size_t)1000;
+        size_t burnin = (size_t)200;
+        double beta_prior_variance = 100.0;
+        double d_prior_df_offset = 5.0;
+        double d_prior_mean = 1.0;
+        double sigma_prior_shape = 0.001;
+        double sigma_prior_scale = 0.001;
+        double inner_tolerance = 1.0e-6;
+        bool save_draws = false;
+        bool conditional_mode = false;
+    };
+
     struct Parameters
     {
         arma::mat gamma;
@@ -125,7 +139,13 @@ public:  // Type defs
         double bw;
     };
 
-    // using BwSelectionArgs = std::pair<std::reference_wrapper<arma::mat>, std::reference_wrapper<arma::vec>>;
+    /**
+     * @brief Inputs reused while selecting the adaptive GWR bandwidth.
+     *
+     * `distance` and `distance2` are precomputed group-to-group distance
+     * matrices. They avoid recalculating coordinate distances for every
+     * candidate bandwidth in CV/AIC optimisation.
+     */
     struct BwSelectionArgs
     {
         std::reference_wrapper<arma::mat> Vig;
@@ -319,6 +339,62 @@ public:
 
     double get_loglik() { return loglik; }
 
+    bool get_converged() { return converged; }
+
+    const std::string& get_stop_reason() { return stop_reason; }
+
+    size_t get_outer_iterations() { return outer_iterations; }
+
+    size_t get_total_inner_updates() { return total_inner_updates; }
+
+    size_t get_final_inner_iterations() { return final_inner_iterations; }
+
+    bool get_inner_converged() { return inner_converged; }
+
+    bool get_all_inner_converged() { return all_inner_converged; }
+
+    size_t get_inner_failures() { return inner_failures; }
+
+    size_t get_max_inner_iterations_used() { return max_inner_iterations_used; }
+
+    double get_max_parameter_change() { return max_parameter_change; }
+
+    int get_optimizer_status() { return optimizer_status; }
+
+    size_t get_optimizer_iterations() { return optimizer_iterations; }
+
+    double get_optimizer_measure() { return optimizer_measure; }
+
+    size_t get_optimizer_failures() { return optimizer_failures; }
+
+    size_t get_optimizer_restarts() { return optimizer_restarts; }
+
+    int get_bw_optimizer_status() { return bw_optimizer_status; }
+
+    size_t get_bw_optimizer_failures() { return bw_optimizer_failures; }
+
+    double get_bw_lower() { return bw_lower; }
+
+    double get_bw_upper() { return bw_upper; }
+
+    double get_bw_objective() { return bw_objective; }
+
+    size_t get_bw_evaluations() { return bw_evaluations; }
+
+    size_t get_spd_corrections() { return spd_corrections; }
+
+    size_t get_inverse_jitter_uses() { return inverse_jitter_uses; }
+
+    size_t get_pseudoinverse_uses() { return pseudoinverse_uses; }
+
+    size_t get_cholesky_jitter_uses() { return cholesky_jitter_uses; }
+
+    const arma::mat& get_last_beta_draws() { return last_beta_draws; }
+
+    const arma::mat& get_last_D_draws() { return last_D_draws; }
+
+    const arma::vec& get_last_sigma2_draws() { return last_sigma2_draws; }
+
     arma::vec get_trS() { return trS; }
 
     arma::vec get_var_beta() { return var_beta; }
@@ -344,16 +420,54 @@ public:
     }
 
 public:
+    /**
+     * @brief Select an adaptive bandwidth by minimizing the configured criterion.
+     *
+     * @param lower Lower bound in nearest-neighbour units.
+     * @param upper Upper bound in nearest-neighbour units.
+     * @param args Reusable matrices and cached distances for the criterion.
+     * @return GSL status code.
+     */
     int bw_optimisation(double lower, double upper, const BwSelectionArgs* args);
+
+    /**
+     * @brief Precompute group-to-group distances used by GWR fitting.
+     */
     void ensure_distance_cache();
+
+    /**
+     * @brief Estimate group-level spatially weighted effects.
+     *
+     * @param t_test If true, also calculate standard errors for GLSW effects.
+     * @param f_test If true, also calculate matrices needed by GLSW F tests.
+     */
     void fit_gwr(const bool t_test = false, const bool f_test = false);
+
     arma::vec fit_gls();
     double fit_D(ML_Params* params);
     double fit_D_beta(ML_Params* params);
     void fit_mu();
     double fit_sigma();
     Parameters fit(const bool f_test = false);
-    Parameters fit_mcmc_backfitting(const bool f_test = false, std::size_t iters = 1000, std::size_t burnin = 200);
+
+    /**
+     * @brief Fit HGWR with back-fitting and an inner conditional MCMC estimator.
+     *
+     * The MCMC block estimates beta, D, sigma, and mu conditional on the
+     * current group-level spatial surface. Retained means become the next
+     * outer state, so the method returns a stochastic fixed-point estimate,
+     * not draws from a joint HGWR posterior.
+     *
+     * @param f_test If true, calculate GLSW F-test diagnostics after fitting.
+     * @param iters Total MCMC iterations in each back-fitting iteration.
+     * @param burnin Number of initial MCMC iterations discarded as burn-in.
+     * @return Estimated HGWR parameters.
+     */
+    Parameters fit_mcmc_backfitting(const bool f_test = false);
+    Parameters fit_mcmc_backfitting(
+        const bool f_test,
+        const MonteCarloOptions& options
+    );
     void calc_var_beta();
     std::vector<arma::vec4> test_glsw();
 
@@ -403,10 +517,41 @@ private:
     arma::uword nvg;
     arma::uword nvx;
     arma::uword nvz;
+    arma::vec group_weights;
     std::vector<arma::span> group_span;
     arma::mat distance;
     arma::mat distance2;
     bool distance_cache_ready = false;
+
+    /* convergence and numerical diagnostics */
+    bool converged = false;
+    std::string stop_reason = "not_started";
+    size_t outer_iterations = 0;
+    size_t total_inner_updates = 0;
+    size_t final_inner_iterations = 0;
+    bool inner_converged = false;
+    bool all_inner_converged = false;
+    size_t inner_failures = 0;
+    size_t max_inner_iterations_used = 0;
+    double max_parameter_change = arma::datum::inf;
+    int optimizer_status = 0;
+    size_t optimizer_iterations = 0;
+    double optimizer_measure = arma::datum::nan;
+    size_t optimizer_failures = 0;
+    size_t optimizer_restarts = 0;
+    int bw_optimizer_status = 0;
+    size_t bw_optimizer_failures = 0;
+    double bw_lower = arma::datum::nan;
+    double bw_upper = arma::datum::nan;
+    double bw_objective = arma::datum::nan;
+    size_t bw_evaluations = 0;
+    size_t spd_corrections = 0;
+    size_t inverse_jitter_uses = 0;
+    size_t pseudoinverse_uses = 0;
+    size_t cholesky_jitter_uses = 0;
+    arma::mat last_beta_draws;
+    arma::mat last_D_draws;
+    arma::vec last_sigma2_draws;
 
     /* diagnostic information */
     double loglik = 0;
