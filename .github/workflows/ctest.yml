@@ -33,7 +33,7 @@ jobs:
           ctest --test-dir build --output-on-failure
 
   windows-test:
-    runs-on: windows-latest
+    runs-on: windows-2022
     env: 
       USERNAME: HPDell
       FEED_URL: https://nuget.pkg.github.com/HPDell/index.json
