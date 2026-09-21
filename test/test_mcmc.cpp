@@ -47,7 +47,7 @@ int main()
         options_mle.alpha = 0.1;
         options_mle.eps_iter = 1e-6;
         options_mle.eps_gradient = 1e-6;
-        options_mle.max_iters = 100000;
+        options_mle.max_iters = 200;
         options_mle.max_retries = 10;
         options_mle.verbose = 0;
         options_mle.ml_type = 0;
@@ -65,20 +65,23 @@ int main()
 
     {
         cout << "========================================" << endl;
-        cout << "  Test 2: MCMC (ml_type=2, Bayesian)" << endl;
+        cout << "  Test 2: conditional Monte Carlo backfitting" << endl;
         cout << "========================================" << endl;
         HGWR::Options options_mcmc;
         options_mcmc.alpha = 0.1;
-        options_mcmc.eps_iter = 1e-6;
+        options_mcmc.eps_iter = 1e-3;
         options_mcmc.eps_gradient = 1e-6;
-        options_mcmc.max_iters = 10000;
+        options_mcmc.max_iters = 20;
         options_mcmc.max_retries = 10;
         options_mcmc.verbose = 1;
         options_mcmc.ml_type = 2;
 
         HGWR alg_mcmc(G, X, Z, y, u, group, kernel, bw, options_mcmc);
         alg_mcmc.set_printer(printer);
-        auto res_mcmc = alg_mcmc.fit_mcmc_backfitting();
+        HGWR::MonteCarloOptions mc_options;
+        mc_options.iters = 300;
+        mc_options.burnin = 100;
+        auto res_mcmc = alg_mcmc.fit_mcmc_backfitting(false, mc_options);
 
         cout << "  MCMC Results:" << endl;
         cout << "  bw    = " << res_mcmc.bw << endl;
@@ -90,13 +93,13 @@ int main()
 
     {
         cout << "========================================" << endl;
-        cout << "  Test 3: MCMC with fewer iterations" << endl;
+        cout << "  Test 3: deterministic BFML comparison" << endl;
         cout << "========================================" << endl;
         HGWR::Options options_mcmc;
         options_mcmc.alpha = 0.1;
         options_mcmc.eps_iter = 1e-6;
         options_mcmc.eps_gradient = 1e-6;
-        options_mcmc.max_iters = 1000;
+        options_mcmc.max_iters = 200;
         options_mcmc.max_retries = 10;
         options_mcmc.verbose = 0;
         options_mcmc.ml_type = 2;
@@ -105,7 +108,7 @@ int main()
         alg_mcmc.set_printer(printer);
         auto res_mcmc = alg_mcmc.fit();
 
-        cout << "  MCMC (2000 iters) Results:" << endl;
+        cout << "  BFML comparison results:" << endl;
         cout << "  bw    = " << res_mcmc.bw << endl;
         cout << "  sigma = " << res_mcmc.sigma << endl;
         cout << "  beta  = " << res_mcmc.beta.t() << endl;
