@@ -1,6 +1,8 @@
 #include "hlmgwr.h"
+#include <cmath>
 #include <sstream>
 #include <iomanip>
+#include <limits>
 #include <string>
 #include <utility>
 #include <gsl/gsl_min.h>
@@ -13,6 +15,128 @@ using namespace arma;
 using namespace hgwr;
 
 const double log2pi = log(2.0 * M_PI);
+
+namespace
+{
+
+constexpr double D_JITTER = 1e-10;
+constexpr double ML_LINE_TOL = 0.1;
+constexpr double ML_BAD_OBJECTIVE = 1e100;
+
+mat theta_to_cholesky(const vec& theta, const uword q)
+{
+    mat L(q, q, arma::fill::zeros);
+    uword k = 0;
+    for (uword col = 0; col < q; ++col)
+    {
+        for (uword row = col; row < q; ++row, ++k)
+        {
+            if (row == col)
+            {
+                if (!std::isfinite(theta(k)) || theta(k) > 350.0 || theta(k) < -350.0) return mat();
+                L(row, col) = std::exp(theta(k));
+            }
+            else
+            {
+                L(row, col) = theta(k);
+            }
+        }
+    }
+    return L;
+}
+
+mat theta_to_covariance(const vec& theta, const uword q)
+{
+    mat L = theta_to_cholesky(theta, q);
+    if (L.is_empty() || !L.is_finite()) return mat();
+    mat D = L * L.t() + D_JITTER * eye<mat>(q, q);
+    return D.is_finite() ? D : mat();
+}
+
+vec covariance_to_theta(const mat& D)
+{
+    const uword q = D.n_rows;
+    mat L;
+    mat adjusted = 0.5 * (D + D.t()) - D_JITTER * eye<mat>(q, q);
+    if (!chol(L, adjusted, "lower"))
+    {
+        adjusted = 0.5 * (D + D.t()) + D_JITTER * eye<mat>(q, q);
+        if (!chol(L, adjusted, "lower")) L = eye<mat>(q, q);
+    }
+    vec theta(q * (q + 1) / 2, arma::fill::zeros);
+    uword k = 0;
+    for (uword col = 0; col < q; ++col)
+    {
+        for (uword row = col; row < q; ++row, ++k)
+        {
+            theta(k) = row == col ? std::log(std::max(L(row, col), std::sqrt(D_JITTER))) : L(row, col);
+        }
+    }
+    return theta;
+}
+
+bool stable_covariance_inverse(const mat& D, const mat& Z, mat& V_inv, double* log_det_V = nullptr)
+{
+    mat L;
+    if (!D.is_finite() || !chol(L, 0.5 * (D + D.t()), "lower")) return false;
+    mat U = Z * L;
+    mat middle = eye<mat>(D.n_rows, D.n_cols) + U.t() * U;
+    mat middle_chol;
+    if (!middle.is_finite() || !chol(middle_chol, middle, "lower")) return false;
+    mat solved;
+    if (!solve(solved, middle, U.t(), solve_opts::likely_sympd) || !solved.is_finite()) return false;
+    V_inv = eye<mat>(Z.n_rows, Z.n_rows) - U * solved;
+    V_inv = 0.5 * (V_inv + V_inv.t());
+    if (!V_inv.is_finite()) return false;
+    if (log_det_V != nullptr)
+    {
+        *log_det_V = 2.0 * sum(log(middle_chol.diag()));
+        if (!std::isfinite(*log_det_V)) return false;
+    }
+    return true;
+}
+
+vec theta_gradient_from_D(const mat& objective_gradient_D, const vec& theta, const uword q)
+{
+    mat L = theta_to_cholesky(theta, q);
+    if (L.is_empty()) return vec();
+    mat gradient_L = (objective_gradient_D + objective_gradient_D.t()) * L;
+    vec gradient(theta.n_elem, arma::fill::zeros);
+    uword k = 0;
+    for (uword col = 0; col < q; ++col)
+    {
+        for (uword row = col; row < q; ++row, ++k)
+        {
+            gradient(k) = gradient_L(row, col) * (row == col ? L(row, col) : 1.0);
+        }
+    }
+    return gradient;
+}
+
+vec gsl_to_arma(const gsl_vector* value, const uword n)
+{
+    vec result(n);
+    for (uword i = 0; i < n; ++i) result(i) = gsl_vector_get(value, i);
+    return result;
+}
+
+void arma_to_gsl(const vec& value, gsl_vector* result)
+{
+    for (uword i = 0; i < value.n_elem; ++i) gsl_vector_set(result, i, value(i));
+}
+
+double gradient_norm(const gsl_vector* gradient)
+{
+    double squared = 0.0;
+    for (size_t i = 0; i < gradient->size; ++i)
+    {
+        double value = gsl_vector_get(gradient, i);
+        squared += value * value;
+    }
+    return std::sqrt(squared);
+}
+
+} // namespace
 
 double HGWR::bw_criterion_cv(double bw, void* params)
 {
@@ -144,7 +268,7 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
             double fm = gsl_min_fminimizer_f_minimum(minimizer);
             pcout(string("xL: ") + to_string(lower) + "; xU: " + to_string(upper) + "; x: " + to_string(m) + "; f: " + to_string(fm) + "\r");
         }
-    } while (status == GSL_CONTINUE && iter < max_bw_iters);
+    } while (status == GSL_CONTINUE && (++iter) < max_bw_iters);
     if (status == GSL_SUCCESS)
     {
         bw = m;
@@ -176,7 +300,6 @@ int HGWR::bw_optimisation(double lower, double upper, const BwSelectionArgs* arg
 void HGWR::fit_gwr(const bool t_test, const bool f_test)
 {
     uword k = G.n_cols;//, q = Zf[0].n_cols;
-    mat D_inv = D.i();
     gamma.fill(arma::fill::zeros);
     if (t_test) gamma_se.fill(arma::fill::zeros);
     unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
@@ -189,7 +312,8 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
     {
         const mat& Yi = Ygf[i];
         const mat& Zi = Zf[i];
-        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        mat Vi_inv;
+        if (!stable_covariance_inverse(D, Zi, Vi_inv)) throw runtime_error("Unable to factor group covariance in GWR fit.");
         uword nidata = Zi.n_rows;
         if (f_test || t_test) Vf[i] = Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows);
         rowvec Visigma = ones(1, nidata) * Vi_inv;
@@ -212,12 +336,8 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
     /// Calibrate for each gorup.
     trS = { 0.0, 0.0 };
     trQ = { 0.0, 0.0 };
-    unique_ptr<mat[]> Qf = make_unique<mat[]>(ngroup);
-    for (uword j = 0; j < ngroup; j++)
-    {
-        Qf[j].resize(size(Vf[j]));
-        Qf[j].fill(0.0);
-    }
+    mat smoother_by_group;
+    if (f_test) smoother_by_group.zeros(ngroup, ndata);
     for (size_t i = 0; i < ngroup; i++)
     {
         mat d_u = u.each_row() - u.row(i);
@@ -234,37 +354,50 @@ void HGWR::fit_gwr(const bool t_test, const bool f_test)
         if (t_test) gamma_se.row(i) = trans(sum((Ci.each_row() % Vig_var) % Ci, 1));
         uvec igroup = find(group == i);
         uword nidata = igroup.n_elem;
-        // mat GtWe = GtW.cols(group);
-        // mat si = G.rows(group.rows(find(group == i))) * GtWVG_inv * (GtWe.each_row() % rVsigma);
-        mat si_left = (repelem(G.row(i), nidata, 1) * Ci).eval().cols(group);
-        mat si = si_left.each_row() % rVsigma;
+        rowvec smoother_by_location = G.row(i) * Ci;
+        rowvec smoother_i = smoother_by_location.cols(group) % rVsigma;
+        mat si = repelem(smoother_i, nidata, 1);
         trS(0) += trace(si.cols(igroup));
         trS(1) += trace(si * si.t());
-        if (f_test)
-        {
-            mat ei(nidata, ndata, arma::fill::zeros);
-            ei.cols(igroup) = eye(nidata, nidata);
-            mat pi = ei - si;
-            for (uword j = 0; j < ngroup; j++)
-            {
-                mat pij = pi.cols(group_span[j]);
-                Qf[j] += pij.t() * pij;
-            }
-        }
+        if (f_test) smoother_by_group.row(i) = smoother_i;
         vec hat_ygi = as_scalar(G.row(i) * gammai) + Zf[i] * mu.row(i).t();
     }
     if (f_test)
     {
-        for (uword j = 0; j < ngroup; j++)
+        // Covariance of (I-S) eta, where the n rows of S repeat within each
+        // group.  tr((QV)^2) must include every off-diagonal block:
+        //   tr((QV)^2) = sum_ij tr((QV)_ij (QV)_ji).
+        // Computing the residual covariance blocks avoids materialising an
+        // n-by-n matrix while retaining those cross-group terms.
+        mat smoother_cov(ngroup, ngroup, arma::fill::zeros);
+        for (uword j = 0; j < ngroup; ++j)
         {
-            Qf[j] *= Vf[j];
-            trQ(0) += trace(Qf[j]);
-            trQ(1) += trace(Qf[j] * Qf[j]);
+            mat Sj = smoother_by_group.cols(group_span[j]);
+            smoother_cov += Sj * Vf[j] * Sj.t();
         }
-    }
-    if (t_test)
-    {
-        gamma_se = sigma * sqrt(gamma_se);
+        smoother_cov = 0.5 * (smoother_cov + smoother_cov.t());
+
+        for (uword i = 0; i < ngroup; ++i)
+        {
+            const uword ni = Vf[i].n_rows;
+            for (uword j = 0; j < ngroup; ++j)
+            {
+                const uword nj = Vf[j].n_rows;
+                mat omega_ij(ni, nj, arma::fill::zeros);
+                if (i == j) omega_ij = Vf[i];
+
+                const span& span_j = group_span[j];
+                const span& span_i = group_span[i];
+                rowvec Sivj = smoother_by_group.row(i).cols(span_j.a, span_j.b) * Vf[j];
+                vec ViSj = Vf[i] * smoother_by_group.row(j).cols(span_i.a, span_i.b).t();
+                omega_ij -= repelem(Sivj, ni, 1);
+                omega_ij -= ViSj * ones<rowvec>(nj);
+                omega_ij += smoother_cov(i, j) * ones<mat>(ni, nj);
+
+                if (i == j) trQ(0) += trace(omega_ij);
+                trQ(1) += accu(omega_ij % omega_ij);
+            }
+        }
     }
 }
 
@@ -273,13 +406,13 @@ vec HGWR::fit_gls()
     uword p = Xf[0].n_cols;
     mat XtWX(p, p, arma::fill::zeros);
     vec XtWY(p, arma::fill::zeros);
-    mat D_inv = D.i();
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Xi = Xf[i];
         const mat& Yi = Yhf[i];
         const mat& Zi = Zf[i];
-        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        mat Vi_inv;
+        if (!stable_covariance_inverse(D, Zi, Vi_inv)) throw runtime_error("Unable to factor group covariance in GLS fit.");
         XtWX += Xi.t() * Vi_inv * Xi;
         XtWY += Xi.t() * Vi_inv * Yi;
     }
@@ -288,20 +421,25 @@ vec HGWR::fit_gls()
 
 double loglikelihood(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D, const vec& beta, const uword& ndata)
 {
-    mat D_inv = D.i();
     double L1 = 0.0, L2 = 0.0, n = (double)ndata;
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Xi = Xf[i];
         const vec& Yi = Yf[i];
         const mat& Zi = Zf[i];
-        mat Vi = ((Zi * D) * Zi.t()) + eye<mat>(Zi.n_rows, Zi.n_rows);
-        double detVi, sign_detVi;
-        log_det(detVi, sign_detVi, Vi);
-        mat Vi_inv = HGWR::woodbury_eye(D_inv, Zi);
+        double detVi = 0.0;
+        mat Vi_inv;
+        if (!stable_covariance_inverse(D, Zi, Vi_inv, &detVi))
+        {
+            return -std::numeric_limits<double>::infinity();
+        }
         vec Ri = Yi - Xi * beta;
         L1 += as_scalar(Ri.t() * Vi_inv * Ri);
         L2 += detVi;
+    }
+    if (!(L1 > 0.0) || !std::isfinite(L1) || !std::isfinite(L2))
+    {
+        return -std::numeric_limits<double>::infinity();
     }
     double LL = - (n / 2.0) * log(L1) - 0.5 * L2 - 0.5 - 0.5 * log2pi + (n / 2.0) * log(n);
     return LL;
@@ -309,7 +447,7 @@ double loglikelihood(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
 
 void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D, const vec& beta, const uword& ndata, mat& d_D)
 {
-    mat ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
+    mat ZtViZ(arma::size(D), arma::fill::zeros);
     mat KKt(arma::size(D), arma::fill::zeros);
     double J = 0.0, n = (double)ndata;
     // field<mat> Kf(ngroup);
@@ -318,12 +456,22 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
         const mat& Xi = Xf[i];
         const mat& Yi = Yf[i];
         const mat& Zi = Zf[i];
-        mat Vi_inv = HGWR::woodbury_eye(D_inv, Zi);
+        mat Vi_inv;
+        if (!stable_covariance_inverse(D, Zi, Vi_inv))
+        {
+            d_D.fill(std::numeric_limits<double>::quiet_NaN());
+            return;
+        }
         vec Ri = Yi - Xi * beta;
         mat Ki = Zi.t() * Vi_inv * Ri;
         KKt += Ki * Ki.t();
         ZtViZ += Zi.t() * Vi_inv * Zi;
         J += as_scalar(Ri.t() * Vi_inv * Ri);
+    }
+    if (!(J > 0.0) || !std::isfinite(J))
+    {
+        d_D.fill(std::numeric_limits<double>::quiet_NaN());
+        return;
     }
     mat KJKt = KKt / J;
     d_D = ((- n / 2.0) * (-KJKt) - 0.5 * ZtViZ);
@@ -331,7 +479,7 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
 
 void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t ngroup, const mat& D, const vec& beta, const uword& ndata, mat& d_D, mat& d_beta)
 {
-    mat ZtViZ(arma::size(D), arma::fill::zeros), D_inv = D.i();
+    mat ZtViZ(arma::size(D), arma::fill::zeros);
     mat KKt(arma::size(D), arma::fill::zeros), G(arma::size(beta), arma::fill::zeros);
     double J = 0.0, n = (double)ndata;
     // field<mat> Kf(ngroup);
@@ -341,13 +489,25 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
         const mat& Xi = Xf[i];
         const mat& Yi = Yf[i];
         const mat& Zi = Zf[i];
-        mat Vi_inv = HGWR::woodbury_eye(D_inv, Zi);
+        mat Vi_inv;
+        if (!stable_covariance_inverse(D, Zi, Vi_inv))
+        {
+            d_D.fill(std::numeric_limits<double>::quiet_NaN());
+            d_beta.fill(std::numeric_limits<double>::quiet_NaN());
+            return;
+        }
         vec Ri = Yi - Xi * beta;
         mat Ki = Zi.t() * Vi_inv * Ri;
         KKt += Ki * Ki.t();
         G += Xi.t() * Vi_inv * Ri;
         ZtViZ += Zi.t() * Vi_inv * Zi;
         J += as_scalar(Ri.t() * Vi_inv * Ri);
+    }
+    if (!(J > 0.0) || !std::isfinite(J))
+    {
+        d_D.fill(std::numeric_limits<double>::quiet_NaN());
+        d_beta.fill(std::numeric_limits<double>::quiet_NaN());
+        return;
     }
     mat KJKt = KKt / J;
     mat GJ = G / J;
@@ -358,123 +518,70 @@ void loglikelihood_d(const mat* Xf, const vec* Yf, const mat* Zf, const size_t n
 double ml_gsl_f_D(const gsl_vector* v, void* p)
 {
     ML_Params* params = (ML_Params*)p;
-    const mat* Xf = params->Xf;
-    const vec* Yf = params->Yf;
-    const mat* Zf = params->Zf;
-    const vec* beta = params->beta;
-    const size_t ngroup = params->ngroup;
-    const uword n = params->n;
-    const uword q = params->q;
-    size_t ntarget = q * (q + 1) / 2;
-    vec D_tri(ntarget, arma::fill::zeros);
-    for (size_t i = 0; i < ntarget; i++)
-    {
-        D_tri(i) = gsl_vector_get(v, i);
-    }
-    mat D(q, q, arma::fill::zeros);
-    D(trimatl_ind(size(D))) = D_tri;
-    D = D.t();
-    D(trimatl_ind(size(D))) = D_tri;
-    double logL = loglikelihood(Xf, Yf, Zf, ngroup, D, *beta, n);
-    return -logL / double(n);
+    const uword ntarget = params->q * (params->q + 1) / 2;
+    vec theta = gsl_to_arma(v, ntarget);
+    mat D = theta_to_covariance(theta, params->q);
+    if (D.is_empty()) return ML_BAD_OBJECTIVE;
+    double logL = loglikelihood(params->Xf, params->Yf, params->Zf,
+        params->ngroup, D, *params->beta, params->n);
+    return std::isfinite(logL) ? -logL / double(params->n) : ML_BAD_OBJECTIVE;
 }
 
 double ml_gsl_f_D_beta(const gsl_vector* v, void* pparams)
 {
     ML_Params* params = (ML_Params*)pparams;
-    const mat* Xf = params->Xf;
-    const vec* Yf = params->Yf;
-    const mat* Zf = params->Zf;
-    const size_t ngroup = params->ngroup;
-    const uword n = params->n;
-    const uword p = params->p;
-    const uword q = params->q;
-    size_t ntarget = p + q * (q + 1) / 2;
-    vec D_tri(q * (q + 1) / 2, arma::fill::zeros), beta(p, arma::fill::zeros);
-    for (size_t i = 0; i < p; i++)
-    {
-        beta(i) = gsl_vector_get(v, i);
-    }
-    for (size_t i = p; i < ntarget; i++)
-    {
-        D_tri(i - p) = gsl_vector_get(v, i);
-    }
-    mat D(q, q, arma::fill::zeros);
-    D(trimatl_ind(size(D))) = D_tri;
-    D = D.t();
-    D(trimatl_ind(size(D))) = D_tri;
-    double logL = loglikelihood(Xf, Yf, Zf, ngroup, D, beta, n);
-    return -logL / double(n);
+    const uword ntheta = params->q * (params->q + 1) / 2;
+    vec values = gsl_to_arma(v, params->p + ntheta);
+    vec beta = values.head(params->p);
+    mat D = theta_to_covariance(values.tail(ntheta), params->q);
+    if (D.is_empty()) return ML_BAD_OBJECTIVE;
+    double logL = loglikelihood(params->Xf, params->Yf, params->Zf,
+        params->ngroup, D, beta, params->n);
+    return std::isfinite(logL) ? -logL / double(params->n) : ML_BAD_OBJECTIVE;
 }
 
 void ml_gsl_df_D(const gsl_vector* v, void* p, gsl_vector *df)
 {
     ML_Params* params = (ML_Params*)p;
-    const mat* Xf = params->Xf;
-    const vec* Yf = params->Yf;
-    const mat* Zf = params->Zf;
-    const vec* beta = params->beta;
-    const size_t ngroup = params->ngroup;
-    const uword n = params->n;
-    const uword q = params->q;
-    size_t ntarget = q * (q + 1) / 2;
-    vec D_tri(ntarget, arma::fill::zeros);
-    for (size_t i = 0; i < ntarget; i++)
-    {
-        D_tri(i) = gsl_vector_get(v, i);
-    }
-    mat D(q, q, arma::fill::zeros);
-    D(trimatl_ind(size(D))) = D_tri;
-    D = D.t();
-    D(trimatl_ind(size(D))) = D_tri;
+    const uword ntarget = params->q * (params->q + 1) / 2;
+    vec theta = gsl_to_arma(v, ntarget);
+    mat D = theta_to_covariance(theta, params->q);
     mat dL_D;
-    loglikelihood_d(Xf, Yf, Zf, ngroup, D, *beta, n, dL_D);
-    dL_D = -dL_D / double(n);
-    vec dL_D_tri = dL_D(trimatl_ind(size(D)));
-    for (uword i = 0; i < ntarget; i++)
+    vec gradient(ntarget, arma::fill::zeros);
+    if (!D.is_empty())
     {
-        gsl_vector_set(df, i, dL_D(i));
+        loglikelihood_d(params->Xf, params->Yf, params->Zf, params->ngroup,
+            D, *params->beta, params->n, dL_D);
+        if (dL_D.is_finite())
+        {
+            gradient = theta_gradient_from_D(-dL_D / double(params->n), theta, params->q);
+        }
     }
+    arma_to_gsl(gradient, df);
 }
 
 void ml_gsl_df_D_beta(const gsl_vector* v, void* pparams, gsl_vector *df)
 {
     ML_Params* params = (ML_Params*)pparams;
-    const mat* Xf = params->Xf;
-    const vec* Yf = params->Yf;
-    const mat* Zf = params->Zf;
-    const size_t ngroup = params->ngroup;
-    const uword n = params->n;
-    const uword p = params->p;
-    const uword q = params->q;
-    size_t ntarget = p + q * (q + 1) / 2;
-    vec D_tri(q * (q + 1) / 2, arma::fill::zeros), beta(p, arma::fill::zeros);
-    for (size_t i = 0; i < p; i++)
-    {
-        beta(i) = gsl_vector_get(v, i);
-    }
-    for (size_t i = p; i < ntarget; i++)
-    {
-        D_tri(i - p) = gsl_vector_get(v, i);
-    }
-    mat D(q, q, arma::fill::zeros);
-    D(trimatl_ind(size(D))) = D_tri;
-    D = D.t();
-    D(trimatl_ind(size(D))) = D_tri;
+    const uword ntheta = params->q * (params->q + 1) / 2;
+    vec values = gsl_to_arma(v, params->p + ntheta);
+    vec beta = values.head(params->p), theta = values.tail(ntheta);
+    mat D = theta_to_covariance(theta, params->q);
     mat dL_D;
     vec dL_beta;
-    loglikelihood_d(Xf, Yf, Zf, ngroup, D, beta, n, dL_D, dL_beta);
-    dL_D = -dL_D / double(n);
-    dL_beta = -dL_beta / double(n);
-    vec dL_D_tri = dL_D(trimatl_ind(size(D)));
-    for (size_t i = 0; i < p; i++)
+    vec gradient(params->p + ntheta, arma::fill::zeros);
+    if (!D.is_empty())
     {
-        gsl_vector_set(df, i, dL_beta(i));
+        loglikelihood_d(params->Xf, params->Yf, params->Zf, params->ngroup,
+            D, beta, params->n, dL_D, dL_beta);
+        if (dL_D.is_finite() && dL_beta.is_finite())
+        {
+            gradient.head(params->p) = -dL_beta / double(params->n);
+            gradient.tail(ntheta) = theta_gradient_from_D(
+                -dL_D / double(params->n), theta, params->q);
+        }
     }
-    for (uword i = p; i < ntarget; i++)
-    {
-        gsl_vector_set(df, i, dL_D_tri(i - p));
-    }
+    arma_to_gsl(gradient, df);
 }
 
 void ml_gsl_fdf_D(const gsl_vector* v, void* p, double *f, gsl_vector *df)
@@ -485,226 +592,201 @@ void ml_gsl_fdf_D(const gsl_vector* v, void* p, double *f, gsl_vector *df)
 
 void ml_gsl_fdf_D_beta(const gsl_vector* v, void* p, double *f, gsl_vector *df)
 {
-    *f = ml_gsl_f_D(v, p);
+    *f = ml_gsl_f_D_beta(v, p);
     ml_gsl_df_D_beta(v, p, df);
+}
+
+double hgwr::ml_gradient_relative_error(
+    const mat& X,
+    const mat& Z,
+    const vec& y,
+    const uvec& group,
+    const vec& beta,
+    const mat& D,
+    bool include_beta,
+    double step
+)
+{
+    uvec normalized_group = group - group.min();
+    const uword ngroup = normalized_group.max() + 1;
+    unique_ptr<mat[]> Xf = make_unique<mat[]>(ngroup);
+    unique_ptr<mat[]> Zf = make_unique<mat[]>(ngroup);
+    unique_ptr<vec[]> Yf = make_unique<vec[]>(ngroup);
+    for (uword i = 0; i < ngroup; ++i)
+    {
+        uvec index = find(normalized_group == i);
+        Xf[i] = X.rows(index);
+        Zf[i] = Z.rows(index);
+        Yf[i] = y.rows(index);
+    }
+    vec beta_copy = beta;
+    ML_Params params {
+        Xf.get(), Yf.get(), Zf.get(), &beta_copy, ngroup,
+        X.n_rows, X.n_cols, Z.n_cols
+    };
+    vec theta = covariance_to_theta(D);
+    vec target_values = include_beta ? join_cols(beta, theta) : theta;
+    gsl_vector* target = gsl_vector_alloc(target_values.n_elem);
+    gsl_vector* analytic_gsl = gsl_vector_alloc(target_values.n_elem);
+    arma_to_gsl(target_values, target);
+    if (include_beta) ml_gsl_df_D_beta(target, &params, analytic_gsl);
+    else ml_gsl_df_D(target, &params, analytic_gsl);
+    vec analytic = gsl_to_arma(analytic_gsl, target_values.n_elem);
+    vec numeric(target_values.n_elem, arma::fill::zeros);
+    for (uword i = 0; i < target_values.n_elem; ++i)
+    {
+        double original = gsl_vector_get(target, i);
+        gsl_vector_set(target, i, original + step);
+        double upper = include_beta ? ml_gsl_f_D_beta(target, &params) : ml_gsl_f_D(target, &params);
+        gsl_vector_set(target, i, original - step);
+        double lower = include_beta ? ml_gsl_f_D_beta(target, &params) : ml_gsl_f_D(target, &params);
+        gsl_vector_set(target, i, original);
+        numeric(i) = (upper - lower) / (2.0 * step);
+    }
+    gsl_vector_free(analytic_gsl);
+    gsl_vector_free(target);
+    vec denominator = arma::max(ones<vec>(analytic.n_elem), arma::max(abs(analytic), abs(numeric)));
+    return max(abs(analytic - numeric) / denominator);
 }
 
 double HGWR::fit_D(ML_Params* params)
 {
-    int precision = int(log10(1.0 / eps_gradient));
-    uword q = D.n_cols, ntarget = q * (q + 1) / 2;
-    gsl_multimin_function_fdf minex_fun;
-    minex_fun.n = ntarget;
-    minex_fun.f = ml_gsl_f_D;
-    minex_fun.df = ml_gsl_df_D;
-    minex_fun.fdf = ml_gsl_fdf_D;
-    minex_fun.params = (void*)params;
-    gsl_vector *target = gsl_vector_alloc(ntarget), *step_size = gsl_vector_alloc(ntarget);
-    uvec D_tril_idx = trimatl_ind(arma::size(D)), D_triu_idx = trimatu_ind(arma::size(D));
-    vec D_tril_vec = D(D_tril_idx);
-    for (uword i = 0; i < ntarget; i++)
-    {
-        gsl_vector_set(target, i, D_tril_vec(i));
-        gsl_vector_set(step_size, i, alpha);
-    }
-    gsl_vector *x0 = gsl_vector_alloc(ntarget);
-    gsl_vector_memcpy(x0, target);
-    gsl_multimin_fdfminimizer *minimizer = gsl_multimin_fdfminimizer_alloc(gsl_multimin_fdfminimizer_conjugate_fr, ntarget);
-    gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, alpha, eps_gradient);
-    if (verbose > 1)
-    {
-        ostringstream sout;
-        sout << setprecision(precision) << fixed << minimizer->x->data[0];
-        for (size_t i = 1; i < D_tril_vec.n_elem; i++)
-        {
-            sout << "," << minimizer->x->data[i];
-        }
-        sout << ";";
-        sout << setprecision(precision) << fixed << minimizer->gradient->data[0] << ",";
-        for (size_t i = 1; i < D_tril_vec.n_elem; i++)
-        {
-            sout << "," << minimizer->gradient->data[i];
-        }
-        sout << ";";
-        sout << minimizer->f << '\r';
-        pcout(sout.str());
-    }
+    const uword ntarget = D.n_cols * (D.n_cols + 1) / 2;
+    vec start = covariance_to_theta(D), best = start;
+    gsl_vector* target = gsl_vector_alloc(ntarget);
+    arma_to_gsl(start, target);
+    gsl_multimin_function_fdf function;
+    function.f = ml_gsl_f_D;
+    function.df = ml_gsl_df_D;
+    function.fdf = ml_gsl_fdf_D;
+    function.n = ntarget;
+    function.params = params;
+    gsl_multimin_fdfminimizer* minimizer = gsl_multimin_fdfminimizer_alloc(
+        gsl_multimin_fdfminimizer_vector_bfgs2, ntarget);
+    gsl_set_error_handler_off();
+    int status = gsl_multimin_fdfminimizer_set(minimizer, &function, target, alpha, ML_LINE_TOL);
+    double initial = status == GSL_SUCCESS && std::isfinite(minimizer->f)
+        ? minimizer->f : ML_BAD_OBJECTIVE;
+    double best_objective = initial;
     size_t iter = 0;
-    int status;
-    do
+    while (status == GSL_SUCCESS && iter < max_iters)
     {
-        gsl_vector_memcpy(x0, minimizer->x);
         status = gsl_multimin_fdfminimizer_iterate(minimizer);
+        ++iter;
+        if (status != GSL_SUCCESS) break;
+        if (std::isfinite(minimizer->f) && minimizer->f < best_objective)
+        {
+            best_objective = minimizer->f;
+            best = gsl_to_arma(minimizer->x, ntarget);
+        }
         if (verbose > 1)
         {
-            ostringstream sout;
-            sout << setprecision(precision) << fixed << minimizer->x->data[0];
-            for (size_t i = 1; i < D_tril_vec.n_elem; i++)
-            {
-                sout << "," << minimizer->x->data[i];
-            }
-            sout << ";";
-            sout << setprecision(precision) << fixed << minimizer->gradient->data[0];
-            for (size_t i = 1; i < D_tril_vec.n_elem; i++)
-            {
-                sout << "," << minimizer->gradient->data[i];
-            }
-            sout << ";";
-            sout << minimizer->f << '\r';
-            pcout(sout.str());
+            pcout("ML iter: " + to_string(iter) + ", objective: " + to_string(minimizer->f)
+                + ", gradient: " + to_string(gradient_norm(minimizer->gradient)) + "\n");
         }
-        if (status || gsl_isnan(minimizer->f)) break;
-        status = gsl_multimin_test_gradient(minimizer->gradient, eps_gradient);
-    } while (status == GSL_CONTINUE && (++iter) < max_iters);
-    if (verbose > 1)
-    {
-        pcout("\n");
-    }
-    if (!gsl_isnan(minimizer->f))
-    {
-        mat D1 = mat(arma::size(D), arma::fill::eye);
-        vec D_tri(arma::size(D_tril_idx));
-        for (uword i = 0; i < ntarget; i++)
+        int gradient_status = gsl_multimin_test_gradient(minimizer->gradient, eps_gradient);
+        if (gradient_status == GSL_SUCCESS)
         {
-            D_tri(i) = gsl_vector_get(minimizer->x, i);
+            status = GSL_SUCCESS;
+            break;
         }
-        D1(D_tril_idx) = D_tri;
-        D1 = D1.t();
-        D1(D_tril_idx) = D_tri;
-        D = D1;
+        if (gradient_status != GSL_CONTINUE)
+        {
+            status = gradient_status;
+            break;
+        }
     }
-    return minimizer->f;
+    if (iter >= max_iters && status == GSL_SUCCESS) status = GSL_CONTINUE;
+    mat candidate = theta_to_covariance(best, D.n_cols);
+    if (!candidate.is_empty() && std::isfinite(best_objective) && best_objective <= initial + 1e-12)
+    {
+        D = candidate;
+    }
+    ml_iterations += iter;
+    ml_status = status;
+    ml_converged = status == GSL_SUCCESS;
+    if (!ml_converged) ++ml_failures;
+    gsl_multimin_fdfminimizer_free(minimizer);
+    gsl_vector_free(target);
+    return best_objective;
 }
 
 double HGWR::fit_D_beta(ML_Params* params)
 {
-    int precision = int(log10(1.0 / eps_gradient));
-    uword p = beta.n_rows, q = D.n_cols, ntarget = p + q * (q + 1) / 2;
-    gsl_multimin_function_fdf minex_fun;
-    minex_fun.n = ntarget;
-    minex_fun.f = ml_gsl_f_D_beta;
-    minex_fun.df = ml_gsl_df_D_beta;
-    minex_fun.fdf = ml_gsl_fdf_D_beta;
-    minex_fun.params = (void*)params;
-    gsl_vector *target = gsl_vector_alloc(ntarget);//, *step_size = gsl_vector_alloc(ntarget);
-    for (uword i = 0; i < p; i++)
-    {
-        gsl_vector_set(target, i, beta(i));
-    }
-    uvec D_tril_idx = trimatl_ind(arma::size(D)), D_triu_idx = trimatu_ind(arma::size(D));
-    vec D_tril_vec = D(D_tril_idx);
-    for (uword i = p; i < ntarget; i++)
-    {
-        uword e = i - p;
-        gsl_vector_set(target, i, D_tril_vec(e));
-    }
-    gsl_vector *x0 = gsl_vector_alloc(ntarget);
-    gsl_vector_memcpy(x0, target);
-    gsl_multimin_fdfminimizer *minimizer = gsl_multimin_fdfminimizer_alloc(gsl_multimin_fdfminimizer_conjugate_fr, ntarget);
-    gsl_multimin_fdfminimizer_set(minimizer, &minex_fun, target, alpha, eps_gradient);
-    if (verbose > 1)
-    {
-        ostringstream sout;
-        sout << setprecision(precision) << fixed;
-        for (size_t i = 0; i < p; i++)
-        {
-            sout << minimizer->x->data[i] << ",";
-        }
-        sout << minimizer->x->data[p];
-        for (size_t i = 1; i < D_tril_vec.n_elem; i++)
-        {
-            sout << "," << minimizer->x->data[p + i];
-        }
-        sout << ";";
-        sout << setprecision(precision) << fixed;
-        for (size_t i = 0; i < p; i++)
-        {
-            sout << minimizer->gradient->data[i] << ",";
-        }
-        sout << minimizer->x->data[p];
-        for (size_t i = 1; i < D_tril_vec.n_elem; i++)
-        {
-            sout << "," << minimizer->gradient->data[p + i];
-        }
-        sout << ";"; 
-        sout << minimizer->f << '\r';
-        pcout(sout.str());
-    }
+    const uword ntheta = D.n_cols * (D.n_cols + 1) / 2;
+    const uword ntarget = beta.n_elem + ntheta;
+    vec start = join_cols(beta, covariance_to_theta(D)), best = start;
+    gsl_vector* target = gsl_vector_alloc(ntarget);
+    arma_to_gsl(start, target);
+    gsl_multimin_function_fdf function;
+    function.f = ml_gsl_f_D_beta;
+    function.df = ml_gsl_df_D_beta;
+    function.fdf = ml_gsl_fdf_D_beta;
+    function.n = ntarget;
+    function.params = params;
+    gsl_multimin_fdfminimizer* minimizer = gsl_multimin_fdfminimizer_alloc(
+        gsl_multimin_fdfminimizer_vector_bfgs2, ntarget);
+    gsl_set_error_handler_off();
+    int status = gsl_multimin_fdfminimizer_set(minimizer, &function, target, alpha, ML_LINE_TOL);
+    double initial = status == GSL_SUCCESS && std::isfinite(minimizer->f)
+        ? minimizer->f : ML_BAD_OBJECTIVE;
+    double best_objective = initial;
     size_t iter = 0;
-    int status;
-    do
+    while (status == GSL_SUCCESS && iter < max_iters)
     {
-        gsl_vector_memcpy(x0, minimizer->x);
         status = gsl_multimin_fdfminimizer_iterate(minimizer);
+        ++iter;
+        if (status != GSL_SUCCESS) break;
+        if (std::isfinite(minimizer->f) && minimizer->f < best_objective)
+        {
+            best_objective = minimizer->f;
+            best = gsl_to_arma(minimizer->x, ntarget);
+        }
         if (verbose > 1)
         {
-            ostringstream sout;
-            sout << setprecision(precision) << fixed;
-            for (size_t i = 0; i < p; i++)
-            {
-                sout << minimizer->x->data[i] << ",";
-            }
-            sout << minimizer->x->data[p];
-            for (size_t i = 1; i < D_tril_vec.n_elem; i++)
-            {
-                sout << "," << minimizer->x->data[p + i];
-            }
-            sout << ";";
-            sout << setprecision(precision) << fixed;
-            for (size_t i = 0; i < p; i++)
-            {
-                sout << minimizer->gradient->data[i] << ",";
-            }
-            sout << minimizer->x->data[p];
-            for (size_t i = 1; i < D_tril_vec.n_elem; i++)
-            {
-                sout << "," << minimizer->gradient->data[p + i];
-            }
-            sout << ";"; 
-            sout << minimizer->f << '\r';
-            pcout(sout.str());
+            pcout("ML iter: " + to_string(iter) + ", objective: " + to_string(minimizer->f)
+                + ", gradient: " + to_string(gradient_norm(minimizer->gradient)) + "\n");
         }
-        if (status || gsl_isnan(minimizer->f)) break;
-        status = gsl_multimin_test_gradient(minimizer->gradient, eps_gradient);
-    } while (status == GSL_CONTINUE && (++iter) < max_iters);
-    if (verbose > 1)
-    {
-        pcout("\n");
-    }
-    mat D1(arma::size(D), arma::fill::eye);
-    vec beta1(arma::size(beta), arma::fill::ones);
-    if (!gsl_isnan(minimizer->f))
-    {
-        vec D_tri(arma::size(D_tril_idx));
-        for (uword i = p; i < ntarget; i++)
+        int gradient_status = gsl_multimin_test_gradient(minimizer->gradient, eps_gradient);
+        if (gradient_status == GSL_SUCCESS)
         {
-            D_tri(i - p) = gsl_vector_get(minimizer->x, i);
+            status = GSL_SUCCESS;
+            break;
         }
-        D1(D_tril_idx) = D_tri;
-        D1 = D1.t();
-        D1(D_tril_idx) = D_tri;
-        for (uword i = 0; i < p; i++)
+        if (gradient_status != GSL_CONTINUE)
         {
-            beta1(i) = gsl_vector_get(minimizer->x, i);
+            status = gradient_status;
+            break;
         }
     }
-    D = D1;
-    beta = beta1;
-    return minimizer->f;
+    if (iter >= max_iters && status == GSL_SUCCESS) status = GSL_CONTINUE;
+    vec candidate_beta = best.head(beta.n_elem);
+    mat candidate_D = theta_to_covariance(best.tail(ntheta), D.n_cols);
+    if (!candidate_D.is_empty() && candidate_beta.is_finite() && std::isfinite(best_objective)
+        && best_objective <= initial + 1e-12)
+    {
+        D = candidate_D;
+        beta = candidate_beta;
+    }
+    ml_iterations += iter;
+    ml_status = status;
+    ml_converged = status == GSL_SUCCESS;
+    if (!ml_converged) ++ml_failures;
+    gsl_multimin_fdfminimizer_free(minimizer);
+    gsl_vector_free(target);
+    return best_objective;
 }
 
 void HGWR::fit_mu()
 {
-    mat D_inv = D.i();
     mu.fill(arma::fill::zeros);
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Xi = Xf[i];
         const mat& Yi = Yhf[i];
         const mat& Zi = Zf[i];
-        uword ndata = Zi.n_rows;
-        mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
-        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        mat Vi_inv;
+        if (!stable_covariance_inverse(D, Zi, Vi_inv)) throw runtime_error("Unable to factor group covariance in random-effect fit.");
         vec Ri = Yi - Xi * beta;
         mu.row(i) = (D * Zi.t() * Vi_inv * Ri).t();
     }
@@ -712,16 +794,14 @@ void HGWR::fit_mu()
 
 double HGWR::fit_sigma()
 {
-    mat D_inv = D.i();
     double sigma2 = 0.0;
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Xi = Xf[i];
         const mat& Yi = Yhf[i];
         const mat& Zi = Zf[i];
-        uword ndata = Zi.n_rows;
-        mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
-        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        mat Vi_inv;
+        if (!stable_covariance_inverse(D, Zi, Vi_inv)) throw runtime_error("Unable to factor group covariance in residual-scale fit.");
         mat Ri = Yi - Xi * beta;
         sigma2 += as_scalar(Ri.t() * Vi_inv * Ri);
     }
@@ -740,6 +820,10 @@ HGWR::Parameters HGWR::fit(const bool f_test)
     beta = vec(nvx, arma::fill::zeros);
     mu = mat(ngroup, nvz, arma::fill::zeros);
     D = mat(nvz, nvz, arma::fill::eye);
+    ml_converged = false;
+    ml_status = GSL_CONTINUE;
+    ml_iterations = 0;
+    ml_failures = 0;
     Zf = make_unique<arma::mat[]>(ngroup);
     Xf = make_unique<arma::mat[]>(ngroup);
     Yf = make_unique<arma::vec[]>(ngroup);
@@ -771,10 +855,12 @@ HGWR::Parameters HGWR::fit(const bool f_test)
     //============
     // Backfitting
     //============
-    size_t retry = 0;
-    double rss = DBL_MAX, rss0 = DBL_MAX, diff = DBL_MAX, mlf = 0.0;
-    for (size_t iter = 0; (abs(diff) > eps_iter) && iter < max_iters && retry < max_retries; iter++)
+    size_t retry = 0, iterations = 0;
+    double rss = DBL_MAX, rss0 = DBL_MAX, diff = DBL_MAX;
+    double mlf = DBL_MAX, mlf0 = DBL_MAX, relative_objective_diff = DBL_MAX;
+    for (size_t iter = 0; relative_objective_diff > eps_iter && iter < max_iters && retry < max_retries; iter++)
     {
+        iterations = iter + 1;
         rss0 = rss;
         //--------------------
         // Initial Guess for M
@@ -794,6 +880,7 @@ HGWR::Parameters HGWR::fit(const bool f_test)
         //------------------------------------
         // Maximum Likelihood Estimation for D
         //------------------------------------
+        mlf0 = mlf;
         ML_Params ml_params = { Xf.get(), Yhf.get(), Zf.get(), &beta, ngroup, ndata, nvx, nvz };
         switch (ml_type)
         {
@@ -815,11 +902,12 @@ HGWR::Parameters HGWR::fit(const bool f_test)
         vec residual = yhat % yhat;
         rss = sum(residual);
         diff = rss - rss0;
-        if (rss < rss0) 
+        relative_objective_diff = std::abs(mlf - mlf0) / std::max(std::abs(mlf0), 1.0);
+        if (mlf < mlf0)
         {
             if (retry > 0) retry = 0;
         }
-        else if (iter > 0) retry++;
+        else if (iter > 0 && relative_objective_diff > std::max(std::sqrt(eps_iter), 1e-4)) retry++;
         if (verbose > 0)
         {
             ostringstream sout;
@@ -829,37 +917,54 @@ HGWR::Parameters HGWR::fit(const bool f_test)
             if (abs(diff) < DBL_MAX) sout << ", " << "dRSS: " << diff;
             sout << ", " << "R2: " << (1 - rss / tss);
             sout << ", " << "-loglik/n: " << mlf;
+            if (std::isfinite(mlf0)) sout << ", " << "relative objective change: " << relative_objective_diff;
             if (retry > 0) sout << ", " << "Retry: " << retry;
             sout << endl;
             pcout(sout.str());
         }
         (*(this->pcancel))();
     }
-    sigma = fit_sigma();
     if (verbose > 0) pcout("Re-fit GLSW effects for f test\n");
     for (uword i = 0; i < ngroup; i++)
     {
         Ygf[i] = Yf[i] - Xf[i] * beta;
     }
     fit_gwr(true, f_test);
+    // The F statistic and standard errors must use the residual-scale estimate
+    // corresponding to the final GLSW surface, rather than the surface from
+    // the preceding backfitting iteration.
+    for (uword i = 0; i < ngroup; i++)
+    {
+        Yhf[i] = Yf[i] - sum(G.row(i) % gamma.row(i));
+    }
+    sigma = fit_sigma();
+    gamma_se = sigma * sqrt(gamma_se);
     //============
     // Diagnostic
     //============
     loglik = - mlf * double(ndata);
     calc_var_beta();
-    return { gamma, beta, mu, D, sigma, bw };
+    vec D_eigenvalues;
+    const bool eig_ok = eig_sym(D_eigenvalues, 0.5 * (D + D.t()));
+    const double min_eigen_D = eig_ok ? D_eigenvalues.min() : datum::nan;
+    const bool parameters_finite = gamma.is_finite() && beta.is_finite() && mu.is_finite()
+        && D.is_finite() && std::isfinite(sigma) && std::isfinite(loglik)
+        && std::isfinite(min_eigen_D) && min_eigen_D > 0.0;
+    const bool converged = std::isfinite(relative_objective_diff) && relative_objective_diff <= eps_iter
+        && ml_converged && parameters_finite;
+    return { gamma, beta, mu, D, sigma, bw, iterations, retry, converged,
+        ml_converged, ml_status, ml_iterations, ml_failures, min_eigen_D };
 }
 
 void HGWR::calc_var_beta()
 {
-    mat D_inv = D.i(), XtViX(X.n_cols, X.n_cols, arma::fill::zeros);
+    mat XtViX(X.n_cols, X.n_cols, arma::fill::zeros);
     for (uword i = 0; i < ngroup; i++)
     {
         const mat& Xi = Xf[i];
         const mat& Zi = Zf[i];
-        uword ndata = Zi.n_rows;
-        mat Vi = Zi * D * Zi.t() + eye(ndata, ndata);
-        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        mat Vi_inv;
+        if (!stable_covariance_inverse(D, Zi, Vi_inv)) throw runtime_error("Unable to factor group covariance in fixed-effect variance fit.");
         XtViX += Xi.t() * Vi_inv * Xi;
     }
     var_beta = diagvec(XtViX.i());
@@ -870,8 +975,15 @@ std::vector<arma::vec4> HGWR::test_glsw()
     if (verbose > 0) pcout("Preparing f test\n");
     uword ng = gamma.n_cols;
     double nd = double(ndata);
+    if (!(trQ(0) > 0.0) || !(trQ(1) > 0.0) || !trQ.is_finite())
+    {
+        throw runtime_error("Invalid residual trace moments in GLSW F test. Fit the model with f_test = TRUE.");
+    }
+    if (!(sigma > 0.0) || !std::isfinite(sigma))
+    {
+        throw runtime_error("Invalid residual-scale estimate in GLSW F test.");
+    }
     double df2 = trQ(0) * trQ(0) / trQ(1);
-    mat D_inv = D.i();
     unique_ptr<mat[]> Vf = make_unique<mat[]>(ngroup);
     unique_ptr<mat[]> GVGf = make_unique<mat[]>(ngroup);
     unique_ptr<mat[]> GVf = make_unique<mat[]>(ngroup);
@@ -880,7 +992,8 @@ std::vector<arma::vec4> HGWR::test_glsw()
         uvec ind = find(group == i);
         const mat& Zi = Zf[i];
         Vf[i] = Zi * D * Zi.t() + eye(Zi.n_rows, Zi.n_rows);
-        mat Vi_inv = woodbury_eye(D_inv, Zi);
+        mat Vi_inv;
+        if (!stable_covariance_inverse(D, Zi, Vi_inv)) throw runtime_error("Unable to factor group covariance in GLSW test.");
         uword nidata = Zi.n_rows;
         GVf[i] = G.row(i).t() * ones(1, nidata) * Vi_inv;
         GVGf[i] = (GVf[i] * ones(nidata, 1) * G.row(i));
@@ -890,71 +1003,219 @@ std::vector<arma::vec4> HGWR::test_glsw()
     {
         nw(i) = double(Zf[i].n_rows);
     }
+    vec yg(ndata, arma::fill::zeros);
+    for (uword i = 0; i < ngroup; ++i) yg.rows(group_span[i]) = Ygf[i];
+
+    // Compute every coefficient map once.  The experimental single-model
+    // adjustments below need the maps for the target and nuisance surfaces.
+    vector<mat> coefficient_maps;
+    coefficient_maps.reserve(ng);
+    for (uword k = 0; k < ng; ++k)
+    {
+        coefficient_maps.emplace_back(ngroup, ndata, arma::fill::zeros);
+    }
+    for (uword i = 0; i < ngroup; i++)
+    {
+        mat d_u = u.each_row() - u.row(i);
+        vec d = sqrt(sum(d_u % d_u, 1));
+        double fb = actual_bw(d, bw);
+        vec w = (*gwr_kernel)(d % d, fb * fb);
+        mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
+        for (size_t j = 0; j < ngroup; j++)
+        {
+            GWVG += (w[j] * GVGf[j]);
+            GWV.cols(group_span[j]) = w[j] * GVf[j];
+        }
+        mat Cit = GWV.t() * GWVG.i().t();
+        for (uword k = 0; k < ng; ++k) coefficient_maps[k].row(i) = Cit.col(k).t();
+    }
+
+    vec fitted_glsw = sum(G % gamma, 1);
+    mat smoother_by_group(ngroup, ndata, arma::fill::zeros);
+    for (uword i = 0; i < ngroup; ++i)
+    {
+        for (uword l = 0; l < ng; ++l)
+        {
+            smoother_by_group.row(i) += G(i, l) * coefficient_maps[l].row(i);
+        }
+    }
+    vec residual = yg - fitted_glsw.rows(group);
+    double rssg = 0.0;
+    for (uword i = 0; i < ngroup; ++i)
+    {
+        vec residual_i = Ygf[i] - fitted_glsw(i);
+        rssg += dot(residual_i, residual_i);
+    }
+    double sigma_f3_sq = rssg / trQ(0);
+    if (!(sigma_f3_sq > 0.0) || !std::isfinite(sigma_f3_sq))
+    {
+        throw runtime_error("Invalid F3 residual-scale estimate in GLSW F test.");
+    }
+
+    vec observation_weights = nw / nd;
+    mat pair_weights = observation_weights * observation_weights.t();
+    auto weighted_variance = [&](const vec& surface)
+    {
+        double weighted_sum = dot(nw, surface);
+        double weighted_sum_sq = dot(nw, square(surface));
+        return (weighted_sum_sq - weighted_sum * weighted_sum / nd) / nd;
+    };
+    auto trace_moments = [&](const mat& coefficient_map)
+    {
+        rowvec weighted_mean_map = nw.t() * coefficient_map / nd;
+        mat centred_map = coefficient_map.each_row() - weighted_mean_map;
+        mat coefficient_cov(ngroup, ngroup, arma::fill::zeros);
+        for (uword j = 0; j < ngroup; ++j)
+        {
+            mat Cj = centred_map.cols(group_span[j]);
+            coefficient_cov += Cj * Vf[j] * Cj.t();
+        }
+        coefficient_cov = 0.5 * (coefficient_cov + coefficient_cov.t());
+        vec moments(2);
+        moments(0) = dot(observation_weights, coefficient_cov.diag());
+        moments(1) = accu(pair_weights % square(coefficient_cov));
+        return moments;
+    };
+
     vector<vec4> results;
+    f_test_scale.clear();
+    f_test_nuisance.clear();
+    f_test_combined.clear();
+    f_test_orthogonal.clear();
+    f_test_diagnostics.zeros(ng, 10);
     for (uword k = 0; k < ng; k++)
     {
         if (verbose > 0) pcout("Doing f test for effect " + to_string(k) + "\n");
-        double sum_gk = sum(gamma.col(k) % nw);
-        double sum_gk2 = sum(gamma.col(k) % gamma.col(k) % nw);
-        double vk2 = (sum_gk2 - sum_gk * sum_gk / nd) / nd;
-        vec c(ndata, arma::fill::zeros);
-        for (uword i = 0; i < ngroup; i++)
+        const mat& coefficient_map = coefficient_maps[k];
+        double vk2 = weighted_variance(gamma.col(k));
+
+        // H_{-k} maps y_g to the fitted contribution from all other GLSW
+        // surfaces, using only the already-fitted complete HGWR model.
+        mat nuisance_smoother(ngroup, ndata, arma::fill::zeros);
+        for (uword i = 0; i < ngroup; ++i)
         {
-            double ni = double(GVf[i].n_cols);
-            mat d_u = u.each_row() - u.row(i);
-            vec d = sqrt(sum(d_u % d_u, 1));
-            double fb = actual_bw(d, bw);
-            vec w = (*gwr_kernel)(d % d, fb * fb);
-            mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
-            for (size_t j = 0; j < ngroup; j++)
+            for (uword l = 0; l < ng; ++l)
             {
-                GWVG += (w[j] * GVGf[j]);
-                GWV.cols(find(group == j)) = w[j] * GVf[j];
-            }
-            mat Cit = GWV.t() * GWVG.i().t();
-            vec bi = Cit.col(k);
-            c += bi * double(ni);
-        }
-        unique_ptr<mat[]> Bf = make_unique<mat[]>(ngroup);
-        for (size_t j = 0; j < ngroup; j++)
-        {
-            Bf[j].resize(size(Vf[j]));
-            Bf[j].fill(0.0);
-        }
-        for (uword i = 0; i < ngroup; i++)
-        {
-            double ni = double(GVf[i].n_cols);
-            mat d_u = u.each_row() - u.row(i);
-            vec d = sqrt(sum(d_u % d_u, 1));
-            double fb = actual_bw(d, bw);
-            vec w = (*gwr_kernel)(d % d, fb * fb);
-            mat GWVG(ng, ng, arma::fill::zeros), GWV(ng, ndata, arma::fill::zeros);
-            for (size_t j = 0; j < ngroup; j++)
-            {
-                GWVG += GVGf[j] * w[j];
-                GWV.cols(find(group == j)) = GVf[j] * w[j];
-            }
-            mat Cit = GWV.t() * GWVG.i().t();
-            vec bi = Cit.col(k);
-            for (uword j = 0; j < ngroup; j++)
-            {
-                vec bij = bi.rows(group_span[j]);
-                vec cij = c.rows(group_span[j]);
-                Bf[j] += bij * bij.t() * ni - cij * bij.t() * ni / nd;
+                if (l != k) nuisance_smoother.row(i) += G(i, l) * coefficient_maps[l].row(i);
             }
         }
-        double trB = 0.0, trB2 = 0.0;
-        for (size_t j = 0; j < ngroup; j++)
+        mat coefficient_group_sums(ngroup, ngroup, arma::fill::zeros);
+        for (uword j = 0; j < ngroup; ++j)
         {
-            Bf[j] *= Vf[j] / nd;
-            trB += trace(Bf[j]);
-            trB2 += trace(Bf[j] * Bf[j]);
+            coefficient_group_sums.col(j) = sum(coefficient_map.cols(group_span[j]), 1);
         }
-        double fv = vk2 / trB / (sigma * sigma);
-        double df1 = trB * trB / trB2;
-        double pv = gsl_cdf_fdist_Q(fv, df1, df2);
-        vec4 result = { fv, df1, df2, pv };
-        results.push_back(result);
+        mat adjusted_map = coefficient_map - coefficient_group_sums * nuisance_smoother;
+        vec adjusted_gamma = adjusted_map * yg;
+        double adjusted_vk2 = weighted_variance(adjusted_gamma);
+
+        vec legacy_moments = trace_moments(coefficient_map);
+        vec adjusted_moments = trace_moments(adjusted_map);
+        if (!(legacy_moments(0) > 0.0) || !(legacy_moments(1) > 0.0) ||
+            !(adjusted_moments(0) > 0.0) || !(adjusted_moments(1) > 0.0) ||
+            !legacy_moments.is_finite() || !adjusted_moments.is_finite())
+        {
+            throw runtime_error("Invalid coefficient trace moments in GLSW F test.");
+        }
+
+        double legacy_df1 = legacy_moments(0) * legacy_moments(0) / legacy_moments(1);
+        double adjusted_df1 = adjusted_moments(0) * adjusted_moments(0) / adjusted_moments(1);
+        auto make_result = [&](double variance, double expectation, double scale_sq, double df1)
+        {
+            double fv = variance / expectation / scale_sq;
+            double pv = gsl_cdf_fdist_Q(fv, df1, df2);
+            return vec4({ fv, df1, df2, pv });
+        };
+
+        results.push_back(make_result(vk2, legacy_moments(0), sigma * sigma, legacy_df1));
+        f_test_scale.push_back(make_result(vk2, legacy_moments(0), sigma_f3_sq, legacy_df1));
+        f_test_nuisance.push_back(make_result(
+            adjusted_vk2, adjusted_moments(0), sigma * sigma, adjusted_df1
+        ));
+        f_test_combined.push_back(make_result(
+            adjusted_vk2, adjusted_moments(0), sigma_f3_sq, adjusted_df1
+        ));
+
+        // F3 treats the coefficient-surface quadratic form and residual scale
+        // as independent.  A GWR smoother is not an orthogonal projection, so
+        // remove from the complete-model residual the component linearly
+        // predictable from the adjusted coefficient contrast.  This remains a
+        // single-fit calculation and uses no restricted/null model.
+        rowvec adjusted_weighted_mean = nw.t() * adjusted_map / nd;
+        mat adjusted_centred_map = adjusted_map.each_row() - adjusted_weighted_mean;
+        mat adjusted_cov(ngroup, ngroup, arma::fill::zeros);
+        mat smoother_cov_adjusted(ngroup, ngroup, arma::fill::zeros);
+        for (uword j = 0; j < ngroup; ++j)
+        {
+            mat Aj = adjusted_centred_map.cols(group_span[j]);
+            adjusted_cov += Aj * Vf[j] * Aj.t();
+            smoother_cov_adjusted += smoother_by_group.cols(group_span[j]) * Vf[j] * Aj.t();
+        }
+        adjusted_cov = 0.5 * (adjusted_cov + adjusted_cov.t());
+        mat residual_coefficient_cov(ndata, ngroup, arma::fill::zeros);
+        for (uword i = 0; i < ngroup; ++i)
+        {
+            mat Ai = adjusted_centred_map.cols(group_span[i]);
+            residual_coefficient_cov.rows(group_span[i]) =
+                Vf[i] * Ai.t() -
+                ones<vec>(Vf[i].n_rows) * smoother_cov_adjusted.row(i);
+        }
+        mat adjusted_cov_pinv = pinv(adjusted_cov);
+        vec adjusted_contrast = adjusted_centred_map * yg;
+        vec orthogonal_residual = residual -
+            residual_coefficient_cov * adjusted_cov_pinv * adjusted_contrast;
+        double orthogonal_rss = dot(orthogonal_residual, orthogonal_residual);
+
+        mat utu = residual_coefficient_cov.t() * residual_coefficient_cov;
+        mat group_sums_u(ngroup, ngroup, arma::fill::zeros);
+        for (uword i = 0; i < ngroup; ++i)
+        {
+            group_sums_u.row(i) = sum(residual_coefficient_cov.rows(group_span[i]), 0);
+        }
+        mat rt_u = residual_coefficient_cov - smoother_by_group.t() * group_sums_u;
+        mat v_rt_u(ndata, ngroup, arma::fill::zeros);
+        for (uword i = 0; i < ngroup; ++i)
+        {
+            v_rt_u.rows(group_span[i]) = Vf[i] * rt_u.rows(group_span[i]);
+        }
+        mat smoother_v_rt_u = smoother_by_group * v_rt_u;
+        mat omega_u = v_rt_u;
+        for (uword i = 0; i < ngroup; ++i)
+        {
+            omega_u.rows(group_span[i]) -=
+                ones<vec>(Vf[i].n_rows) * smoother_v_rt_u.row(i);
+        }
+        mat ut_omega_u = residual_coefficient_cov.t() * omega_u;
+        double orthogonal_delta1 = trQ(0) - trace(adjusted_cov_pinv * utu);
+        double orthogonal_delta2 = trQ(1)
+            - 2.0 * trace(adjusted_cov_pinv * ut_omega_u)
+            + trace(adjusted_cov_pinv * utu * adjusted_cov_pinv * utu);
+        if (!(orthogonal_rss > 0.0) || !(orthogonal_delta1 > 0.0) ||
+            !(orthogonal_delta2 > 0.0) || !std::isfinite(orthogonal_rss) ||
+            !std::isfinite(orthogonal_delta1) || !std::isfinite(orthogonal_delta2))
+        {
+            throw runtime_error("Invalid orthogonal residual moments in adjusted GLSW F test.");
+        }
+        double orthogonal_df2 = orthogonal_delta1 * orthogonal_delta1 / orthogonal_delta2;
+        double orthogonal_f = (adjusted_vk2 / adjusted_moments(0)) /
+            (orthogonal_rss / orthogonal_delta1);
+        double orthogonal_p = gsl_cdf_fdist_Q(orthogonal_f, adjusted_df1, orthogonal_df2);
+        f_test_orthogonal.push_back(vec4({
+            orthogonal_f, adjusted_df1, orthogonal_df2, orthogonal_p
+        }));
+
+        double map_identity_error = norm(coefficient_map * yg - gamma.col(k), 2);
+        double centred_norm = weighted_variance(gamma.col(k));
+        double leakage_fraction = centred_norm > 0.0
+            ? weighted_variance(gamma.col(k) - adjusted_gamma) / centred_norm
+            : 0.0;
+        double quadratic_covariance = 2.0 * trace(diagmat(observation_weights) * utu);
+        double quadratic_correlation = quadratic_covariance /
+            sqrt((2.0 * adjusted_moments(1)) * (2.0 * trQ(1)));
+        f_test_diagnostics.row(k) = rowvec({
+            sigma * sigma, sigma_f3_sq, rssg, vk2, adjusted_vk2,
+            leakage_fraction, map_identity_error, quadratic_correlation,
+            orthogonal_rss, orthogonal_df2
+        });
     }
     return results;
 }
